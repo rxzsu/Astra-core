@@ -72,12 +72,12 @@ mod tests {
     fn test_rand_between() {
         for _ in 0..100 {
             let v = rand_between(5, 10);
-            assert!(v >= 5 && v <= 10, "{} not in [5,10]", v);
+            assert!((5..=10).contains(&v), "{} not in [5,10]", v);
         }
         assert_eq!(rand_between(7, 7), 7);
         // rand_between(lo, hi) where lo > hi should be same distribution as reversed
         let a = rand_between(10, 5);
-        assert!(a >= 5 && a <= 10);
+        assert!((5..=10).contains(&a));
     }
 
     #[test]
@@ -85,7 +85,7 @@ mod tests {
         let mut buf = [0u8; 1000];
         rand_bytes_between(&mut buf, 32, 126);
         for &b in &buf {
-            assert!(b >= 32 && b <= 126);
+            assert!((32..=126).contains(&b));
         }
     }
 
