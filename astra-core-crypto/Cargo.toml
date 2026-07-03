@@ -1,7 +1,7 @@
 [package]
 name = "astra-core-crypto"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Astra-core crypto package — AEAD, chunked streams, stream cipher wrappers"
 license = "MIT"
 
