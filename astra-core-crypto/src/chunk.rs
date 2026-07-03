@@ -63,7 +63,7 @@ impl ChunkSizeDecoder for AeadChunkSizeParser {
         let mut tmp = Vec::new();
         let decrypted = auth
             .open(&mut tmp, b)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
         let size = u16::from_be_bytes([decrypted[0], decrypted[1]]);
         Ok(size + auth.overhead() as u16)
     }

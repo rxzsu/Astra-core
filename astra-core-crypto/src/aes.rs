@@ -204,11 +204,11 @@ fn key_expansion(key: &[u8]) -> Vec<[u8; 16]> {
 fn aes_encrypt_block(state: &mut [u8; 16], round_keys: &[[u8; 16]]) {
     let nr = round_keys.len() - 1;
     add_round_key(state, &round_keys[0]);
-    for round in 1..nr {
+    for rk in round_keys.iter().take(nr).skip(1) {
         sub_bytes(state);
         shift_rows(state);
         mix_columns(state);
-        add_round_key(state, &round_keys[round]);
+        add_round_key(state, rk);
     }
     sub_bytes(state);
     shift_rows(state);

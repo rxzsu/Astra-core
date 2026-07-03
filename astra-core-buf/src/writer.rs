@@ -45,7 +45,7 @@ impl BufferedWriter {
 
     pub fn flush(&mut self) -> io::Result<()> {
         if !self.buffer.is_empty() {
-            let buf = std::mem::replace(&mut self.buffer, Buffer::new());
+            let buf = std::mem::take(&mut self.buffer);
             self.writer.write_multi_buffer(MultiBuffer::with_buffer(buf))?;
         }
         Ok(())

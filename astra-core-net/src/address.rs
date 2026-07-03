@@ -99,10 +99,10 @@ pub fn DomainAddress(domain: &str) -> Address {
 }
 
 pub fn ParseAddress(addr: &str) -> Address {
-    if let Some(inner) = addr.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-        if let Ok(v6) = inner.parse::<std::net::Ipv6Addr>() {
-            return Address::Ipv6(v6.octets());
-        }
+    if let Some(inner) = addr.strip_prefix('[').and_then(|s| s.strip_suffix(']'))
+        && let Ok(v6) = inner.parse::<std::net::Ipv6Addr>()
+    {
+        return Address::Ipv6(v6.octets());
     }
     if let Ok(v4) = addr.parse::<std::net::Ipv4Addr>() {
         return Address::Ipv4(v4.octets());

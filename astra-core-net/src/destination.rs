@@ -89,9 +89,9 @@ fn split_host_port(s: &str) -> Result<(&str, &str), String> {
         if let Some(port_str) = rest.strip_prefix(':') {
             Ok((addr, port_str))
         } else if rest.is_empty() {
-            return Err("missing port after IPv6 address".to_string());
+            Err("missing port after IPv6 address".to_string())
         } else {
-            return Err(format!("unexpected characters after bracket: {}", rest));
+            Err(format!("unexpected characters after bracket: {}", rest))
         }
     } else {
         let colon = s.rfind(':').ok_or_else(|| format!("missing port in {}", s))?;

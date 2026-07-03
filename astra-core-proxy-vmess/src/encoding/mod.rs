@@ -1,2 +1,2 @@
-pub mod encoding;
 pub mod auth;
+pub mod version;

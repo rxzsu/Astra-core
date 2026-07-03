@@ -186,7 +186,7 @@ impl AuthenticationReader {
         let rb = self
             .auth
             .open(&mut tmp, &b.slice()[..actual_size])
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
         b.extend(rb.len());
         let n = rb.len().min(b.writable_mut().len());
         b.writable_mut()[..n].copy_from_slice(&rb[..n]);
@@ -196,7 +196,7 @@ impl AuthenticationReader {
 
     fn read_internal(&mut self, soft: bool, mb: &mut MultiBuffer) -> io::Result<()> {
         if soft && self.reader.buffered_bytes() < self.size_parser.size_bytes() as usize {
-            return Err(io::Error::new(io::ErrorKind::Other, Self::ERR_SOFT));
+            return Err(io::Error::other(Self::ERR_SOFT));
         }
 
         if self.done {
@@ -214,7 +214,7 @@ impl AuthenticationReader {
             self.cached_size = size;
             self.cached_padding = padding;
             self.has_size = true;
-            return Err(io::Error::new(io::ErrorKind::Other, Self::ERR_SOFT));
+            return Err(io::Error::other(Self::ERR_SOFT));
         }
 
         if size <= SIZE as u16 {
@@ -235,7 +235,7 @@ impl AuthenticationReader {
         let rb = self
             .auth
             .open(&mut tmp, &payload[..actual_size])
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
 
         let buf = Buffer::from_slice(&rb);
         mb.push_back(buf);

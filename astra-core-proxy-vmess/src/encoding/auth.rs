@@ -1,6 +1,7 @@
 use astra_core_crypto::auth::AeadAuthenticator;
 
 /// Chunk size adapter that delegates to an AEAD authenticator for size encryption.
+#[allow(dead_code)]
 pub struct AEADSizeParser {
     auth: AeadAuthenticator,
 }

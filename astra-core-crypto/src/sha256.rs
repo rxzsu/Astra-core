@@ -97,9 +97,8 @@ impl Default for Sha256 {
 fn sha256_compress(state: &mut [u32; 8], block: &[u8]) {
     let mut w = [0u32; 64];
 
-    for i in 0..16 {
-        let off = i * 4;
-        w[i] = u32::from_be_bytes([block[off], block[off + 1], block[off + 2], block[off + 3]]);
+    for (i, chunk) in block.chunks_exact(4).enumerate().take(16) {
+        w[i] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
     }
 
     for i in 16..64 {
