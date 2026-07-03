@@ -5,6 +5,7 @@ pub mod chunk;
 pub mod cipher;
 pub mod generator;
 pub mod rand;
+pub mod sha256;
 pub mod stream;
 
 pub use aes::{AesCfbStream, AesCipher, AesCtrStream, AesGcmCipher};
@@ -17,4 +18,5 @@ pub use chunk::{
 pub use cipher::{AeadCipher, StreamCipher};
 pub use generator::BytesGenerator;
 pub use rand::{rand_between, rand_bytes_between};
+pub use sha256::Sha256;
 pub use stream::{CryptionReader, CryptionWriter};

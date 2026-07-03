@@ -5,4 +5,5 @@ members = [
     "astra-core-crypto",
     "astra-core-net",
     "astra-core-proto",
+    "astra-core-proxy-vmess",
 ]
