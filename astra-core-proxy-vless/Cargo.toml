@@ -1,0 +1,12 @@
+[package]
+name = "astra-core-proxy-vless"
+version = "0.1.0"
+edition = "2024"
+description = "Astra-core VLESS proxy protocol implementation"
+license = "MIT"
+
+[dependencies]
+astra-core-buf = { path = "../astra-core-buf" }
+astra-core-crypto = { path = "../astra-core-crypto" }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proto = { path = "../astra-core-proto" }

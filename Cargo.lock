@@ -25,6 +25,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-proxy-vless"
+version = "0.1.0"
+dependencies = [
+ "astra-core-buf",
+ "astra-core-crypto",
+ "astra-core-net",
+ "astra-core-proto",
+]
+
+[[package]]
 name = "astra-core-proxy-vmess"
 version = "0.1.0"
 dependencies = [
