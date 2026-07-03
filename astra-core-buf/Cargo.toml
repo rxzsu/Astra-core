@@ -1,0 +1,8 @@
+[package]
+name = "astra-core-buf"
+version = "0.1.0"
+edition = "2021"
+description = "Astra-core buffer package — zero-copy recyclable buffers with pool allocation"
+license = "MIT"
+
+[dependencies]
