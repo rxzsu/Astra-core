@@ -3,4 +3,5 @@ resolver = "2"
 members = [
     "astra-core-buf",
     "astra-core-crypto",
+    "astra-core-net",
 ]

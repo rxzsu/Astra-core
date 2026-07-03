@@ -1,0 +1,8 @@
+[package]
+name = "astra-core-net"
+version = "0.1.0"
+edition = "2021"
+description = "Astra-core net package — Address, Network, Port, Destination"
+license = "MIT"
+
+[dependencies]

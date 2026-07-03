@@ -12,3 +12,7 @@ version = "0.1.0"
 dependencies = [
  "astra-core-buf",
 ]
+
+[[package]]
+name = "astra-core-net"
+version = "0.1.0"
