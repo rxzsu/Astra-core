@@ -16,3 +16,10 @@ dependencies = [
 [[package]]
 name = "astra-core-net"
 version = "0.1.0"
+
+[[package]]
+name = "astra-core-proto"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+]

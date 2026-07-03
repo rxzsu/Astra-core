@@ -1,0 +1,9 @@
+[package]
+name = "astra-core-proto"
+version = "0.1.0"
+edition = "2024"
+description = "Astra-core protocol types — User, TransferType, Request/Response, SecuritySettings, ID"
+license = "MIT"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
