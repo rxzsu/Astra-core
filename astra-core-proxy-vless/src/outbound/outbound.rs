@@ -1,6 +1,8 @@
 use std::io::{Read, Write};
+use std::sync::Arc;
 
 use astra_core_net::Destination;
+use astra_core_routing::Router;
 
 use crate::encoding::{Addons, EncodeRequestHeader, LengthPacketReader};
 
@@ -8,6 +10,7 @@ use crate::encoding::{Addons, EncodeRequestHeader, LengthPacketReader};
 pub struct OutboundConfig {
     pub flow: String,
     pub seed: Option<Vec<u8>>,
+    pub router: Option<Arc<Router>>,
 }
 
 /// Outbound VLESS handler.
@@ -24,6 +27,15 @@ pub struct OutboundHandler {
 impl OutboundHandler {
     pub fn new(config: OutboundConfig) -> Self {
         OutboundHandler { config }
+    }
+
+    /// Resolve the target destination using the router, falling back to the given hint.
+    pub fn route_target(&self, hint: &Destination) -> Destination {
+        self.config
+            .router
+            .as_ref()
+            .and_then(|r| r.route(&hint.address, hint.port.value()))
+            .unwrap_or_else(|| hint.clone())
     }
 
     /// Process an outbound VLESS connection.
@@ -94,18 +106,15 @@ mod tests {
         let handler = OutboundHandler::new(OutboundConfig {
             flow: "none".into(),
             seed: None,
+            router: None,
         });
 
-        // Simulate a server that returns a valid response
         let dest = Destination {
             network: Network::Tcp,
             address: Address::Ipv4([10, 0, 0, 1]),
             port: Port(443),
         };
 
-        // Expected: server reads header and writes response
-        // For a real test we'd need a full server mock, this just checks
-        // that encode doesn't panic.
         let resp_addons = Addons::default();
         let resp_data = crate::encoding::EncodeResponseHeader(&resp_addons);
         let resp_packet = LengthPacketReader::encode_packet(&resp_data);
@@ -115,5 +124,51 @@ mod tests {
 
         let result = handler.process(&dest, &mut reader, &mut writer);
         assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_route_target_fallback() {
+        let handler = OutboundHandler::new(OutboundConfig {
+            flow: "none".into(),
+            seed: None,
+            router: None,
+        });
+
+        let hint = Destination {
+            network: Network::Tcp,
+            address: Address::Ipv4([10, 0, 0, 1]),
+            port: Port(80),
+        };
+        assert_eq!(handler.route_target(&hint), hint);
+    }
+
+    #[test]
+    fn test_route_target_with_router() {
+        use astra_core_routing::{RouteFilter, RouteRule, RouterConfig};
+        use astra_core_net::destination::TcpDestination;
+
+        let router = Router::new(
+            RouterConfig {
+                rules: vec![RouteRule {
+                    filter: RouteFilter::Domain("example.com".into()),
+                    target: TcpDestination(Address::Ipv4([1, 2, 3, 4]), Port(8080)),
+                }],
+            },
+            None,
+        );
+        let handler = OutboundHandler::new(OutboundConfig {
+            flow: "none".into(),
+            seed: None,
+            router: Some(Arc::new(router)),
+        });
+
+        let hint = Destination {
+            network: Network::Tcp,
+            address: Address::Domain("example.com".into()),
+            port: Port(80),
+        };
+        let routed = handler.route_target(&hint);
+        assert_eq!(routed.address, Address::Ipv4([1, 2, 3, 4]));
+        assert_eq!(routed.port, Port(8080));
     }
 }

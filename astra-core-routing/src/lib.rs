@@ -12,7 +12,7 @@ pub mod u32_filter;
 pub use domain::{Domain, DomainFilter};
 pub use mask::{IpMask, IPv4Mask, IPv6Mask};
 pub use range::{IPv4Range, IPv6Range, RangeFilter};
-pub use router::{Router, RouterConfig};
+pub use router::{RouteFilter, RouteRule, Router, RouterConfig};
 pub use rule::{Rule, RuleFilter};
 pub use u32_filter::U32Filter;
 

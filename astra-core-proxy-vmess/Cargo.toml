@@ -10,4 +10,5 @@ astra-core-buf = { workspace = true }
 astra-core-crypto = { workspace = true }
 astra-core-net = { workspace = true }
 astra-core-proto = { workspace = true }
+astra-core-routing = { workspace = true }
 rand = { workspace = true }

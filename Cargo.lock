@@ -79,6 +79,7 @@ dependencies = [
  "astra-core-crypto",
  "astra-core-net",
  "astra-core-proto",
+ "astra-core-routing",
 ]
 
 [[package]]
@@ -89,6 +90,7 @@ dependencies = [
  "astra-core-crypto",
  "astra-core-net",
  "astra-core-proto",
+ "astra-core-routing",
  "rand",
 ]
 
