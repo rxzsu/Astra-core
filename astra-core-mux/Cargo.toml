@@ -1,0 +1,13 @@
+[package]
+name = "astra-core-mux"
+version = "0.1.0"
+edition = "2021"
+description = "Xray-core mux protocol implementation (multiplexing over a single connection)"
+
+[dependencies]
+astra-core-buf = { path = "../astra-core-buf" }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proto = { path = "../astra-core-proto" }
+tokio = { workspace = true }
+bytes = "1"
+tracing = { workspace = true }

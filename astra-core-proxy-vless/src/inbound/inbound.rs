@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 
 use astra_core_proto::RequestHeader;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::encoding::{Addons, DecodeRequestHeader, EncodeResponseHeader};
 use crate::validator::Validator;
@@ -58,6 +59,40 @@ impl<V: Validator> InboundHandler<V> {
         Ok(ProcessResult { request, addons })
     }
 
+    /// Async version of `process` using tokio I/O.
+    pub async fn process_async<R, W>(
+        &self,
+        mut reader: R,
+        mut writer: W,
+    ) -> Result<ProcessResult, String>
+    where
+        R: AsyncRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        let mut len_buf = [0u8; 2];
+        reader
+            .read_exact(&mut len_buf)
+            .await
+            .map_err(|e| format!("read length prefix: {}", e))?;
+        let header_len = u16::from_be_bytes(len_buf) as usize;
+
+        let mut header_buf = vec![0u8; header_len];
+        reader
+            .read_exact(&mut header_buf)
+            .await
+            .map_err(|e| format!("read header: {}", e))?;
+
+        let (request, addons) = DecodeRequestHeader(&header_buf, &self.validator)?;
+
+        let response = EncodeResponseHeader(&addons);
+        writer
+            .write_all(&response)
+            .await
+            .map_err(|e| format!("write response header: {}", e))?;
+
+        Ok(ProcessResult { request, addons })
+    }
+
     pub fn validator(&self) -> &V {
         &self.validator
     }
@@ -110,6 +145,32 @@ mod tests {
         let mut output = Vec::new();
 
         let result = handler.process(&mut input, &mut output);
+        assert!(result.is_ok());
+        let pr = result.unwrap();
+        assert_eq!(pr.request.command, RequestCommand::Tcp);
+    }
+
+    #[tokio::test]
+    async fn test_inbound_process_async() {
+        let handler = InboundHandler::new(InboundConfig { validator: TestValidator });
+
+        let request = RequestHeader {
+            version: 0,
+            command: RequestCommand::Tcp,
+            option: 0,
+            security: astra_core_proto::SecurityType::Zero,
+            port: Port(443),
+            address: Address::Ipv4([10, 0, 0, 1]),
+            user: None,
+        };
+        let addons = Addons::default();
+        let header_data = EncodeRequestHeader(&request, &addons);
+        let packet = LengthPacketReader::encode_packet(&header_data);
+
+        let mut input = packet.as_slice();
+        let mut output = Vec::new();
+
+        let result = handler.process_async(&mut input, &mut output).await;
         assert!(result.is_ok());
         let pr = result.unwrap();
         assert_eq!(pr.request.command, RequestCommand::Tcp);

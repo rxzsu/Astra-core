@@ -11,3 +11,4 @@ astra-core-crypto = { path = "../astra-core-crypto" }
 astra-core-net = { path = "../astra-core-net" }
 astra-core-proto = { path = "../astra-core-proto" }
 astra-core-routing = { path = "../astra-core-routing" }
+tokio = { workspace = true }

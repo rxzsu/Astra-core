@@ -58,6 +58,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-mux"
+version = "0.1.0"
+dependencies = [
+ "astra-core-buf",
+ "astra-core-net",
+ "astra-core-proto",
+ "bytes",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "astra-core-net"
 version = "0.1.0"
 
@@ -80,6 +92,7 @@ dependencies = [
  "astra-core-net",
  "astra-core-proto",
  "astra-core-routing",
+ "tokio",
 ]
 
 [[package]]
@@ -92,6 +105,7 @@ dependencies = [
  "astra-core-proto",
  "astra-core-routing",
  "rand",
+ "tokio",
 ]
 
 [[package]]

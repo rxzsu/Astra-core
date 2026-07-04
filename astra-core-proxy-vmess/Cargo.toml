@@ -12,3 +12,4 @@ astra-core-net = { workspace = true }
 astra-core-proto = { workspace = true }
 astra-core-routing = { workspace = true }
 rand = { workspace = true }
+tokio = { workspace = true }

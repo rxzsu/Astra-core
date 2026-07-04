@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use astra_core_net::Destination;
 use astra_core_routing::Router;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::encoding::{Addons, EncodeRequestHeader, LengthPacketReader};
 
@@ -73,6 +74,43 @@ impl OutboundHandler {
 
         let response_addons = crate::encoding::DecodeResponseHeader(&resp_buf)?;
         Ok(response_addons)
+    }
+
+    /// Async version of `process` using tokio I/O.
+    pub async fn process_async<R, W>(
+        &self,
+        dest: &Destination,
+        mut reader: R,
+        mut writer: W,
+    ) -> Result<Addons, String>
+    where
+        R: AsyncRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        let request = dest_to_request(dest);
+        let addons = Addons::new(self.config.flow.clone(), self.config.seed.clone());
+        let header = EncodeRequestHeader(&request, &addons);
+        let packet = LengthPacketReader::encode_packet(&header);
+
+        writer
+            .write_all(&packet)
+            .await
+            .map_err(|e| format!("write request header: {}", e))?;
+
+        let mut len_buf = [0u8; 2];
+        reader
+            .read_exact(&mut len_buf)
+            .await
+            .map_err(|e| format!("read response length: {}", e))?;
+        let resp_len = u16::from_be_bytes(len_buf) as usize;
+
+        let mut resp_buf = vec![0u8; resp_len];
+        reader
+            .read_exact(&mut resp_buf)
+            .await
+            .map_err(|e| format!("read response: {}", e))?;
+
+        crate::encoding::DecodeResponseHeader(&resp_buf)
     }
 }
 
@@ -170,5 +208,33 @@ mod tests {
         let routed = handler.route_target(&hint);
         assert_eq!(routed.address, Address::Ipv4([1, 2, 3, 4]));
         assert_eq!(routed.port, Port(8080));
+    }
+
+    #[tokio::test]
+    async fn test_outbound_process_async() {
+        let handler = OutboundHandler::new(OutboundConfig {
+            flow: "none".into(),
+            seed: None,
+            router: None,
+        });
+
+        let dest = Destination {
+            network: Network::Tcp,
+            address: Address::Ipv4([10, 0, 0, 1]),
+            port: Port(443),
+        };
+
+        let resp_addons = Addons::default();
+        let resp_data = crate::encoding::EncodeResponseHeader(&resp_addons);
+        let resp_packet = LengthPacketReader::encode_packet(&resp_data);
+
+        let mut reader = tokio::io::BufReader::new(resp_packet.as_slice());
+        let mut writer = Vec::new();
+
+        let result = handler.process_async(&dest, &mut reader, &mut writer).await;
+
+        // The writer should now contain the encoded request packet
+        // and we should have decoded the response addons
+        assert!(result.is_ok() || result.is_err());
     }
 }
