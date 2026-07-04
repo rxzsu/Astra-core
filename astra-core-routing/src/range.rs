@@ -49,7 +49,7 @@ impl IPv6Range {
 }
 
 /// Range filter for routing decisions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RangeFilter {
     ranges: Vec<IPv4Range>,
 }

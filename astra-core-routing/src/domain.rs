@@ -1,7 +1,5 @@
 //! Domain name handling and routing.
 
-use astra_core_net::Address;
-
 /// Domain filter for routing decisions.
 #[derive(Debug, Clone)]
 pub struct DomainFilter {

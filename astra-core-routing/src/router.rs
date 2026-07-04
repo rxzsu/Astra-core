@@ -3,11 +3,11 @@
 use std::sync::Arc;
 
 use astra_core_net::{Destination, TcpDestination};
-use astra_core_proto::User;
 
-use super::{Delegate, Rule, RuleFilter};
+use super::Delegate;
 
 /// Router configuration.
+#[derive(Default)]
 pub struct RouterConfig {
     /// List of rules to apply for routing decisions.
     pub rules: Vec<RouteRule>,
@@ -92,7 +92,7 @@ impl Router {
         self.apply_delegate(&dest)
     }
 
-    fn matches_filter(&self, filter: &RouteFilter, addr: &astra_core_net::Address, port: u16) -> bool {
+    fn matches_filter(&self, filter: &RouteFilter, addr: &astra_core_net::Address, _port: u16) -> bool {
         match filter {
             RouteFilter::Domain(d) => {
                 matches_domain(addr, d)
@@ -112,12 +112,6 @@ fn matches_domain(addr: &astra_core_net::Address, domain: &str) -> bool {
     match addr {
         astra_core_net::Address::Domain(d) => d == domain,
         _ => false,
-    }
-}
-
-impl Default for RouterConfig {
-    fn default() -> Self {
-        RouterConfig { rules: Vec::new() }
     }
 }
 

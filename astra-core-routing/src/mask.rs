@@ -15,12 +15,11 @@ impl IpMask {
     }
 
     pub fn matches(&self, ip: &[u8]) -> bool {
-        for i in 0..16 {
-            if (ip[i] & self.mask[i]) != (self.network[i] & self.mask[i]) {
-                return false;
-            }
-        }
-        true
+        ip.iter()
+            .zip(self.mask.iter())
+            .zip(self.network.iter())
+            .take(16)
+            .all(|((&ip_b, &mask_b), &net_b)| (ip_b & mask_b) == (net_b & mask_b))
     }
 }
 
@@ -52,9 +51,9 @@ impl IPv4Mask {
 
 fn ipv4_mask_bits(prefix: u8) -> [u8; 4] {
     let mut mask = [0u8; 4];
-    for i in 0..4usize {
+    for (i, m) in mask.iter_mut().enumerate() {
         let i8 = i as u8;
-        let bits = if prefix > 8 * (i8 + 1) {
+        *m = if prefix > 8 * (i8 + 1) {
             255
         } else if prefix < 8 * i8 {
             0
@@ -62,7 +61,6 @@ fn ipv4_mask_bits(prefix: u8) -> [u8; 4] {
             let remaining = prefix - 8 * i8;
             (((1u32 << remaining) - 1) as u8) << (8 - remaining)
         };
-        mask[i] = bits;
     }
     mask
 }
@@ -81,20 +79,18 @@ impl IPv6Mask {
     pub fn contains(&self, addr: &Address) -> bool {
         match addr {
             Address::Ipv6(octets) => {
-                for i in 0..16usize {
-                    if i < (self.prefix as usize) / 8 {
+                let partial = (self.prefix as usize).div_ceil(8);
+                let full = (self.prefix as usize) / 8;
+                for (i, (&o, &ip)) in octets.iter().zip(self.ip.iter()).enumerate().take(16) {
+                    if i < full {
                         continue;
-                    } else if i == (self.prefix as usize + 7) / 8 {
-                        let bit_offset = self.prefix % 8;
-                        let mask = if bit_offset == 0 {
-                            0xFFu8
-                        } else {
-                            0xFFu8 << bit_offset
-                        };
-                        if (octets[i] & mask) != (self.ip[i] & mask) {
+                    }
+                    if i == partial && !self.prefix.is_multiple_of(8) {
+                        let mask = 0xFFu8 << (self.prefix % 8);
+                        if (o & mask) != (ip & mask) {
                             return false;
                         }
-                    } else {
+                    } else if o != ip {
                         return false;
                     }
                 }
