@@ -6,4 +6,13 @@ description = "Astra-core crypto package — AEAD, chunked streams, stream ciphe
 license = "MIT"
 
 [dependencies]
-astra-core-buf = { path = "../astra-core-buf" }
+astra-core-buf = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+cfb-mode = { workspace = true }
+ctr = { workspace = true }
+chacha20 = { workspace = true }
+chacha20poly1305 = { workspace = true }

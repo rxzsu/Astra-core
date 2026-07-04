@@ -98,16 +98,7 @@ fn aes_gcm_open(key: &[u8; 16], iv: &[u8], ciphertext: &[u8], aad: &[u8]) -> Res
 }
 
 fn rand_8_bytes() -> [u8; 8] {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let mut state = seed as u64;
-    state ^= state << 13;
-    state ^= state >> 7;
-    state ^= state << 17;
-    state.to_be_bytes()
+    rand::random()
 }
 
 #[cfg(test)]

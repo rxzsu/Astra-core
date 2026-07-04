@@ -42,8 +42,7 @@ pub fn Authenticate(b: &[u8]) -> u32 {
 /// Generate ChaCha20-Poly1305 key from a 32-byte key.
 /// Mirrors go's `GenerateChacha20Poly1305Key` — uses SHA256 for key derivation.
 pub fn GenerateChacha20Poly1305Key(b: &[u8]) -> Vec<u8> {
-    use astra_core_crypto::sha256::Sha256;
-    Sha256::hash(b).to_vec()
+    astra_core_crypto::sha256::Sha256_hash(b).to_vec()
 }
 
 #[cfg(test)]

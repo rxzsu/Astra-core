@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use astra_core_crypto::aes::AesGcmCipher;
 use astra_core_crypto::cipher::AeadCipher;
-use astra_core_crypto::sha256::Sha256;
+use astra_core_crypto::sha256::Sha256_hash;
 use astra_core_proto::{RequestCommand, RequestHeader, SecurityType};
 
 use crate::aead::encrypt::OpenVMessAEADHeader;
@@ -113,8 +113,8 @@ impl ServerSession {
         self.response_header = response_hdr;
 
         // Derive response keys
-        let resp_key = Sha256::hash(&self.request_body_key);
-        let resp_iv = Sha256::hash(&self.request_body_iv);
+        let resp_key = Sha256_hash(&self.request_body_key);
+        let resp_iv = Sha256_hash(&self.request_body_iv);
         self.response_body_key = resp_key[..16].try_into().unwrap();
         self.response_body_iv = resp_iv[..16].try_into().unwrap();
 
@@ -307,8 +307,8 @@ mod tests {
         server.request_body_iv = req_iv;
         server.response_header = 0xab;
 
-        let resp_key = Sha256::hash(&req_key);
-        let resp_iv = Sha256::hash(&req_iv);
+        let resp_key = Sha256_hash(&req_key);
+        let resp_iv = Sha256_hash(&req_iv);
         server.response_body_key = resp_key[..16].try_into().unwrap();
         server.response_body_iv = resp_iv[..16].try_into().unwrap();
 

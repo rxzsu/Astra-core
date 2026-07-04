@@ -1,13 +1,13 @@
 [package]
-name = "astra-core-proxy-vmess"
+name = "astra-core-routing"
 version = "0.1.0"
 edition = "2024"
-description = "Astra-core VMess proxy protocol implementation"
+description = "Astra-core routing package — traffic routing rules"
 license = "MIT"
 
 [dependencies]
 astra-core-buf = { workspace = true }
-astra-core-crypto = { workspace = true }
 astra-core-net = { workspace = true }
 astra-core-proto = { workspace = true }
-rand = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

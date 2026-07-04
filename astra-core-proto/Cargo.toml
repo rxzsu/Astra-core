@@ -6,4 +6,7 @@ description = "Astra-core protocol types — User, TransferType, Request/Respons
 license = "MIT"
 
 [dependencies]
-astra-core-net = { path = "../astra-core-net" }
+astra-core-net = { workspace = true }
+rand = { workspace = true }
+md-5 = { workspace = true }
+uuid = { workspace = true }

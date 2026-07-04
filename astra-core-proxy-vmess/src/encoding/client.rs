@@ -1,6 +1,6 @@
 use astra_core_crypto::aes::{AesCfbStream, AesGcmCipher};
 use astra_core_crypto::cipher::{AeadCipher, StreamCipher};
-use astra_core_crypto::sha256::Sha256;
+use astra_core_crypto::sha256::Sha256_hash;
 use astra_core_proto::{RequestCommand, RequestHeader, SecurityType};
 
 use crate::aead::encrypt::SealVMessAEADHeader;
@@ -29,8 +29,8 @@ impl ClientSession {
         let req_key = rand_16_bytes();
         let req_iv = rand_16_bytes();
         let resp_hdr = rand_1_byte();
-        let resp_key = Sha256::hash(&req_key)[..16].try_into().unwrap();
-        let resp_iv = Sha256::hash(&req_iv)[..16].try_into().unwrap();
+        let resp_key = Sha256_hash(&req_key)[..16].try_into().unwrap();
+        let resp_iv = Sha256_hash(&req_iv)[..16].try_into().unwrap();
         ClientSession {
             request_body_key: req_key,
             request_body_iv: req_iv,
@@ -85,8 +85,8 @@ impl ClientSession {
     /// Decode the VMess response header.
     pub fn DecodeResponseHeader(&self, data: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>), String> {
         // Derive response body key/IV for payload decryption
-        let resp_key = Sha256::hash(&self.request_body_key);
-        let resp_iv = Sha256::hash(&self.request_body_iv);
+        let resp_key = Sha256_hash(&self.request_body_key);
+        let resp_iv = Sha256_hash(&self.request_body_iv);
         let rk: [u8; 16] = resp_key[..16].try_into().unwrap();
         let riv: [u8; 16] = resp_iv[..16].try_into().unwrap();
 
@@ -116,8 +116,8 @@ impl ClientSession {
 
     /// Create a decrypted body reader for the response.
     pub fn DecodeResponseBody(&self) -> EncryptionReader {
-        let rk: [u8; 16] = Sha256::hash(&self.request_body_key)[..16].try_into().unwrap();
-        let riv: [u8; 16] = Sha256::hash(&self.request_body_iv)[..16].try_into().unwrap();
+        let rk: [u8; 16] = Sha256_hash(&self.request_body_key)[..16].try_into().unwrap();
+        let riv: [u8; 16] = Sha256_hash(&self.request_body_iv)[..16].try_into().unwrap();
         EncryptionReader::new_aes_cfb(&rk, &riv)
     }
 }
@@ -203,20 +203,11 @@ fn aes_gcm_open(key: &[u8; 16], iv: &[u8], ciphertext: &[u8], aad: &[u8]) -> Res
 }
 
 fn rand_16_bytes() -> [u8; 16] {
-    let mut out = [0u8; 16];
-    for b in out.iter_mut() {
-        *b = rand_1_byte();
-    }
-    out
+    rand::random()
 }
 
 fn rand_1_byte() -> u8 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    (seed ^ (seed >> 32)) as u8
+    rand::random()
 }
 
 #[cfg(test)]

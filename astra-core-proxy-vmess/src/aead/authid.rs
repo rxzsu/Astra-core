@@ -88,19 +88,8 @@ fn crc32_ieee(data: &[u8]) -> u32 {
     !crc
 }
 
-/// Simple non-cryptographic random (Xorshift64) for AuthID construction.
 fn simple_rand() -> [u8; 4] {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let mut state = seed as u64;
-    state ^= state << 13;
-    state ^= state >> 7;
-    state ^= state << 17;
-    let v = state as u32;
-    v.to_be_bytes()
+    rand::random::<u32>().to_be_bytes()
 }
 
 #[cfg(test)]
