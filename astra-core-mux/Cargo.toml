@@ -1,7 +1,7 @@
 [package]
 name = "astra-core-mux"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Xray-core mux protocol implementation (multiplexing over a single connection)"
 
 [dependencies]

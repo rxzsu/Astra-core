@@ -1,7 +1,7 @@
 [package]
 name = "astra-core-transport-ws"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "WebSocket transport for Xray-core"
 
 [dependencies]
@@ -13,4 +13,3 @@ futures-core = "0.3"
 futures-sink = "0.3"
 tracing = { workspace = true }
 bytes = "1"
-
