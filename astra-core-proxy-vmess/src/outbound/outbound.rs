@@ -1,5 +1,10 @@
-use astra_core_proto::{MemoryUser, RequestCommand, RequestHeader, SecurityType};
 use astra_core_net::{Address, Destination, Port};
+use astra_core_proto::{MemoryUser, RequestCommand, RequestHeader, SecurityType};
+use astra_core_proxy::{async_trait, OutboundHandler as OutboundHandlerTrait, ProxyResult};
+use astra_core_proxy::Dialer;
+use astra_core_session::Session;
+use astra_core_transport::Link;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::encoding::client::ClientSession;
 
@@ -46,6 +51,69 @@ impl OutboundHandler {
     /// Handle a response command (stub — currently no-op).
     pub fn handle_command(&self, _dest: &Destination, _cmd: Option<Vec<u8>>) {
         // no-op
+    }
+}
+
+/// VMess outbound handler that implements the `OutboundHandler` trait.
+pub struct Handler {
+    server: Destination,
+    config: OutboundConfig,
+}
+
+impl Handler {
+    pub fn new(server: Destination, config: OutboundConfig) -> Self {
+        Handler { server, config }
+    }
+}
+
+#[async_trait]
+impl OutboundHandlerTrait for Handler {
+    async fn process(
+        &self,
+        session: Session,
+        link: &mut Link,
+        dialer: &dyn Dialer,
+    ) -> ProxyResult<()> {
+        let target = session
+            .outbound
+            .as_ref()
+            .map(|o| o.target.clone())
+            .ok_or_else(|| "no target destination".to_string())?;
+
+        let mut remote = dialer.dial(session, self.server.clone()).await?;
+        let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
+
+        let cmd_key = self.config.user.account.as_ref()
+            .and_then(|a| a.as_any().downcast_ref::<crate::account::MemoryAccount>())
+            .map(|acc| *acc.id.cmd_key())
+            .unwrap_or([0u8; 16]);
+
+        let client = ClientSession::new();
+        let inner = OutboundHandler::new(OutboundConfig {
+            user: self.config.user.clone(),
+            address: self.config.address.clone(),
+            port: self.config.port,
+        });
+        let request_bytes = inner.build_request(&cmd_key, &target);
+        remote_writer.write_all(&request_bytes).await
+            .map_err(|e| format!("write vmess header: {}", e))?;
+
+        let mut resp_buf = vec![0u8; 1024];
+        let n = remote_reader.read(&mut resp_buf).await
+            .map_err(|e| format!("read vmess response: {}", e))?;
+        resp_buf.truncate(n);
+        client.DecodeResponseHeader(&resp_buf)?;
+
+        let to_remote = tokio::io::copy(&mut link.reader, &mut remote_writer);
+        let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);
+
+        tokio::select! {
+            r = to_remote => r.map(|_| ()),
+            r = to_client => r.map(|_| ()),
+        }
+        .map_err(|e| format!("vmess copy: {}", e))?;
+
+        Ok(())
     }
 }
 

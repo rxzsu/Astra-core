@@ -8,6 +8,6 @@ pub mod outbound;
 pub mod validator;
 
 pub use account::MemoryAccount;
-pub use inbound::InboundHandler;
-pub use outbound::OutboundHandler;
-pub use validator::{MemoryValidator, Validator};
+pub use inbound::Handler as InboundHandler;
+pub use outbound::{Handler as OutboundProxyHandler, OutboundConfig};
+pub use validator::{MemoryValidator, UserGetter, Validator};

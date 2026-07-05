@@ -12,6 +12,17 @@ pub trait Validator: Send + Sync {
     fn get_count(&self) -> usize;
 }
 
+/// Object-safe read-only user lookup.
+pub trait UserGetter: Send + Sync {
+    fn get_user(&self, id: UUID) -> Option<MemoryUser>;
+}
+
+impl<T: Validator> UserGetter for T {
+    fn get_user(&self, id: UUID) -> Option<MemoryUser> {
+        self.get(id)
+    }
+}
+
 /// In-memory VLESS user validator.
 pub struct MemoryValidator {
     users_by_uuid: HashMap<[u8; 16], MemoryUser>,

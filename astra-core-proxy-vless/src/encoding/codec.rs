@@ -2,7 +2,7 @@ use astra_core_net::{Address, Port};
 use astra_core_proto::{RequestCommand, RequestHeader, UUID};
 
 use crate::encoding::addons::Addons;
-use crate::validator::Validator;
+use crate::validator::UserGetter;
 
 /// VLESS protocol version byte.
 pub const VERSION: u8 = 0;
@@ -60,7 +60,7 @@ pub fn EncodeRequestHeader(request: &RequestHeader, addons: &Addons) -> Vec<u8> 
 /// Mirrors go's `proxy/vless/encoding.DecodeRequestHeader`.
 pub fn DecodeRequestHeader(
     data: &[u8],
-    _validator: &dyn Validator,
+    _getter: &dyn UserGetter,
 ) -> Result<(RequestHeader, Addons), String> {
     let mut offset = 0usize;
 
@@ -273,6 +273,7 @@ impl LengthPacketReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::validator::Validator;
     use astra_core_proto::MemoryUser;
 
     #[test]

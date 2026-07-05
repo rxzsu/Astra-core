@@ -10,4 +10,8 @@ astra-core-transport = { path = "../astra-core-transport" }
 astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-dispatcher = { path = "../astra-core-dispatcher" }
 tokio = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+webpki-roots = { workspace = true }
 tracing = { workspace = true }

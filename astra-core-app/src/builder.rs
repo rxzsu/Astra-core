@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
 use astra_core_config::Config;
-use astra_core_config::proxy::{DokodemoConfig, FreedomConfig};
+use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
 use astra_core_net::{self, Address, Destination, ParseAddress};
+use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
 use astra_core_proxyman::inbound::AlwaysOnInboundHandler;
 use astra_core_proxyman::outbound;
+use astra_core_proxyman::outbound::{MuxConfig, TlsConfig};
+use astra_core_proxy_vless::Validator as VLessValidator;
 use astra_core_routing::{DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
     ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher, NetworkMatcher,
     RouteRule, Router};
@@ -22,6 +25,36 @@ fn convert_address(config_addr: &astra_core_config::types::Address) -> Address {
 
 fn parse_destination(redirect: &str) -> Result<Destination, String> {
     astra_core_net::ParseDestination(redirect)
+}
+
+fn parse_uuid(s: &str) -> Result<UUID, String> {
+    let s = s.trim().replace('-', "");
+    let bytes = hex_decode(&s)?;
+    if bytes.len() != 16 {
+        return Err(format!("invalid UUID length: {}", bytes.len()));
+    }
+    let mut arr = [0u8; 16];
+    arr.copy_from_slice(&bytes);
+    Ok(UUID(arr))
+}
+
+fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
+    if !s.len().is_multiple_of(2) {
+        return Err("odd hex string length".to_string());
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.to_string()))
+        .collect()
+}
+
+fn parse_security(s: &str) -> SecurityType {
+    match s {
+        "aes-128-gcm" => SecurityType::Aes128Gcm,
+        "chacha20-poly1305" => SecurityType::ChaCha20Poly1305,
+        "none" | "zero" => SecurityType::Zero,
+        _ => SecurityType::Auto,
+    }
 }
 
 pub fn build_outbound_handler(
@@ -48,6 +81,61 @@ pub fn build_outbound_handler(
                 },
             ))
         }
+        "vless" => {
+            let cfg: VLessOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("vless config: {}", e))?
+                .ok_or_else(|| "vless outbound requires settings".to_string())?;
+
+            let vnext = cfg.vnext.first()
+                .ok_or_else(|| "vless outbound requires at least one vnext".to_string())?;
+
+            let user = vnext.users.first()
+                .ok_or_else(|| "vless outbound requires at least one user in vnext".to_string())?;
+
+            let server_addr = convert_address(&vnext.address);
+            let server_dest = astra_core_net::TcpDestination(server_addr, astra_core_net::Port(vnext.port));
+
+            Arc::new(astra_core_proxy_vless::OutboundProxyHandler::new(
+                server_dest,
+                astra_core_proxy_vless::OutboundConfig {
+                    flow: user.flow.clone(),
+                    seed: None,
+                },
+            ))
+        }
+        "vmess" => {
+            let cfg: VMessOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("vmess config: {}", e))?
+                .ok_or_else(|| "vmess outbound requires settings".to_string())?;
+
+            let vnext = cfg.vnext.first()
+                .ok_or_else(|| "vmess outbound requires at least one vnext".to_string())?;
+
+            let user_cfg = vnext.users.first()
+                .ok_or_else(|| "vmess outbound requires at least one user".to_string())?;
+
+            let uuid = parse_uuid(&user_cfg.id)?;
+            let id = ID::new(uuid);
+            let security = parse_security(&user_cfg.security);
+            let account = Arc::new(astra_core_proxy_vmess::account::MemoryAccount::new(id, security, false, false));
+            let user = MemoryUser::new(user_cfg.level, user_cfg.email.clone(), Some(account));
+
+            let server_addr = convert_address(&vnext.address);
+            let server_dest = astra_core_net::TcpDestination(server_addr.clone(), astra_core_net::Port(vnext.port));
+
+            Arc::new(astra_core_proxy_vmess::outbound::Handler::new(
+                server_dest,
+                astra_core_proxy_vmess::outbound::OutboundConfig { user, address: server_addr, port: astra_core_net::Port(vnext.port) },
+            ))
+        }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
 
@@ -57,7 +145,31 @@ pub fn build_outbound_handler(
         config.tag.clone()
     };
 
-    Ok(Arc::new(outbound::Handler::new(tag, handler)))
+    let mut ob_handler = outbound::Handler::new(tag, handler);
+
+    if let Some(ref stream) = config.stream_settings {
+        if stream.security == "tls" {
+            if let Some(ref tls_cfg) = stream.tls_settings {
+                let server_name = if tls_cfg.server_name.is_empty() {
+                    stream.address.as_ref().map(|a| a.0.clone()).unwrap_or_default()
+                } else {
+                    tls_cfg.server_name.clone()
+                };
+                ob_handler = ob_handler.with_tls(TlsConfig { server_name, allow_insecure: tls_cfg.allow_insecure });
+            }
+        }
+    }
+
+    if let Some(ref mux_cfg) = config.mux {
+        if mux_cfg.enabled {
+            ob_handler = ob_handler.with_mux(MuxConfig {
+                enabled: true,
+                concurrency: mux_cfg.concurrency,
+            });
+        }
+    }
+
+    Ok(Arc::new(ob_handler))
 }
 
 fn get_listen_addr(ib: &astra_core_config::InboundDetourConfig) -> String {
@@ -104,6 +216,49 @@ pub fn build_inbound_handler(
                 },
             ))
         }
+        "vless" => {
+            let cfg: VLessInboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("vless inbound config: {}", e))?
+                .ok_or_else(|| "vless inbound requires settings".to_string())?;
+
+            let mut validator = astra_core_proxy_vless::MemoryValidator::new();
+            for client in &cfg.clients {
+                let uuid = parse_uuid(&client.id)?;
+                let id = ID::new(uuid);
+                let account = Arc::new(astra_core_proxy_vless::MemoryAccount::new(id, client.flow.clone()));
+                let user = MemoryUser::new(client.level, client.email.clone(), Some(account));
+                validator.add(user).map_err(|e| format!("add vless user: {}", e))?;
+            }
+
+            let getter: Arc<dyn astra_core_proxy_vless::UserGetter> = Arc::new(validator);
+            Arc::new(astra_core_proxy_vless::InboundHandler::new(getter))
+        }
+        "vmess" => {
+            let cfg: VMessInboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("vmess inbound config: {}", e))?
+                .ok_or_else(|| "vmess inbound requires settings".to_string())?;
+
+            let mut users = Vec::new();
+            for client in &cfg.clients {
+                let uuid = parse_uuid(&client.id)?;
+                let id = ID::new(uuid);
+                let security = parse_security(&client.security);
+                let account = Arc::new(astra_core_proxy_vmess::account::MemoryAccount::new(id, security, false, false));
+                users.push(MemoryUser::new(client.level, client.email.clone(), Some(account)));
+            }
+
+            Arc::new(astra_core_proxy_vmess::inbound::Handler::new(
+                astra_core_proxy_vmess::inbound::InboundConfig { users },
+            ))
+        }
         p => return Err(format!("unsupported inbound protocol: {}", p)),
     };
 
@@ -123,55 +278,45 @@ fn build_router(config: &Config) -> Result<Router, String> {
         let tag = format!("rule-{}", i);
         let mut rule = RouteRule::new(tag, rule_cfg.outbound_tag.clone(), rule_cfg.balancer_tag.clone());
 
-        // Domain matcher (supports both "domain" and "domains" fields)
         let domain_list = rule_cfg.domain.as_ref().or(rule_cfg.domains.as_ref());
         if let Some(domains) = domain_list {
             rule.add_condition(Box::new(DomainMatcher::new(&domains.0)));
         }
 
-        // IP matcher
         if let Some(ips) = &rule_cfg.ip {
             rule.add_condition(Box::new(IpMatcher::new(&ips.0)?));
         }
 
-        // Port matcher
         if let Some(ports) = &rule_cfg.port {
             let ranges: Vec<(u16, u16)> = ports.0.iter().map(|r| (r.from, r.to)).collect();
             rule.add_condition(Box::new(PortMatcher::new(&ranges)));
         }
 
-        // Network matcher
         if let Some(networks) = &rule_cfg.network {
             rule.add_condition(Box::new(NetworkMatcher::new(&networks.0)));
         }
 
-        // Source IP matcher
         if let Some(src_ips) = &rule_cfg.source_ip {
             rule.add_condition(Box::new(SourceIpMatcher::new(&src_ips.0)?));
         }
 
-        // Source port matcher
         if let Some(src_ports) = &rule_cfg.source_port {
             let ranges: Vec<(u16, u16)> = src_ports.0.iter().map(|r| (r.from, r.to)).collect();
             rule.add_condition(Box::new(SourcePortMatcher::new(&ranges)));
         }
 
-        // Inbound tag matcher
         if let Some(tags) = &rule_cfg.inbound_tag {
             rule.add_condition(Box::new(InboundTagMatcher::new(&tags.0)));
         }
 
-        // Protocol matcher
         if let Some(protocols) = &rule_cfg.protocol {
             rule.add_condition(Box::new(ProtocolMatcher::new(&protocols.0)));
         }
 
-        // User matcher
         if let Some(users) = &rule_cfg.user {
             rule.add_condition(Box::new(UserMatcher::new(&users.0)));
         }
 
-        // Only add rule if it has at least one condition and a target
         if !rule.conditions.is_empty() {
             rules.push(rule);
         }
@@ -190,7 +335,6 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
         ob_manager.add_handler(tag, handler);
     }
 
-    // Wrap handler_provider as Arc<dyn HandlerProvider>
     struct Provider {
         manager: outbound::Manager,
     }

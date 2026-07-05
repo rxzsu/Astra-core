@@ -1,82 +1,120 @@
+use std::sync::Arc;
+
+use astra_core_net::Destination;
+use astra_core_proto::{RequestCommand, MemoryUser};
+use astra_core_proxy::{async_trait, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_session::{Outbound, Session};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+
+use crate::aead::authid::DecodeAuthID;
+use crate::aead::encrypt::OpenVMessAEADHeader;
 use crate::encoding::server::{ServerSession, SessionHistory};
-use astra_core_proto::{MemoryUser, RequestHeader};
 
 /// Inbound VMess handler configuration.
 pub struct InboundConfig {
     pub users: Vec<MemoryUser>,
 }
 
-/// Inbound VMess handler.
-/// Mirrors go's `proxy/vmess/inbound.Handler`.
-pub struct InboundHandler {
-    pub session_history: SessionHistory,
-    pub users: Vec<MemoryUser>,
+/// Inbound VMess handler — implements the proxy `InboundHandler` trait.
+pub struct Handler {
+    users: Vec<MemoryUser>,
 }
 
-impl InboundHandler {
+impl Handler {
     pub fn new(config: InboundConfig) -> Self {
-        InboundHandler {
-            session_history: SessionHistory::new(),
+        Handler {
             users: config.users,
         }
     }
 
-    /// Process an incoming VMess connection.
-    /// Returns the decoded request header and the data flow direction.
-    pub fn process(
-        &mut self,
-        auth_id: &[u8; 16],
-        encrypted_header: &[u8],
-        cmd_key: &[u8; 16],
-    ) -> Result<ProcessResult, String> {
+    fn find_user(&self, auth_id: &[u8; 16]) -> Option<[u8; 16]> {
+        for user in &self.users {
+            if let Some(acc) = user.account.as_ref() {
+                if let Some(macc) = acc.as_any().downcast_ref::<crate::account::MemoryAccount>() {
+                    let cmd_key = *macc.id.cmd_key();
+                    if DecodeAuthID(&cmd_key, auth_id).is_ok() {
+                        return Some(cmd_key);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+#[async_trait]
+impl InboundHandler for Handler {
+    async fn process(
+        &self,
+        session: Session,
+        mut conn: TcpStream,
+        dispatcher: Arc<dyn Dispatcher>,
+    ) -> ProxyResult<()> {
+        let (mut reader, mut writer) = tokio::io::split(&mut conn);
+
+        let mut auth_id = [0u8; 16];
+        reader.read_exact(&mut auth_id).await
+            .map_err(|e| format!("read auth id: {}", e))?;
+
+        let cmd_key = self.find_user(&auth_id)
+            .ok_or_else(|| "no matching user for auth id".to_string())?;
+
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 4096];
+        loop {
+            let n = reader.read(&mut tmp).await
+                .map_err(|e| format!("read header data: {}", e))?;
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&tmp[..n]);
+            // Try to parse — OpenVMessAEADHeader will validate the full structure
+            if let Ok((_, _, _)) = OpenVMessAEADHeader(&cmd_key, &auth_id, &buf) {
+                break;
+            }
+            if buf.len() > 65536 {
+                return Err("header too large".to_string());
+            }
+        }
+
         let mut server = ServerSession::new(SessionHistory::new());
-        let request = server.DecodeRequestHeader(auth_id, encrypted_header, cmd_key)?;
+        let request = server.DecodeRequestHeader(&auth_id, &buf, &cmd_key)
+            .map_err(|e| format!("decode request: {}", e))?;
 
-        Ok(ProcessResult {
-            request,
-            response_header: server.EncodeResponseHeader(0, None),
-        })
-    }
+        let response_header = server.EncodeResponseHeader(0, None);
+        writer.write_all(&response_header).await
+            .map_err(|e| format!("write response: {}", e))?;
 
-    pub fn network(&self) -> Vec<astra_core_net::Network> {
-        vec![astra_core_net::Network::Tcp]
-    }
-}
-
-pub struct ProcessResult {
-    pub request: RequestHeader,
-    pub response_header: Vec<u8>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::encoding::client::ClientSession;
-    use astra_core_proto::{RequestCommand, SecurityType};
-    use astra_core_net::Port;
-
-    #[test]
-    fn test_inbound_process() {
-        let client = ClientSession::new();
-        let cmd_key = [0x42u8; 16];
-        let header = RequestHeader {
-            version: 1,
-            command: RequestCommand::Tcp,
-            option: 0x01,
-            security: SecurityType::Aes128Gcm,
-            port: Port(443),
-            address: astra_core_net::Address::Ipv4([10, 0, 0, 1]),
-            user: None,
+        let target = Destination {
+            network: match request.command {
+                RequestCommand::Udp => astra_core_net::Network::Udp,
+                _ => astra_core_net::Network::Tcp,
+            },
+            address: request.address,
+            port: request.port,
         };
 
-        let encoded = client.EncodeRequestHeader(&header, &cmd_key);
-        let auth_id = &encoded[..16];
-        let mut auth_id_arr = [0u8; 16];
-        auth_id_arr.copy_from_slice(auth_id);
+        let mut outbound_session = session.clone();
+        outbound_session.outbound = Some(Outbound {
+            target: target.clone(),
+            original_target: target.clone(),
+            route_target: None,
+            tag: String::new(),
+        });
 
-        let mut handler = InboundHandler::new(InboundConfig { users: vec![] });
-        let result = handler.process(&auth_id_arr, &encoded[16..], &cmd_key).unwrap();
-        assert_eq!(result.request.command, RequestCommand::Tcp);
-        assert!(result.response_header.len() > 18);
+        let mut inbound_link = dispatcher.dispatch(outbound_session, target).await?;
+
+        let to_remote = tokio::io::copy(&mut reader, &mut inbound_link.writer);
+        let to_client = tokio::io::copy(&mut inbound_link.reader, &mut writer);
+
+        tokio::select! {
+            r = to_remote => r.map(|_| ()),
+            r = to_client => r.map(|_| ()),
+        }
+        .map_err(|e| format!("vmess inbound copy: {}", e))?;
+
+        Ok(())
     }
 }
+

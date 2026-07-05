@@ -38,6 +38,10 @@ crc32fast = "1"
 ipnetwork = "0.20"
 regex = "1"
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = "0.26"
+rustls = "0.23"
+rustls-pki-types = "1"
+webpki-roots = "0.26"
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
 

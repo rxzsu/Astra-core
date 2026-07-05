@@ -1,6 +1,10 @@
 use std::io::{Read, Write};
 
 use astra_core_net::Destination;
+use astra_core_proxy::{async_trait, Dialer, ProxyResult};
+use astra_core_proxy::OutboundHandler as OutboundHandlerTrait;
+use astra_core_session::Session;
+use astra_core_transport::Link;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::encoding::{Addons, EncodeRequestHeader, LengthPacketReader};
@@ -99,6 +103,56 @@ impl OutboundHandler {
             .map_err(|e| format!("read response: {}", e))?;
 
         crate::encoding::DecodeResponseHeader(&resp_buf)
+    }
+}
+
+/// VLESS outbound handler that implements the `OutboundHandler` trait.
+/// Connects to a VLESS server, sends the VLESS header encoding the final target,
+/// then pipes data bidirectionally.
+pub struct Handler {
+    server: Destination,
+    config: OutboundConfig,
+}
+
+impl Handler {
+    pub fn new(server: Destination, config: OutboundConfig) -> Self {
+        Handler { server, config }
+    }
+}
+
+#[async_trait]
+impl OutboundHandlerTrait for Handler {
+    async fn process(
+        &self,
+        session: Session,
+        link: &mut Link,
+        dialer: &dyn Dialer,
+    ) -> ProxyResult<()> {
+        let target = session
+            .outbound
+            .as_ref()
+            .map(|o| o.target.clone())
+            .ok_or_else(|| "no target destination".to_string())?;
+
+        let mut remote = dialer.dial(session, self.server.clone()).await?;
+        let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
+
+        let inner = OutboundHandler::new(OutboundConfig {
+            flow: self.config.flow.clone(),
+            seed: self.config.seed.clone(),
+        });
+        inner.process_async(&target, &mut remote_reader, &mut remote_writer).await?;
+
+        let to_remote = tokio::io::copy(&mut link.reader, &mut remote_writer);
+        let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);
+
+        tokio::select! {
+            r = to_remote => r.map(|_| ()),
+            r = to_client => r.map(|_| ()),
+        }
+        .map_err(|e| format!("vless copy: {}", e))?;
+
+        Ok(())
     }
 }
 

@@ -10,5 +10,8 @@ astra-core-buf = { path = "../astra-core-buf" }
 astra-core-crypto = { path = "../astra-core-crypto" }
 astra-core-net = { path = "../astra-core-net" }
 astra-core-proto = { path = "../astra-core-proto" }
+astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-routing = { path = "../astra-core-routing" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-transport = { path = "../astra-core-transport" }
 tokio = { workspace = true }
