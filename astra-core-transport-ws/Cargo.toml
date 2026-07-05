@@ -1,0 +1,16 @@
+[package]
+name = "astra-core-transport-ws"
+version = "0.1.0"
+edition = "2021"
+description = "WebSocket transport for Xray-core"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
+tokio = { workspace = true }
+tokio-tungstenite = { version = "0.24", features = ["connect"] }
+futures-util = "0.3"
+futures-core = "0.3"
+futures-sink = "0.3"
+tracing = { workspace = true }
+bytes = "1"
+

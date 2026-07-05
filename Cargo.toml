@@ -9,6 +9,7 @@ members = [
     "astra-core-proxy-vless",
     "astra-core-proxy-vmess",
     "astra-core-routing",
+    "astra-core-transport-ws",
 ]
 
 [workspace.dependencies]
