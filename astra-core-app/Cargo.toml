@@ -16,6 +16,8 @@ astra-core-proxy-freedom = { path = "../astra-core-proxy-freedom" }
 astra-core-proxy-dokodemo = { path = "../astra-core-proxy-dokodemo" }
 astra-core-proxy-vless = { path = "../astra-core-proxy-vless" }
 astra-core-proxy-vmess = { path = "../astra-core-proxy-vmess" }
+astra-core-proxy-socks = { path = "../astra-core-proxy-socks" }
+astra-core-proxy-http = { path = "../astra-core-proxy-http" }
 astra-core-routing = { path = "../astra-core-routing" }
 tokio = { workspace = true }
 tracing = { workspace = true }

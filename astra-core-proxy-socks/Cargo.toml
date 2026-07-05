@@ -1,0 +1,12 @@
+[package]
+name = "astra-core-proxy-socks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-transport = { path = "../astra-core-transport" }
+async-trait = "0.1"

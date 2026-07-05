@@ -259,6 +259,12 @@ pub fn build_inbound_handler(
                 astra_core_proxy_vmess::inbound::InboundConfig { users },
             ))
         }
+        "socks" => {
+            Arc::new(astra_core_proxy_socks::Handler::new())
+        }
+        "http" => {
+            Arc::new(astra_core_proxy_http::Handler::new())
+        }
         p => return Err(format!("unsupported inbound protocol: {}", p)),
     };
 

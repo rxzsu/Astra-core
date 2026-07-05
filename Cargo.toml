@@ -20,6 +20,8 @@ members = [
     "astra-core-proxyman",
     "astra-core-app",
     "astra-core-main",
+    "astra-core-proxy-socks",
+    "astra-core-proxy-http",
 ]
 
 [workspace.dependencies]

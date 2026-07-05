@@ -66,6 +66,8 @@ dependencies = [
  "astra-core-proxy",
  "astra-core-proxy-dokodemo",
  "astra-core-proxy-freedom",
+ "astra-core-proxy-http",
+ "astra-core-proxy-socks",
  "astra-core-proxy-vless",
  "astra-core-proxy-vmess",
  "astra-core-proxyman",
@@ -197,6 +199,30 @@ dependencies = [
  "astra-core-transport",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "astra-core-proxy-http"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "async-trait",
+ "tokio",
+]
+
+[[package]]
+name = "astra-core-proxy-socks"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "async-trait",
+ "tokio",
 ]
 
 [[package]]
