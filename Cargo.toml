@@ -11,6 +11,8 @@ members = [
     "astra-core-routing",
     "astra-core-transport-ws",
     "astra-core-config",
+    "astra-core-proxy-freedom",
+    "astra-core-proxy-dokodemo",
 ]
 
 [workspace.dependencies]

@@ -106,6 +106,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-proxy-dokodemo"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-proxy-freedom",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "astra-core-proxy-freedom"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-routing",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "astra-core-proxy-vless"
 version = "0.1.0"
 dependencies = [

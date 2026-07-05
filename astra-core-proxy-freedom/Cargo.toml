@@ -1,0 +1,11 @@
+[package]
+name = "astra-core-proxy-freedom"
+version = "0.1.0"
+edition = "2021"
+description = "Freedom (direct) outbound handler for astra-core"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
+astra-core-routing = { path = "../astra-core-routing" }
+tokio = { workspace = true }
+tracing = { workspace = true }

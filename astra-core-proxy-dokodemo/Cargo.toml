@@ -1,0 +1,14 @@
+[package]
+name = "astra-core-proxy-dokodemo"
+version = "0.1.0"
+edition = "2021"
+description = "Dokodemo-door (generic inbound) handler for astra-core"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+astra-core-proxy-freedom = { path = "../astra-core-proxy-freedom" }
+tokio = { workspace = true }
