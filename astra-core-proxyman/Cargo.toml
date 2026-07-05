@@ -9,6 +9,7 @@ astra-core-session = { path = "../astra-core-session" }
 astra-core-transport = { path = "../astra-core-transport" }
 astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-dispatcher = { path = "../astra-core-dispatcher" }
+astra-core-mux = { path = "../astra-core-mux" }
 tokio = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }

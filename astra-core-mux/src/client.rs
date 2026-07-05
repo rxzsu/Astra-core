@@ -23,6 +23,16 @@ pub struct MuxClient<R, W> {
 impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'static>
     MuxClient<R, W>
 {
+    /// Create a `MuxClient` from a single bidirectional stream.
+    /// Internally splits the stream into read/write halves.
+    pub fn new_from_stream<T: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
+        stream: T,
+        strategy: MuxClientStrategy,
+    ) -> Arc<MuxClient<tokio::io::ReadHalf<T>, tokio::io::WriteHalf<T>>> {
+        let (r, w) = tokio::io::split(stream);
+        MuxClient::new(r, w, strategy)
+    }
+
     pub fn new(reader: R, writer: W, strategy: MuxClientStrategy) -> Arc<Self> {
         let session_manager = Arc::new(SessionManager::new());
         let done = Arc::new(AtomicBool::new(false));
@@ -91,22 +101,32 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
     async fn read_loop(&self) {
         let mut reader = self.reader.lock().await;
         loop {
-            let (meta, _data) = match read_frame(&mut *reader).await {
+            let (meta, data) = match read_frame(&mut *reader).await {
                 Ok(m) => m,
                 Err(_) => break,
             };
 
             match meta.status {
+                SessionStatus::New => {
+                    self.session_manager.remove(meta.session_id).await;
+                }
                 SessionStatus::Keep => {
-                    if let Some(_session) = self.session_manager.get(meta.session_id).await {
-                        // Forward data to session output
+                    if let Some(session) = self.session_manager.get(meta.session_id).await {
+                        if let Some(ch) = session.channels.lock().await.as_ref() {
+                            if let Some(data) = &data {
+                                let _ = ch.data_tx.send(data.clone());
+                            }
+                        }
                     }
                 }
                 SessionStatus::End => {
-                    self.session_manager.remove(meta.session_id).await;
                     if let Some(session) = self.session_manager.get(meta.session_id).await {
+                        if let Some(ch) = session.channels.lock().await.take() {
+                            let _ = ch.close_tx.send(());
+                        }
                         session.close();
                     }
+                    self.session_manager.remove(meta.session_id).await;
                 }
                 _ => {}
             }

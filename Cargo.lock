@@ -267,6 +267,7 @@ name = "astra-core-proxyman"
 version = "0.1.0"
 dependencies = [
  "astra-core-dispatcher",
+ "astra-core-mux",
  "astra-core-net",
  "astra-core-proxy",
  "astra-core-session",

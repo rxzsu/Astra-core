@@ -6,7 +6,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time;
 
 use crate::frame::{read_frame, write_frame, FrameMetadata, SessionStatus};
-use crate::session::SessionManager;
+use crate::session::{Session, SessionManager};
 
 /// A mux server that accepts sessions from a single mux connection.
 ///
@@ -67,23 +67,34 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
     async fn read_loop(&self) {
         let mut reader = self.reader.lock().await;
         loop {
-            let (meta, _data) = match read_frame(&mut *reader).await {
+            let (meta, data) = match read_frame(&mut *reader).await {
                 Ok(m) => m,
                 Err(_) => break,
             };
 
             match meta.status {
-                SessionStatus::New => {}
+                SessionStatus::New => {
+                    let session = Arc::new(Session::new(meta.session_id));
+                    self.session_manager.add(session.clone()).await;
+                    // Notify server dispatch to accept this session
+                }
                 SessionStatus::Keep => {
-                    if let Some(_session) = self.session_manager.get(meta.session_id).await {
-                        // Forward data to the session
+                    if let Some(session) = self.session_manager.get(meta.session_id).await {
+                        if let Some(ch) = session.channels.lock().await.as_ref() {
+                            if let Some(data) = &data {
+                                let _ = ch.data_tx.send(data.clone());
+                            }
+                        }
                     }
                 }
                 SessionStatus::End => {
-                    self.session_manager.remove(meta.session_id).await;
                     if let Some(session) = self.session_manager.get(meta.session_id).await {
+                        if let Some(ch) = session.channels.lock().await.take() {
+                            let _ = ch.close_tx.send(());
+                        }
                         session.close();
                     }
+                    self.session_manager.remove(meta.session_id).await;
                 }
                 _ => {}
             }

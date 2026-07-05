@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use astra_core_dispatcher::DispatchHandler;
+use astra_core_mux::client::MuxClient;
+use astra_core_mux::io as mux_io;
+use astra_core_mux::session::MuxClientStrategy;
 use astra_core_net::Destination;
 use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyResult};
 use astra_core_session::Session;
@@ -72,16 +75,29 @@ impl rustls::client::danger::ServerCertVerifier for NoopVerifier {
     }
 }
 
+/// Type-erased async connection usable as a bidirectional transport.
+type Conn = Box<dyn AsyncConn>;
+
+/// Mux client over a type-erased transport.
+type MuxClientType = MuxClient<tokio::io::ReadHalf<Conn>, tokio::io::WriteHalf<Conn>>;
+
 pub struct Handler {
     pub tag: String,
     proxy: Arc<dyn OutboundHandler>,
     tls: Option<TlsConfig>,
     pub mux: Option<MuxConfig>,
+    mux_client: tokio::sync::Mutex<Option<Arc<MuxClientType>>>,
 }
 
 impl Handler {
     pub fn new(tag: String, proxy: Arc<dyn OutboundHandler>) -> Self {
-        Handler { tag, proxy, tls: None, mux: None }
+        Handler {
+            tag,
+            proxy,
+            tls: None,
+            mux: None,
+            mux_client: tokio::sync::Mutex::new(None),
+        }
     }
 
     pub fn with_tls(mut self, tls: TlsConfig) -> Self {
@@ -93,15 +109,9 @@ impl Handler {
         self.mux = Some(mux);
         self
     }
-}
 
-#[async_trait]
-impl Dialer for Handler {
-    async fn dial(
-        &self,
-        _session: Session,
-        dest: Destination,
-    ) -> ProxyResult<Box<dyn AsyncConn>> {
+    /// Dial the underlying transport (TCP or TLS) without mux.
+    async fn dial_transport(&self, dest: &Destination) -> ProxyResult<Conn> {
         let addr = format!("{}:{}", dest.address, dest.port.value());
         let stream = TcpStream::connect(&addr)
             .await
@@ -135,6 +145,44 @@ impl Dialer for Handler {
         } else {
             Ok(Box::new(stream))
         }
+    }
+
+    /// Dial using mux: reuse or create a mux client and open a new session.
+    async fn dial_mux(&self, dest: &Destination) -> ProxyResult<Conn> {
+        // Try to open a session on an existing mux client first.
+        {
+            let guard = self.mux_client.lock().await;
+            if let Some(ref client) = *guard {
+                if let Some(session_io) = mux_io::open_mux_stream(client).await {
+                    return Ok(Box::new(session_io));
+                }
+            }
+        }
+
+        // No available session — create a new mux connection.
+        let conn = self.dial_transport(dest).await?;
+        let mux_client = MuxClientType::new_from_stream(conn, MuxClientStrategy::default());
+
+        let session_io = mux_io::open_mux_stream(&mux_client)
+            .await
+            .ok_or_else(|| "mux: failed to open initial session".to_string())?;
+
+        *self.mux_client.lock().await = Some(mux_client);
+        Ok(Box::new(session_io))
+    }
+}
+
+#[async_trait]
+impl Dialer for Handler {
+    async fn dial(
+        &self,
+        _session: Session,
+        dest: Destination,
+    ) -> ProxyResult<Box<dyn AsyncConn>> {
+        if self.mux.as_ref().is_some_and(|m| m.enabled) {
+            return self.dial_mux(&dest).await;
+        }
+        self.dial_transport(&dest).await
     }
 }
 

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::Arc;
 
+use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
 
@@ -21,11 +22,20 @@ impl Default for MuxClientStrategy {
     }
 }
 
+/// Data channels for a single mux session.
+/// `data_tx` sends received data TO the session consumer.
+/// `close_tx` signals the session consumer that the remote closed.
+pub struct SessionChannels {
+    pub data_tx: mpsc::UnboundedSender<Vec<u8>>,
+    pub close_tx: tokio::sync::oneshot::Sender<()>,
+}
+
 /// A single mux session.
 pub struct Session {
     pub id: u16,
     closed: AtomicBool,
     notify: Notify,
+    pub(super) channels: Mutex<Option<SessionChannels>>,
 }
 
 impl Session {
@@ -34,6 +44,7 @@ impl Session {
             id,
             closed: AtomicBool::new(false),
             notify: Notify::new(),
+            channels: Mutex::new(None),
         }
     }
 
@@ -48,6 +59,21 @@ impl Session {
     pub fn close(&self) {
         self.closed.store(true, Ordering::Relaxed);
         self.notify.notify_waiters();
+    }
+
+    /// Attach data channels. Returns false if already attached.
+    pub async fn attach_channels(&self, ch: SessionChannels) -> bool {
+        let mut lock = self.channels.lock().await;
+        if lock.is_some() {
+            return false;
+        }
+        *lock = Some(ch);
+        true
+    }
+
+    /// Detach and return the data channels.
+    pub async fn take_channels(&self) -> Option<SessionChannels> {
+        self.channels.lock().await.take()
     }
 }
 
