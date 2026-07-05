@@ -1,0 +1,21 @@
+[package]
+name = "astra-core-proxy-shadowsocks"
+version = "0.1.0"
+edition = "2024"
+description = "Shadowsocks proxy protocol handler for Xray-core"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-transport = { path = "../astra-core-transport" }
+tokio = { workspace = true }
+bytes = "1"
+rand = { workspace = true }
+tracing = { workspace = true }
+aes-gcm = { workspace = true }
+chacha20poly1305 = { workspace = true }
+sha1 = "0.10"
+md-5 = { workspace = true }
+hkdf = "0.12"
+futures-util = "0.3"

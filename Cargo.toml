@@ -23,6 +23,7 @@ members = [
     "astra-core-proxy-socks",
     "astra-core-proxy-http",
     "astra-core-transport-grpc",
+    "astra-core-proxy-shadowsocks",
 ]
 
 [workspace.dependencies]
