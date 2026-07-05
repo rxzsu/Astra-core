@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use astra_core_net::Destination;
 use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult};
-use astra_core_routing::Router;
 use astra_core_session::Session;
 use astra_core_transport::Link;
 
@@ -11,7 +8,6 @@ use astra_core_transport::Link;
 pub struct OutboundConfig {
     pub domain_strategy: String,
     pub redirect: Option<Destination>,
-    pub router: Option<Arc<Router>>,
 }
 
 impl std::fmt::Debug for OutboundConfig {
@@ -19,7 +15,6 @@ impl std::fmt::Debug for OutboundConfig {
         f.debug_struct("OutboundConfig")
             .field("domain_strategy", &self.domain_strategy)
             .field("redirect", &self.redirect)
-            .field("router", &self.router.as_ref().map(|_| "Some(Router)"))
             .finish()
     }
 }
@@ -31,14 +26,6 @@ pub struct Handler {
 impl Handler {
     pub fn new(config: OutboundConfig) -> Self {
         Handler { config }
-    }
-
-    fn route_target(&self, hint: &Destination) -> Destination {
-        self.config
-            .router
-            .as_ref()
-            .and_then(|r| r.route(&hint.address, hint.port.value()))
-            .unwrap_or_else(|| hint.clone())
     }
 }
 
@@ -56,7 +43,7 @@ impl OutboundHandler for Handler {
             .map(|o| &o.target)
             .ok_or_else(|| "no target destination".to_string())?;
 
-        let target = self.config.redirect.clone().unwrap_or_else(|| self.route_target(hint));
+        let target = self.config.redirect.clone().unwrap_or_else(|| hint.clone());
         let mut remote = dialer.dial(session, target).await?;
 
         let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut remote);

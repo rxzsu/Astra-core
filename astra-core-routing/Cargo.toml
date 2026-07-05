@@ -6,8 +6,5 @@ description = "Astra-core routing package — traffic routing rules"
 license = "MIT"
 
 [dependencies]
-astra-core-buf = { workspace = true }
-astra-core-net = { workspace = true }
-astra-core-proto = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
+ipnetwork = { workspace = true }
+regex = "1"
