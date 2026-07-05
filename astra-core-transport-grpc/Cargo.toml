@@ -1,0 +1,22 @@
+[package]
+name = "astra-core-transport-grpc"
+version = "0.1.0"
+edition = "2024"
+description = "gRPC transport for Xray-core"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tonic = { workspace = true }
+tonic-prost = "0.14"
+prost = { workspace = true }
+bytes = "1"
+futures-util = "0.3"
+futures-core = "0.3"
+tracing = { workspace = true }
+tower = { workspace = true }
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+protoc-bin-vendored = "3.0"
