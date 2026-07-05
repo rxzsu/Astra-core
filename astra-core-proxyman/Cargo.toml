@@ -1,17 +1,13 @@
 [package]
-name = "astra-core-proxy-dokodemo"
+name = "astra-core-proxyman"
 version = "0.1.0"
 edition = "2021"
-description = "Dokodemo-door (generic inbound) handler for astra-core"
 
 [dependencies]
 astra-core-net = { path = "../astra-core-net" }
-astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-session = { path = "../astra-core-session" }
 astra-core-transport = { path = "../astra-core-transport" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-dispatcher = { path = "../astra-core-dispatcher" }
 tokio = { workspace = true }
 tracing = { workspace = true }
-
-[dev-dependencies]
-astra-core-proxy-freedom = { path = "../astra-core-proxy-freedom" }
-tokio = { workspace = true }

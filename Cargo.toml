@@ -13,6 +13,13 @@ members = [
     "astra-core-config",
     "astra-core-proxy-freedom",
     "astra-core-proxy-dokodemo",
+    "astra-core-session",
+    "astra-core-transport",
+    "astra-core-proxy",
+    "astra-core-dispatcher",
+    "astra-core-proxyman",
+    "astra-core-app",
+    "astra-core-main",
 ]
 
 [workspace.dependencies]

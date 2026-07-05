@@ -1,0 +1,16 @@
+[package]
+name = "astra-core-main"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "astra"
+path = "src/main.rs"
+
+[dependencies]
+astra-core-app = { path = "../astra-core-app" }
+astra-core-config = { path = "../astra-core-config" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+tokio = { workspace = true, features = ["full", "signal"] }
+tracing = { workspace = true }
+tracing-subscriber = "0.3"

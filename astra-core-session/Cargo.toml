@@ -1,0 +1,7 @@
+[package]
+name = "astra-core-session"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }

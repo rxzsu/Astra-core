@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use astra_core_net::Destination;
+use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult};
 use astra_core_routing::Router;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpStream;
+use astra_core_session::Session;
+use astra_core_transport::Link;
 
 /// Configuration for the Freedom outbound handler.
 #[derive(Clone, Default)]
@@ -23,43 +24,52 @@ impl std::fmt::Debug for OutboundConfig {
     }
 }
 
-/// Freedom outbound handler — connects directly to the target and pipes data.
-pub struct OutboundHandler {
+pub struct Handler {
     config: OutboundConfig,
 }
 
-impl OutboundHandler {
+impl Handler {
     pub fn new(config: OutboundConfig) -> Self {
-        OutboundHandler { config }
+        Handler { config }
     }
 
-    pub fn route_target(&self, hint: &Destination) -> Destination {
+    fn route_target(&self, hint: &Destination) -> Destination {
         self.config
             .router
             .as_ref()
             .and_then(|r| r.route(&hint.address, hint.port.value()))
             .unwrap_or_else(|| hint.clone())
     }
+}
 
-    /// Connect to `dest` and pipe data bidirectionally with `stream`.
-    pub async fn process_async<S>(
+#[async_trait]
+impl OutboundHandler for Handler {
+    async fn process(
         &self,
-        dest: &Destination,
-        mut stream: S,
-    ) -> Result<(), String>
-    where
-        S: AsyncRead + AsyncWrite + Unpin,
-    {
-        let target = self.route_target(dest);
-        let addr = format!("{}:{}", target.address, target.port.value());
+        session: Session,
+        link: &mut Link,
+        dialer: &dyn Dialer,
+    ) -> ProxyResult<()> {
+        let hint = session
+            .outbound
+            .as_ref()
+            .map(|o| &o.target)
+            .ok_or_else(|| "no target destination".to_string())?;
 
-        let mut remote = TcpStream::connect(&addr)
-            .await
-            .map_err(|e| format!("freedom dial {}: {}", addr, e))?;
+        let target = self.config.redirect.clone().unwrap_or_else(|| self.route_target(hint));
+        let mut remote = dialer.dial(session, target).await?;
 
-        tokio::io::copy_bidirectional(&mut stream, &mut remote)
-            .await
-            .map_err(|e| format!("freedom copy: {}", e))?;
+        let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut remote);
+
+        let to_remote = tokio::io::copy(&mut link.reader, &mut remote_writer);
+        let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);
+
+        tokio::select! {
+            r = to_remote => r.map(|_| ()),
+            r = to_client => r.map(|_| ()),
+        }
+        .map_err(|e| format!("freedom copy: {}", e))?;
+
         Ok(())
     }
 }
@@ -68,12 +78,30 @@ impl OutboundHandler {
 mod tests {
     use super::*;
     use astra_core_net::{Address, Port, TcpDestination};
+    use astra_core_proxy::{AsyncConn, Dialer};
+    use astra_core_session::Outbound;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
+    struct TestDialer;
+
+    #[async_trait]
+    impl Dialer for TestDialer {
+        async fn dial(
+            &self,
+            _session: Session,
+            dest: Destination,
+        ) -> ProxyResult<Box<dyn AsyncConn>> {
+            let addr = format!("{}:{}", dest.address, dest.port.value());
+            let stream = tokio::net::TcpStream::connect(&addr)
+                .await
+                .map_err(|e| format!("dial {}: {}", addr, e))?;
+            Ok(Box::new(stream))
+        }
+    }
+
     #[tokio::test]
     async fn test_freedom_echo() {
-        // Start an echo server as the target
         let echo_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let echo_addr = echo_listener.local_addr().unwrap();
 
@@ -89,27 +117,49 @@ mod tests {
             }
         });
 
-        // Start a listener for the "client" side
         let client_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let client_addr = client_listener.local_addr().unwrap();
 
         let dest = TcpDestination(Address::Ipv4([127, 0, 0, 1]), Port(echo_addr.port()));
-        let handler = OutboundHandler::new(OutboundConfig::default());
+        let handler = Handler::new(OutboundConfig::default());
 
-        // Accept the client connection in the background
         let client_handle = tokio::spawn(async move {
-            let (stream, _) = client_listener.accept().await.unwrap();
-            handler.process_async(&dest, stream).await.unwrap();
+            let (conn, _) = client_listener.accept().await.unwrap();
+            // Create link pair and pipe conn with inbound_link
+            let (mut inbound_link, mut outbound_link) = astra_core_transport::new_link_pair();
+
+            // Pipe: conn ↔ inbound_link (simulating what a dispatcher does)
+            let pipe_handle = tokio::spawn(async move {
+                let (mut conn_reader, mut conn_writer) = tokio::io::split(conn);
+                let to_outbound = tokio::io::copy(&mut conn_reader, &mut inbound_link.writer);
+                let to_inbound = tokio::io::copy(&mut inbound_link.reader, &mut conn_writer);
+                tokio::select! {
+                    r = to_outbound => r.map(|_| ()),
+                    r = to_inbound => r.map(|_| ()),
+                }
+            });
+
+            let session = Session {
+                inbound: None,
+                outbound: Some(Outbound {
+                    target: dest.clone(),
+                    original_target: dest.clone(),
+                    route_target: None,
+                    tag: String::new(),
+                }),
+                content: None,
+            };
+            let dialer = TestDialer;
+            handler.process(session, &mut outbound_link, &dialer).await.unwrap();
+            let _ = pipe_handle.await;
         });
 
-        // Connect as a client
-        let mut client = TcpStream::connect(client_addr).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(client_addr).await.unwrap();
         client.write_all(b"hello").await.unwrap();
         let mut buf = vec![0u8; 5];
         client.read_exact(&mut buf).await.unwrap();
         assert_eq!(&buf, b"hello");
 
-        // Shutdown the write half so copy_bidirectional can unblock
         let _ = client.shutdown().await;
         let _ = tokio::time::timeout(std::time::Duration::from_secs(1), client_handle).await;
     }
