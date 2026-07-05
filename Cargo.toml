@@ -10,6 +10,7 @@ members = [
     "astra-core-proxy-vmess",
     "astra-core-routing",
     "astra-core-transport-ws",
+    "astra-core-config",
 ]
 
 [workspace.dependencies]
@@ -34,3 +35,4 @@ astra-core-crypto = { path = "astra-core-crypto" }
 astra-core-net = { path = "astra-core-net" }
 astra-core-proto = { path = "astra-core-proto" }
 astra-core-routing = { path = "astra-core-routing" }
+astra-core-config = { path = "astra-core-config" }
