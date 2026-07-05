@@ -88,7 +88,7 @@ where
             Poll::Pending => return Poll::Pending,
         }
 
-        let msg = Message::Binary(buf.to_vec());
+        let msg = Message::Binary(bytes::Bytes::from(buf.to_vec()));
         match Pin::new(&mut self.ws).start_send(msg) {
             Ok(()) => Poll::Ready(Ok(buf.len())),
             Err(e) => Poll::Ready(Err(std::io::Error::other(e.to_string()))),
