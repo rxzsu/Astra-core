@@ -8,6 +8,31 @@ use tracing::info;
 
 use crate::transport;
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum ListenNetwork {
+    Tcp,
+    Udp,
+    Both,
+}
+
+impl ListenNetwork {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "udp" => ListenNetwork::Udp,
+            "tcp,udp" | "tcp, udp" | "both" => ListenNetwork::Both,
+            _ => ListenNetwork::Tcp,
+        }
+    }
+
+    pub fn has_udp(self) -> bool {
+        self == ListenNetwork::Udp || self == ListenNetwork::Both
+    }
+
+    pub fn has_tcp(self) -> bool {
+        self == ListenNetwork::Tcp || self == ListenNetwork::Both
+    }
+}
+
 pub struct TlsConfig {
     pub cert_file: Option<String>,
     pub key_file: Option<String>,
@@ -21,6 +46,7 @@ pub struct AlwaysOnInboundHandler {
     listen_addr: String,
     transport: transport::Transport,
     tls: Option<TlsConfig>,
+    network: ListenNetwork,
 }
 
 impl AlwaysOnInboundHandler {
@@ -35,6 +61,7 @@ impl AlwaysOnInboundHandler {
             listen_addr,
             transport: transport::Transport::RawTcp,
             tls: None,
+            network: ListenNetwork::Tcp,
         }
     }
 
@@ -45,6 +72,11 @@ impl AlwaysOnInboundHandler {
 
     pub fn with_tls(mut self, tls: TlsConfig) -> Self {
         self.tls = Some(tls);
+        self
+    }
+
+    pub fn with_network(mut self, network: ListenNetwork) -> Self {
+        self.network = network;
         self
     }
 
@@ -77,6 +109,80 @@ impl AlwaysOnInboundHandler {
 
         match &self.transport {
             transport::Transport::RawTcp => {
+                if self.network.has_udp() {
+                    let udp_socket = Arc::new(
+                        tokio::net::UdpSocket::bind(&listen)
+                            .await
+                            .map_err(|e| format!("bind udp {}: {}", listen, e))?,
+                    );
+                    let udp_dispatcher = dispatcher.clone();
+                    let udp_tag = self.tag.clone();
+
+                    info!("inbound {} listening on {} (udp)", self.tag, listen);
+
+                    tokio::spawn(async move {
+                        let mut buf = vec![0u8; 65535];
+                        loop {
+                            let (n, peer) = match udp_socket.recv_from(&mut buf).await {
+                                Ok(r) => r,
+                                Err(_) => break,
+                            };
+                            let data = buf[..n].to_vec();
+
+                            let source_addr = match peer.ip() {
+                                std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
+                                std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
+                            };
+
+                            let session = Session {
+                                inbound: Some(Inbound {
+                                    source: Destination {
+                                        address: source_addr,
+                                        port: Port(peer.port()),
+                                        network: Network::Udp,
+                                    },
+                                    local: None,
+                                    gateway: None,
+                                    tag: udp_tag.clone(),
+                                }),
+                                outbound: None,
+                                content: None,
+                            };
+
+                            let mut udp_link = match udp_dispatcher.dispatch_udp(session).await {
+                                Ok(link) => link,
+                                Err(_) => continue,
+                            };
+
+                            let placeholder = Destination {
+                                address: Address::Ipv4([0, 0, 0, 0]),
+                                port: Port(0),
+                                network: Network::Udp,
+                            };
+                            let pkt = astra_core_transport::UdpPacket::new(
+                                placeholder.clone(), placeholder, data,
+                            );
+                            let _ = udp_link.send(pkt);
+
+                            let resp = tokio::time::timeout(
+                                std::time::Duration::from_secs(10),
+                                udp_link.recv(),
+                            )
+                            .await
+                            .ok()
+                            .flatten();
+
+                            if let Some(pkt) = resp {
+                                let _ = udp_socket.send_to(&pkt.data, peer).await;
+                            }
+                        }
+                    });
+                }
+
+                if !self.network.has_tcp() {
+                    return Ok(());
+                }
+
                 let listener = TcpListener::bind(&listen)
                     .await
                     .map_err(|e| format!("bind {}: {}", listen, e))?;

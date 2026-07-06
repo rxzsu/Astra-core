@@ -29,6 +29,45 @@ impl Handler {
     pub fn new(config: OutboundConfig) -> Self {
         Handler { config }
     }
+
+    /// Resolve a domain to an IP address based on the domain_strategy.
+    async fn resolve_strategy(&self, target: &mut Destination) {
+        let strategy = self.config.domain_strategy.as_str();
+        if strategy.is_empty() || strategy == "AsIs" {
+            return;
+        }
+
+        let domain = match target.address.as_domain() {
+            Some(d) => d.to_string(),
+            None => return,
+        };
+
+        let addr_str = format!("{}:{}", domain, target.port.value());
+        let addrs: Vec<_> = match tokio::net::lookup_host(&addr_str).await {
+            Ok(addrs) => addrs.collect(),
+            Err(_) => return,
+        };
+
+        let wants_ipv4 = strategy == "UseIPv4";
+        let wants_ipv6 = strategy == "UseIPv6";
+
+        let chosen = if wants_ipv4 {
+            addrs.iter().find(|a| a.ip().is_ipv4())
+        } else if wants_ipv6 {
+            addrs.iter().find(|a| a.ip().is_ipv6())
+        } else {
+            addrs.first()
+        };
+
+        if let Some(sock_addr) = chosen {
+            let ip_addr = sock_addr.ip();
+            let new_address = match ip_addr {
+                std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
+                std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
+            };
+            target.address = new_address;
+        }
+    }
 }
 
 #[async_trait]
@@ -45,7 +84,8 @@ impl OutboundHandler for Handler {
             .map(|o| &o.target)
             .ok_or_else(|| "no target destination".to_string())?;
 
-        let target = self.config.redirect.clone().unwrap_or_else(|| hint.clone());
+        let mut target = self.config.redirect.clone().unwrap_or_else(|| hint.clone());
+        self.resolve_strategy(&mut target).await;
         let mut remote = dialer.dial(session, target).await?;
 
         let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut remote);

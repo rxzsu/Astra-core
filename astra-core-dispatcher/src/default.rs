@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use astra_core_dns::DnsResolver;
+use astra_core_dns::{DnsResolver, FakeDnsResolver};
 use astra_core_net::Destination;
 use astra_core_proxy::{async_trait, Dispatcher, ProxyResult, UdpLink};
 use astra_core_routing::{DomainStrategy, Router, RoutingContext};
@@ -13,6 +13,7 @@ pub struct DefaultDispatcher {
     router: Arc<Router>,
     handler_provider: Arc<dyn HandlerProvider>,
     dns_resolver: Option<Arc<dyn DnsResolver>>,
+    fake_dns: Option<Arc<FakeDnsResolver>>,
 }
 
 pub trait HandlerProvider: Send + Sync {
@@ -22,11 +23,16 @@ pub trait HandlerProvider: Send + Sync {
 
 impl DefaultDispatcher {
     pub fn new(router: Arc<Router>, handler_provider: Arc<dyn HandlerProvider>) -> Self {
-        DefaultDispatcher { router, handler_provider, dns_resolver: None }
+        DefaultDispatcher { router, handler_provider, dns_resolver: None, fake_dns: None }
     }
 
     pub fn with_dns_resolver(mut self, resolver: Arc<dyn DnsResolver>) -> Self {
         self.dns_resolver = Some(resolver);
+        self
+    }
+
+    pub fn with_fake_dns(mut self, fake_dns: Arc<FakeDnsResolver>) -> Self {
+        self.fake_dns = Some(fake_dns);
         self
     }
 
@@ -47,6 +53,17 @@ impl DefaultDispatcher {
             ctx.attributes = content.attributes.clone();
         }
         ctx
+    }
+
+    /// If the target IP is a fake IP, look up the real domain and set target_domain.
+    fn enrich_with_fake_dns(&self, ctx: &mut RoutingContext) {
+        let Some(ref fake) = self.fake_dns else { return };
+        let Some(target_ip) = ctx.target_ip else { return };
+        if !fake.is_fake_ip(target_ip) { return; }
+        if let Some(domain) = fake.get_domain(target_ip) {
+            ctx.target_domain = Some(domain);
+            tracing::debug!("fake_dns: {} -> {:?}", target_ip, ctx.target_domain);
+        }
     }
 
     /// Resolve the target domain in the routing context if it's set and not yet resolved.
@@ -87,6 +104,7 @@ impl DefaultDispatcher {
         _dest: &Destination,
     ) -> ProxyResult<()> {
         let mut ctx = Self::build_routing_context(&session);
+        self.enrich_with_fake_dns(&mut ctx);
         let strategy = self.router.domain_strategy();
 
         if strategy == DomainStrategy::IpOnDemand {
@@ -119,9 +137,10 @@ impl Dispatcher for DefaultDispatcher {
         let router = self.router.clone();
         let handler_provider = self.handler_provider.clone();
         let dns_resolver = self.dns_resolver.clone();
+        let fake_dns = self.fake_dns.clone();
 
         tokio::spawn(async move {
-            let dispatcher = DefaultDispatcher { router, handler_provider, dns_resolver };
+            let dispatcher = DefaultDispatcher { router, handler_provider, dns_resolver, fake_dns };
             if let Err(e) = dispatcher.routed_dispatch(session, outbound_link, &dest).await {
                 tracing::error!("dispatch error: {}", e);
             }
@@ -136,13 +155,15 @@ impl Dispatcher for DefaultDispatcher {
         let router = self.router.clone();
         let handler_provider = self.handler_provider.clone();
         let dns_resolver = self.dns_resolver.clone();
+        let fake_dns = self.fake_dns.clone();
 
         tokio::spawn(async move {
             let handler_provider = handler_provider.clone();
-            let dispatcher = DefaultDispatcher { router, handler_provider: handler_provider.clone(), dns_resolver };
+            let dispatcher = DefaultDispatcher { router, handler_provider: handler_provider.clone(), dns_resolver, fake_dns };
 
             let mut session = session;
             let mut ctx = DefaultDispatcher::build_routing_context(&session);
+            dispatcher.enrich_with_fake_dns(&mut ctx);
             let strategy = dispatcher.router.domain_strategy();
 
             if strategy == DomainStrategy::IpOnDemand {

@@ -4,7 +4,7 @@ use astra_core_config::Config;
 use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
-use astra_core_dns::{DnsResolver, UdpDnsResolver, SimpleDnsResolver, NameServer, QueryStrategy, parse_hosts};
+use astra_core_dns::{DnsResolver, UdpDnsResolver, SimpleDnsResolver, FakeDnsResolver, NameServer, QueryStrategy, parse_hosts};
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
@@ -511,6 +511,21 @@ pub fn build_inbound_handler(
     let listen_addr = get_listen_addr(config);
     let mut handler = AlwaysOnInboundHandler::new(tag, proxy, listen_addr);
 
+    // Determine listen network from protocol config
+    if let Some(settings) = config.settings.as_ref() {
+        if let Some(network_str) = settings.get("network").and_then(|v| v.as_str()) {
+            handler = handler.with_network(astra_core_proxyman::inbound::ListenNetwork::from_str(network_str));
+        } else if let Some(networks) = settings.get("network").and_then(|v| v.as_array()) {
+            let joined: String = networks.iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join(",");
+            if !joined.is_empty() {
+                handler = handler.with_network(astra_core_proxyman::inbound::ListenNetwork::from_str(&joined));
+            }
+        }
+    }
+
     if let Some(ref stream) = config.stream_settings {
         let t = transport::Transport::from_stream_config(stream);
         if !matches!(t, transport::Transport::RawTcp) {
@@ -664,6 +679,10 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let mut dispatcher = DefaultDispatcher::new(router, handler_provider);
     if let Some(resolver) = dns_resolver {
         dispatcher = dispatcher.with_dns_resolver(resolver);
+    }
+    if config.fake_dns.is_some() {
+        let fake = Arc::new(FakeDnsResolver::new_default());
+        dispatcher = dispatcher.with_fake_dns(fake);
     }
     let dispatcher = Arc::new(dispatcher);
 

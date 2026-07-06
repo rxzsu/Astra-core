@@ -315,6 +315,97 @@ impl DnsResolver for UdpDnsResolver {
     }
 }
 
+// ─── FakeDnsResolver ───────────────────────────────────────────────────────
+
+/// Fake DNS resolver: allocates fake IPs for domains and provides reverse lookup.
+/// Used in transparent proxy to map connections to fake IPs back to real domains.
+pub struct FakeDnsResolver {
+    pool: FakeIpPool,
+    domain_to_ip: tokio::sync::Mutex<std::collections::HashMap<String, IpAddr>>,
+    ip_to_domain: tokio::sync::Mutex<std::collections::HashMap<IpAddr, String>>,
+}
+
+struct FakeIpPool {
+    base: std::net::Ipv4Addr,
+    count: u32,
+    next: std::sync::atomic::AtomicU32,
+}
+
+impl FakeIpPool {
+    fn new(base: std::net::Ipv4Addr, prefix: u8) -> Self {
+        let count = 1u32 << (32 - prefix.min(32).max(8));
+        FakeIpPool { base, count, next: std::sync::atomic::AtomicU32::new(1) }
+    }
+
+    fn allocate(&self) -> Option<IpAddr> {
+        let offset = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if offset >= self.count {
+            return None;
+        }
+        let mut octets = self.base.octets();
+        let v = u32::from_be_bytes(octets).wrapping_add(offset);
+        octets = v.to_be_bytes();
+        Some(IpAddr::V4(std::net::Ipv4Addr::new(octets[0], octets[1], octets[2], octets[3])))
+    }
+}
+
+impl FakeDnsResolver {
+    pub fn new(base: std::net::Ipv4Addr, prefix: u8) -> Self {
+        FakeDnsResolver {
+            pool: FakeIpPool::new(base, prefix),
+            domain_to_ip: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+            ip_to_domain: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    pub fn new_default() -> Self {
+        Self::new(std::net::Ipv4Addr::new(198, 18, 0, 0), 15)
+    }
+
+    /// Reverse lookup: find the domain that maps to this fake IP.
+    pub fn get_domain(&self, ip: IpAddr) -> Option<String> {
+        self.ip_to_domain.try_lock().ok()?.get(&ip).cloned()
+    }
+
+    /// Check if an IP belongs to the fake pool range.
+    pub fn is_fake_ip(&self, ip: IpAddr) -> bool {
+        match ip {
+            IpAddr::V4(v4) => {
+                let base_octets = self.pool.base.octets();
+                let v4_octets = v4.octets();
+                // 198.18.0.0/15 check
+                v4_octets[0] == base_octets[0] && v4_octets[1] == base_octets[1]
+            }
+            IpAddr::V6(_) => false,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl DnsResolver for FakeDnsResolver {
+    async fn resolve(&self, domain: &str) -> Result<Vec<IpAddr>, String> {
+        let lower = domain.to_lowercase();
+
+        {
+            let map = self.domain_to_ip.lock().await;
+            if let Some(ip) = map.get(&lower) {
+                return Ok(vec![*ip]);
+            }
+        }
+
+        let ip = self.pool.allocate().ok_or_else(|| "fake DNS pool exhausted".to_string())?;
+
+        {
+            let mut map = self.domain_to_ip.lock().await;
+            let mut rev = self.ip_to_domain.lock().await;
+            map.insert(lower.clone(), ip);
+            rev.insert(ip, lower);
+        }
+
+        Ok(vec![ip])
+    }
+}
+
 // ─── SimpleDnsResolver (system lookup_host, kept for backward compat) ──────
 
 pub struct SimpleDnsResolver {
