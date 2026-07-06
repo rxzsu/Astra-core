@@ -15,6 +15,7 @@ astra-core-transport-kcp = { path = "../astra-core-transport-kcp" }
 astra-core-transport-httpupgrade = { path = "../astra-core-transport-httpupgrade" }
 astra-core-transport-ws = { path = "../astra-core-transport-ws" }
 astra-core-transport-splithttp = { path = "../astra-core-transport-splithttp" }
+astra-core-transport-reality = { path = "../astra-core-transport-reality" }
 tokio = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }

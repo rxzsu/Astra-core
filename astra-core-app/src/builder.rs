@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use astra_core_config::Config;
+use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
 use astra_core_proxyman::inbound::AlwaysOnInboundHandler;
+use astra_core_proxyman::inbound;
 use astra_core_proxyman::outbound;
 use astra_core_proxyman::outbound::{MuxConfig, TlsConfig};
 use astra_core_proxyman::transport;
@@ -219,6 +221,26 @@ pub fn build_outbound_handler(
                 };
                 ob_handler = ob_handler.with_tls(TlsConfig { server_name, allow_insecure: tls_cfg.allow_insecure });
             }
+        } else if stream.security == "reality" {
+            if let Some(ref _reality_cfg) = stream.reality_settings {
+                let server_name = if _reality_cfg.server_name.is_empty() {
+                    stream.address.as_ref().map(|a| a.0.clone()).unwrap_or_default()
+                } else {
+                    _reality_cfg.server_name.clone()
+                };
+                ob_handler = ob_handler.with_reality(outbound::RealityConfig {
+                    server_name,
+                    fingerprint: _reality_cfg.fingerprint.clone(),
+                    public_key: {
+                        let decoded = hex::decode(&_reality_cfg.public_key).unwrap_or_default();
+                        decoded
+                    },
+                    short_id: {
+                        let decoded = hex::decode(&_reality_cfg.short_id).unwrap_or_default();
+                        decoded
+                    },
+                });
+            }
         }
     }
 
@@ -405,6 +427,29 @@ pub fn build_inbound_handler(
         let t = transport::Transport::from_stream_config(stream);
         if !matches!(t, transport::Transport::RawTcp) {
             handler = handler.with_transport(t);
+        }
+
+        if stream.security == "tls" || stream.security == "reality" {
+            if let Some(ref tls_cfg) = stream.tls_settings {
+                if let Some(cert) = tls_cfg.certificates.first() {
+                    let cert_data = if !cert.certificate.is_empty() {
+                        cert.certificate.join("\n").into_bytes()
+                    } else {
+                        Vec::new()
+                    };
+                    let key_data = if !cert.key.is_empty() {
+                        cert.key.join("\n").into_bytes()
+                    } else {
+                        Vec::new()
+                    };
+                    handler = handler.with_tls(inbound::TlsConfig {
+                        cert_file: if cert.certificate_file.is_empty() { None } else { Some(cert.certificate_file.clone()) },
+                        key_file: if cert.key_file.is_empty() { None } else { Some(cert.key_file.clone()) },
+                        cert_data,
+                        key_data,
+                    });
+                }
+            }
         }
     }
 

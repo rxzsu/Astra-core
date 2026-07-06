@@ -18,6 +18,14 @@ pub struct TlsConfig {
     pub allow_insecure: bool,
 }
 
+/// REALITY configuration for outbound connections.
+pub struct RealityConfig {
+    pub server_name: String,
+    pub fingerprint: String,
+    pub public_key: Vec<u8>,
+    pub short_id: Vec<u8>,
+}
+
 /// Mux configuration for outbound connections.
 #[derive(Debug, Clone)]
 pub struct MuxConfig {
@@ -85,6 +93,7 @@ pub struct Handler {
     pub tag: String,
     proxy: Arc<dyn OutboundHandler>,
     tls: Option<TlsConfig>,
+    reality: Option<RealityConfig>,
     transport: transport::Transport,
     pub mux: Option<MuxConfig>,
     mux_client: tokio::sync::Mutex<Option<Arc<MuxClientType>>>,
@@ -96,6 +105,7 @@ impl Handler {
             tag,
             proxy,
             tls: None,
+            reality: None,
             transport: transport::Transport::RawTcp,
             mux: None,
             mux_client: tokio::sync::Mutex::new(None),
@@ -104,6 +114,11 @@ impl Handler {
 
     pub fn with_tls(mut self, tls: TlsConfig) -> Self {
         self.tls = Some(tls);
+        self
+    }
+
+    pub fn with_reality(mut self, reality: RealityConfig) -> Self {
+        self.reality = Some(reality);
         self
     }
 
@@ -117,12 +132,25 @@ impl Handler {
         self
     }
 
-    /// Dial the underlying transport (TCP/TLS or KCP/WS/etc.) without mux.
+    /// Dial the underlying transport (TCP/TLS/REALITY or KCP/WS/etc.) without mux.
     async fn dial_transport(&self, dest: &Destination) -> ProxyResult<Conn> {
-        // First dial the base transport
+        if let Some(ref reality_cfg) = self.reality {
+            let tcp = transport::dial_transport(&self.transport, dest).await?;
+            let sn = if reality_cfg.server_name.is_empty() {
+                dest.address.to_string()
+            } else {
+                reality_cfg.server_name.clone()
+            };
+            return astra_core_transport_reality::client::dial_tls(
+                tcp,
+                &sn,
+                false,
+            )
+            .await;
+        }
+
         let raw = transport::dial_transport(&self.transport, dest).await?;
 
-        // Apply TLS on top if configured
         if let Some(ref tls_cfg) = self.tls {
             let server_name_str = tls_cfg.server_name.clone();
             let server_name = ServerName::try_from(server_name_str)
@@ -147,10 +175,10 @@ impl Handler {
                 .connect(server_name, raw)
                 .await
                 .map_err(|e| format!("tls handshake: {}", e))?;
-            Ok(Box::new(tls_stream))
-        } else {
-            Ok(raw)
+            return Ok(Box::new(tls_stream));
         }
+
+        Ok(raw)
     }
 
     /// Dial using mux: reuse or create a mux client and open a new session.

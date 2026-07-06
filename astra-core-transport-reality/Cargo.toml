@@ -1,0 +1,27 @@
+[package]
+name = "astra-core-transport-reality"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+rand_08 = { version = "0.8", package = "rand" }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+aes-gcm = { workspace = true }
+hkdf = "0.12"
+x25519-dalek = "2"
+ed25519-dalek = "2"
+bytes = "1"
+hex = { workspace = true }
+
+tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+webpki-roots = { workspace = true }
+
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-config = { path = "../astra-core-config" }
