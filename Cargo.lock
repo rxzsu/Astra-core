@@ -67,6 +67,7 @@ version = "0.1.0"
 dependencies = [
  "astra-core-config",
  "astra-core-dispatcher",
+ "astra-core-dns",
  "astra-core-net",
  "astra-core-proto",
  "astra-core-proxy",
@@ -125,6 +126,7 @@ dependencies = [
 name = "astra-core-dispatcher"
 version = "0.1.0"
 dependencies = [
+ "astra-core-dns",
  "astra-core-net",
  "astra-core-proxy",
  "astra-core-routing",
@@ -132,6 +134,15 @@ dependencies = [
  "astra-core-transport",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "astra-core-dns"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

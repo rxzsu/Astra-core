@@ -1,6 +1,7 @@
 mod default;
 
 pub use default::{DefaultDispatcher, HandlerProvider};
+pub use astra_core_dns::DnsResolver;
 
 use astra_core_proxy::{async_trait, ProxyResult};
 use astra_core_session::Session;

@@ -4,6 +4,7 @@ use astra_core_config::Config;
 use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
+use astra_core_dns::{DnsResolver, SimpleDnsResolver, parse_hosts};
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
@@ -608,7 +609,27 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     }
 
     let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider { manager: ob_manager });
-    let dispatcher = Arc::new(DefaultDispatcher::new(router, handler_provider));
+
+    let hosts = config.dns.as_ref().and_then(|d| d.hosts.as_ref());
+    let dns_resolver: Option<Arc<dyn DnsResolver>> = match hosts {
+        Some(_) => {
+            let hosts_map = parse_hosts(hosts)?;
+            Some(Arc::new(SimpleDnsResolver::new(hosts_map)))
+        }
+        None => {
+            if config.dns.as_ref().is_some_and(|d| !d.servers.is_empty()) {
+                Some(Arc::new(SimpleDnsResolver::new(std::collections::HashMap::new())))
+            } else {
+                None
+            }
+        }
+    };
+
+    let mut dispatcher = DefaultDispatcher::new(router, handler_provider);
+    if let Some(resolver) = dns_resolver {
+        dispatcher = dispatcher.with_dns_resolver(resolver);
+    }
+    let dispatcher = Arc::new(dispatcher);
 
     let mut inbound_handlers = Vec::new();
     for ib_config in &config.inbounds {
