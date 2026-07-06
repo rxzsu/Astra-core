@@ -16,9 +16,11 @@ astra-core-transport-httpupgrade = { path = "../astra-core-transport-httpupgrade
 astra-core-transport-ws = { path = "../astra-core-transport-ws" }
 astra-core-transport-splithttp = { path = "../astra-core-transport-splithttp" }
 astra-core-transport-reality = { path = "../astra-core-transport-reality" }
+astra-core-transport-quic = { path = "../astra-core-transport-quic" }
 tokio = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }
 rustls-pki-types = { workspace = true }
 webpki-roots = { workspace = true }
 tracing = { workspace = true }
+quinn = { workspace = true }

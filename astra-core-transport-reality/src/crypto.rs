@@ -1,9 +1,9 @@
 use aes_gcm::{
-    aead::{Aead, KeyInit, Payload},
+    aead::{Aead, KeyInit as AeadKeyInit, Payload},
     Aes256Gcm, Nonce,
 };
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
@@ -13,8 +13,7 @@ pub const REALITY_INFO: &[u8] = b"REALITY";
 pub const SESSION_ID_SIZE: usize = 16;
 
 pub fn generate_ephemeral_key() -> (EphemeralSecret, PublicKey) {
-    use rand_08::rngs::OsRng;
-    let secret = EphemeralSecret::random_from_rng(OsRng);
+    let secret = EphemeralSecret::random_from_rng(&mut rand::rng());
     let public = PublicKey::from(&secret);
     (secret, public)
 }
@@ -59,7 +58,7 @@ pub fn aes256gcm_decrypt(
 }
 
 pub fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
-    let mut mac = <HmacSha512 as Mac>::new_from_slice(key)
+    let mut mac = HmacSha512::new_from_slice(key)
         .expect("HMAC-SHA512 key size is valid");
     mac.update(data);
     let result = mac.finalize();

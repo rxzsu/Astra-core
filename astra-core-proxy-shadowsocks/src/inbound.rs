@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rand::RngCore;
+use rand::Rng;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};

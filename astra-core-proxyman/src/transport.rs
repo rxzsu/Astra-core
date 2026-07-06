@@ -22,6 +22,7 @@ pub enum Transport {
         service_name: String,
     },
     SplitHttp(astra_core_transport_splithttp::config::Config),
+    Quic(astra_core_transport_quic::config::QuicConfig),
 }
 
 impl Default for Transport {
@@ -89,6 +90,9 @@ impl Transport {
                 astra_core_transport_splithttp::config::Config::from_stream_config(sh),
             );
         }
+        if let Some(quic) = &stream.quic_settings {
+            return Self::Quic(quic.into());
+        }
         Self::RawTcp
     }
 
@@ -100,6 +104,7 @@ impl Transport {
             Self::Kcp(_) => "mkcp",
             Self::Grpc { .. } => "grpc",
             Self::SplitHttp(_) => "splithttp",
+            Self::Quic(_) => "quic",
         }
     }
 }
@@ -186,6 +191,12 @@ pub async fn dial_transport(
         }
         Transport::Grpc { .. } => {
             Err("grpc transport not yet implemented".into())
+        }
+        Transport::Quic(quic_cfg) => {
+            let quic_conn = astra_core_transport_quic::dialer::dial_quic(dest, quic_cfg)
+                .await
+                .map_err(|e| format!("quic dial: {}", e))?;
+            Ok(Box::new(quic_conn))
         }
         Transport::RawTcp => {
             let tcp = tokio::net::TcpStream::connect(&addr_str)
@@ -276,6 +287,11 @@ where
             let listener =
                 astra_core_transport_splithttp::listener::SplitHTTPListener::new(sh_cfg.clone());
             listener.serve(listen_addr, on_conn).await
+        }
+        // QUIC inbound is handled separately via the inbound TLS config
+        // because QUIC requires TLS natively.
+        Transport::Quic(_) => {
+            return Err("quic inbound: use TLS transport config".into());
         }
         Transport::RawTcp => {
             let listener = tokio::net::TcpListener::bind(listen_addr)

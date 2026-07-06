@@ -34,6 +34,8 @@ pub struct StreamConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub splithttp_settings: Option<SplitHTTPConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quic_settings: Option<QUICConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sockopt: Option<SocketConfig>,
 }
 
@@ -147,6 +149,19 @@ pub struct SplitHTTPConfig {
     pub min_upload_interval_ms: i32,
     #[serde(default)]
     pub download_settings: Option<Box<StreamConfig>>,
+}
+
+// ─── QUIC ────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct QUICConfig {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub security: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub header: Option<serde_json::Value>,
 }
 
 // ─── TLS ─────────────────────────────────────────────────────────────────────

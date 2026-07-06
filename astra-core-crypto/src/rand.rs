@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 
 pub fn rand_bytes(buf: &mut [u8]) {
     rand::rng().fill(buf);

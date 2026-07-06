@@ -135,6 +135,87 @@ impl AlwaysOnInboundHandler {
                     });
                 }
             }
+            transport::Transport::Quic(_quic_cfg) => {
+                info!("inbound {} listening on {} (quic)", self.tag, listen);
+
+                let tls_cfg = self.tls.as_ref().ok_or_else(|| {
+                    "QUIC inbound requires TLS config with certificates".to_string()
+                })?;
+
+                let cert = rustls::pki_types::CertificateDer::from(tls_cfg.cert_data.clone());
+                let key = rustls::pki_types::PrivateKeyDer::try_from(tls_cfg.key_data.clone())
+                    .map_err(|e| format!("invalid tls key: {:?}", e))?;
+
+                let tls_config = rustls::ServerConfig::builder()
+                    .with_no_client_auth()
+                    .with_single_cert(vec![cert], key)
+                    .map_err(|e| format!("tls config: {}", e))?;
+
+                let quic_tls: quinn::crypto::rustls::QuicServerConfig = tls_config
+                    .try_into()
+                    .map_err(|e: quinn::crypto::rustls::NoInitialCipherSuite| format!("QUIC TLS: {}", e))?;
+
+                let mut quic_server = quinn::ServerConfig::with_crypto(
+                    std::sync::Arc::new(quic_tls)
+                );
+                let mut transport_cfg = quinn::TransportConfig::default();
+                transport_cfg.max_concurrent_bidi_streams(100u32.into());
+                quic_server.transport_config(std::sync::Arc::new(transport_cfg));
+
+                let listen_addr: std::net::SocketAddr = listen
+                    .parse()
+                    .map_err(|e| format!("invalid listen address: {}", e))?;
+                let endpoint = quinn::Endpoint::server(quic_server, listen_addr)
+                    .map_err(|e| format!("create QUIC endpoint: {}", e))?;
+
+                let proxy = self.proxy.clone();
+                let dispatcher = dispatcher.clone();
+                let tag = self.tag.clone();
+
+                loop {
+                    match endpoint.accept().await {
+                        Some(connecting) => {
+                            let proxy = proxy.clone();
+                            let dispatcher = dispatcher.clone();
+                            let tag = tag.clone();
+
+                            tokio::spawn(async move {
+                                match connecting.await {
+                                    Ok(conn) => {
+                                        if let Ok((send, recv)) = conn.accept_bi().await {
+                                            let stream = astra_core_transport_quic::connection::QuicStream::new(send, recv);
+                                            let session = Session {
+                                                inbound: Some(Inbound {
+                                                    source: Destination {
+                                                        address: Address::Ipv4([0, 0, 0, 0]),
+                                                        port: Port(0),
+                                                        network: Network::Tcp,
+                                                    },
+                                                    local: None,
+                                                    gateway: None,
+                                                    tag,
+                                                }),
+                                                outbound: None,
+                                                content: None,
+                                            };
+
+                                            if let Err(e) = proxy.process(session, Box::new(stream), dispatcher).await {
+                                                tracing::error!("inbound process error: {}", e);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("QUIC accept error: {}", e);
+                                    }
+                                }
+                            });
+                        }
+                        None => break,
+                    }
+                }
+
+                Ok(())
+            }
             _ => {
                 info!(
                     "inbound {} listening on {} ({})",

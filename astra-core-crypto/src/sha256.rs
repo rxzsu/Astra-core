@@ -12,7 +12,7 @@ pub fn Sha256_hash(data: &[u8]) -> [u8; 32] {
 }
 
 pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, Mac, KeyInit};
     type HmacSha256 = Hmac<Sha256>;
 
     let mut mac = HmacSha256::new_from_slice(key).expect("HMAC key length");

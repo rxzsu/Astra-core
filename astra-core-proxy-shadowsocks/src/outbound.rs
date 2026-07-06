@@ -1,5 +1,6 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use rand::Rng;
 use astra_core_net::{ParseAddress, Port, TcpDestination};
 use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult};
 use astra_core_session::Session;
@@ -43,7 +44,7 @@ impl OutboundHandler for Handler {
 
         let iv_size = self.config.cipher_type.iv_size();
         let mut iv = vec![0u8; iv_size];
-        rand::RngCore::fill_bytes(&mut rand::rng(), &mut iv);
+        rand::rng().fill_bytes(&mut iv);
 
         conn_writer
             .write_all(&iv)

@@ -1,0 +1,26 @@
+/// QUIC transport configuration.
+#[derive(Debug, Clone)]
+pub struct QuicConfig {
+    /// Encryption method (none, aes-128-gcm, chacha20-poly1305).
+    pub security: String,
+    /// Encryption key.
+    pub key: String,
+}
+
+impl Default for QuicConfig {
+    fn default() -> Self {
+        QuicConfig {
+            security: String::new(),
+            key: String::new(),
+        }
+    }
+}
+
+impl From<&astra_core_config::transport::QUICConfig> for QuicConfig {
+    fn from(cfg: &astra_core_config::transport::QUICConfig) -> Self {
+        QuicConfig {
+            security: cfg.security.clone(),
+            key: cfg.key.clone(),
+        }
+    }
+}
