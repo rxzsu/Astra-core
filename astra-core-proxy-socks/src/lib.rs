@@ -1,17 +1,31 @@
+pub mod protocol;
+pub mod outbound;
+
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 
 use astra_core_net::{Address, Destination, Network, Port};
+use astra_core_net::address::any_ip;
 use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Outbound, Session};
 use astra_core_transport::new_link_stream;
 
-#[derive(Default)]
-pub struct Handler;
+use protocol::*;
+
+#[derive(Clone)]
+pub struct Handler {
+    pub config: SocksConfig,
+}
 
 impl Handler {
     pub fn new() -> Self {
-        Handler
+        Handler {
+            config: SocksConfig::default(),
+        }
+    }
+
+    pub fn with_config(config: SocksConfig) -> Self {
+        Handler { config }
     }
 }
 
@@ -23,107 +37,175 @@ impl InboundHandler for Handler {
         mut conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
-        let (mut reader, mut writer) = tokio::io::split(&mut conn);
-
-        // 1. Handshake
-        let mut initial = [0u8; 2];
-        reader.read_exact(&mut initial).await
-            .map_err(|e| format!("socks handshake initial read: {}", e))?;
-
-        if initial[0] != 5 {
-            return Err(format!("socks version must be 5, got {}", initial[0]));
+        let mut version_buf = [0u8; 1];
+        let n = (&mut conn).read(&mut version_buf).await
+            .map_err(|e| format!("socks read: {}", e))?;
+        if n == 0 {
+            return Err("connection closed".into());
         }
 
-        let nmethods = initial[1] as usize;
-        let mut methods = vec![0u8; nmethods];
-        reader.read_exact(&mut methods).await
-            .map_err(|e| format!("socks read methods: {}", e))?;
-
-        // Reply: Version 5, No Auth
-        writer.write_all(&[5, 0]).await
-            .map_err(|e| format!("socks write auth choice: {}", e))?;
-
-        // 2. Request
-        let mut req_header = [0u8; 4];
-        reader.read_exact(&mut req_header).await
-            .map_err(|e| format!("socks read request header: {}", e))?;
-
-        if req_header[0] != 5 {
-            return Err("socks version in request must be 5".into());
-        }
-        if req_header[1] != 1 {
-            // cmd: 1 = CONNECT
-            // Reply with CMD not supported (0x07)
-            let _ = writer.write_all(&[5, 7, 0, 1, 0, 0, 0, 0, 0, 0]).await;
-            return Err(format!("socks unsupported command: {}", req_header[1]));
-        }
-
-        let address = match req_header[3] {
-            1 => {
-                // IPv4
-                let mut ip_buf = [0u8; 4];
-                reader.read_exact(&mut ip_buf).await
-                    .map_err(|e| format!("socks read ipv4: {}", e))?;
-                Address::Ipv4(ip_buf)
+        match version_buf[0] {
+            SOCKS4_VERSION => {
+                handle_socks4(&self.config, &mut conn, &session, dispatcher).await
             }
-            3 => {
-                // Domain name
-                let len = reader.read_u8().await
-                    .map_err(|e| format!("socks read domain len: {}", e))? as usize;
-                let mut domain_buf = vec![0u8; len];
-                reader.read_exact(&mut domain_buf).await
-                    .map_err(|e| format!("socks read domain: {}", e))?;
-                let domain_str = String::from_utf8(domain_buf)
-                    .map_err(|_| "socks invalid utf-8 domain name".to_string())?;
-                Address::Domain(domain_str)
+            SOCKS5_VERSION => {
+                handle_socks5(&self.config, &mut conn, &session, dispatcher).await
             }
-            4 => {
-                // IPv6
-                let mut ip_buf = [0u8; 16];
-                reader.read_exact(&mut ip_buf).await
-                    .map_err(|e| format!("socks read ipv6: {}", e))?;
-                Address::Ipv6(ip_buf)
+            v => Err(format!("unknown socks version: {}", v)),
+        }
+    }
+}
+
+async fn handle_socks4(
+    config: &SocksConfig,
+    conn: &mut Conn,
+    session: &Session,
+    dispatcher: Arc<dyn Dispatcher>,
+) -> ProxyResult<()> {
+    if config.auth_type == AuthType::Password {
+        write_all(conn, &socks4_response(SOCKS4_REJECTED, any_ip(), Port(0))).await?;
+        return Err("socks4 not allowed with auth".into());
+    }
+
+    let cmd = read_u8(conn).await?;
+    let port_num = read_u16(conn).await?;
+    let port = Port(port_num);
+
+    let mut ip_buf = [0u8; 4];
+    read_exact(conn, &mut ip_buf).await?;
+    let mut address = Address::Ipv4(ip_buf);
+
+    let _user_id = read_until_null(conn).await?;
+
+    if ip_buf[0] == 0x00 && ip_buf[1] == 0x00 && ip_buf[2] == 0x00 && ip_buf[3] != 0x00 {
+        let domain = read_until_null(conn).await?;
+        address = Address::Domain(domain);
+    }
+
+    if cmd != CMD_CONNECT {
+        write_all(conn, &socks4_response(SOCKS4_REJECTED, any_ip(), Port(0))).await?;
+        return Err(format!("socks4 unsupported cmd: {}", cmd));
+    }
+
+    let dest = Destination {
+        address: address.clone(),
+        port,
+        network: Network::Tcp,
+    };
+
+    write_all(conn, &socks4_response(SOCKS4_GRANTED, &address, port)).await?;
+
+    let mut outbound_session = session.clone();
+    outbound_session.outbound = Some(Outbound {
+        target: dest.clone(),
+        original_target: dest.clone(),
+        route_target: None,
+        tag: String::new(),
+    });
+
+    let link = dispatcher.dispatch(outbound_session, dest).await?;
+    let mut link_stream = new_link_stream(link);
+
+    tokio::io::copy_bidirectional(conn, &mut link_stream).await
+        .map_err(|e| format!("socks4 relay: {}", e))?;
+
+    Ok(())
+}
+
+async fn handle_socks5(
+    config: &SocksConfig,
+    conn: &mut Conn,
+    session: &Session,
+    dispatcher: Arc<dyn Dispatcher>,
+) -> ProxyResult<()> {
+    let _username = socks5_auth(conn, config).await?;
+
+    let mut req = [0u8; 3];
+    read_exact(conn, &mut req).await?;
+    let cmd = req[1];
+
+    let (address, port) = {
+        let atyp = read_u8(conn).await?;
+        let addr = match atyp {
+            0x01 => {
+                let mut ip = [0u8; 4];
+                read_exact(conn, &mut ip).await?;
+                Address::Ipv4(ip)
+            }
+            0x03 => {
+                let len = read_u8(conn).await? as usize;
+                let mut domain = vec![0u8; len];
+                read_exact(conn, &mut domain).await?;
+                Address::Domain(String::from_utf8(domain).map_err(|_| "invalid domain".to_string())?)
+            }
+            0x04 => {
+                let mut ip = [0u8; 16];
+                read_exact(conn, &mut ip).await?;
+                Address::Ipv6(ip)
             }
             _ => {
-                // Address type not supported (0x08)
-                let _ = writer.write_all(&[5, 8, 0, 1, 0, 0, 0, 0, 0, 0]).await;
-                return Err(format!("socks unsupported address type: {}", req_header[3]));
+                write_all(conn, &socks5_error(STATUS_ADDR_NOT_SUPPORTED)).await?;
+                return Err(format!("unsupported addr type: {}", atyp));
             }
         };
+        let port = read_u16(conn).await?;
+        (addr, Port(port))
+    };
 
-        let port_num = reader.read_u16().await
-            .map_err(|e| format!("socks read port: {}", e))?;
-        let port = Port(port_num);
+    match cmd {
+        CMD_CONNECT => {
+            let dest = Destination {
+                address: address.clone(),
+                port,
+                network: Network::Tcp,
+            };
 
-        let dest = Destination {
-            address,
-            port,
-            network: Network::Tcp,
-        };
+            write_all(conn, &socks5_response(&address, port)).await?;
 
-        // Reply: Success, IPv4 address type, 0.0.0.0:0
-        writer.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await
-            .map_err(|e| format!("socks reply success: {}", e))?;
+            let mut outbound_session = session.clone();
+            outbound_session.outbound = Some(Outbound {
+                target: dest.clone(),
+                original_target: dest.clone(),
+                route_target: None,
+                tag: String::new(),
+            });
 
-        // 3. Dispatch and copy
-        let mut outbound_session = session.clone();
-        outbound_session.outbound = Some(Outbound {
-            target: dest.clone(),
-            original_target: dest.clone(),
-            route_target: None,
-            tag: String::new(),
-        });
+            let link = dispatcher.dispatch(outbound_session, dest).await?;
+            let mut link_stream = new_link_stream(link);
 
-        let link = dispatcher.dispatch(outbound_session, dest).await?;
-        let mut link_stream = new_link_stream(link);
+            tokio::io::copy_bidirectional(conn, &mut link_stream).await
+                .map_err(|e| format!("socks5 relay: {}", e))?;
 
-        // Reassemble tokio read/write split back to conn
-        let mut conn = reader.unsplit(writer);
+            Ok(())
+        }
+        CMD_UDP_ASSOCIATE => {
+            if !config.udp_enabled {
+                write_all(conn, &socks5_error(STATUS_CMD_NOT_SUPPORTED)).await?;
+                return Err("UDP not enabled".into());
+            }
+            write_all(conn, &socks5_response(any_ip(), Port(0))).await?;
+            let mut buf = [0u8; 1024];
+            loop {
+                match conn.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    _ => {}
+                }
+            }
+            Ok(())
+        }
+        CMD_BIND => {
+            write_all(conn, &socks5_error(STATUS_CMD_NOT_SUPPORTED)).await?;
+            Err("TCP BIND not supported".into())
+        }
+        _ => {
+            write_all(conn, &socks5_error(STATUS_CMD_NOT_SUPPORTED)).await?;
+            Err(format!("unknown cmd: {}", cmd))
+        }
+    }
+}
 
-        tokio::io::copy_bidirectional(&mut conn, &mut link_stream)
-            .await
-            .map_err(|e| format!("socks relay copy: {}", e))?;
-
-        Ok(())
+impl Default for Handler {
+    fn default() -> Self {
+        Self::new()
     }
 }

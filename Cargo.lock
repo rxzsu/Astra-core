@@ -219,6 +219,7 @@ dependencies = [
  "astra-core-session",
  "astra-core-transport",
  "async-trait",
+ "base64",
  "tokio",
 ]
 

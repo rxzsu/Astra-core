@@ -5,3 +5,8 @@
 .DS_Store
 
 .poolside/
+
+# Large media files
+*.webm
+*.mp4
+*.mov

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use astra_core_config::Config;
 use hex;
-use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig};
+use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
@@ -195,6 +195,40 @@ pub fn build_outbound_handler(
 
             Arc::new(astra_core_proxy_trojan::outbound::Handler::new(client_cfg))
         }
+        "socks" => {
+            let cfg: SocksOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("socks outbound config: {}", e))?
+                .ok_or_else(|| "socks outbound requires settings".to_string())?;
+
+            let client_cfg = astra_core_proxy_socks::outbound::ClientConfig {
+                server_address: ParseAddress(&cfg.address.0),
+                server_port: astra_core_net::Port(cfg.port),
+                username: cfg.user,
+                password: cfg.pass,
+            };
+            Arc::new(astra_core_proxy_socks::outbound::Handler::new(client_cfg))
+        }
+        "http" => {
+            let cfg: HTTPOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("http outbound config: {}", e))?
+                .ok_or_else(|| "http outbound requires settings".to_string())?;
+
+            let client_cfg = astra_core_proxy_http::outbound::HttpOutboundConfig {
+                server_address: ParseAddress(&cfg.address.0),
+                server_port: astra_core_net::Port(cfg.port),
+                username: cfg.user,
+                password: cfg.pass,
+            };
+            Arc::new(astra_core_proxy_http::outbound::Handler::new(client_cfg))
+        }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
 
@@ -344,10 +378,46 @@ pub fn build_inbound_handler(
             ))
         }
         "socks" => {
-            Arc::new(astra_core_proxy_socks::Handler::new())
+            let cfg: Option<SocksInboundConfig> = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("socks inbound config: {}", e))?;
+
+            let mut socks_cfg = astra_core_proxy_socks::protocol::SocksConfig::default();
+            if let Some(c) = cfg {
+                socks_cfg.auth_type = if c.auth == "password" {
+                    astra_core_proxy_socks::protocol::AuthType::Password
+                } else {
+                    astra_core_proxy_socks::protocol::AuthType::NoAuth
+                };
+                for acct in c.accounts {
+                    socks_cfg.accounts.insert(acct.user, acct.pass);
+                }
+                socks_cfg.udp_enabled = c.udp;
+                socks_cfg.address = c.ip.map(|a| convert_address(&a));
+                socks_cfg.user_level = c.user_level;
+            }
+            Arc::new(astra_core_proxy_socks::Handler::with_config(socks_cfg))
         }
         "http" => {
-            Arc::new(astra_core_proxy_http::Handler::new())
+            let cfg: Option<HTTPInboundConfig> = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("http inbound config: {}", e))?;
+
+            let mut http_cfg = astra_core_proxy_http::HttpConfig::default();
+            if let Some(c) = cfg {
+                for acct in c.accounts {
+                    http_cfg.accounts.insert(acct.user, acct.pass);
+                }
+                http_cfg.allow_transparent = c.allow_transparent;
+                http_cfg.user_level = c.user_level;
+            }
+            Arc::new(astra_core_proxy_http::Handler::with_config(http_cfg))
         }
         "shadowsocks" => {
             let cfg: ShadowsocksInboundConfig = config

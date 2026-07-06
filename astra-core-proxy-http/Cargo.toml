@@ -10,3 +10,4 @@ astra-core-net = { path = "../astra-core-net" }
 astra-core-session = { path = "../astra-core-session" }
 astra-core-transport = { path = "../astra-core-transport" }
 async-trait = "0.1"
+base64 = "0.22"
