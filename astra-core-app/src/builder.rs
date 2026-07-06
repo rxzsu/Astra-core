@@ -5,6 +5,9 @@ use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
 use astra_core_dns::{DnsResolver, UdpDnsResolver, SimpleDnsResolver, FakeDnsResolver, NameServer, QueryStrategy, parse_hosts};
+use astra_core_proxy_shadowsocks_2022 as ss2022;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
@@ -193,6 +196,32 @@ pub fn build_outbound_handler(
             };
 
             Arc::new(astra_core_proxy_shadowsocks::outbound::Handler::new(client_cfg))
+        }
+        "shadowsocks-2022" => {
+            let settings = config.settings.as_ref().ok_or_else(|| "ss2022 outbound requires settings")?;
+            let addr_str = settings.get("address").and_then(|v| v.as_str()).unwrap_or("");
+            let port = settings.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
+            let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("");
+            let key_b64 = settings.get("key").and_then(|v| v.as_str()).unwrap_or("");
+
+            let cipher = ss2022::protocol::CipherType::from_str(method)
+                .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
+            let key_raw = BASE64.decode(key_b64.as_bytes())
+                .map_err(|e| format!("ss2022 key decode: {}", e))?;
+            let key = ss2022::protocol::derive_master_key(&key_raw, cipher.key_size());
+            let server_addr = match addr_str.parse::<std::net::IpAddr>() {
+                Ok(ip) => match ip {
+                    std::net::IpAddr::V4(v4) => astra_core_net::Address::Ipv4(v4.octets()),
+                    std::net::IpAddr::V6(v6) => astra_core_net::Address::Ipv6(v6.octets()),
+                },
+                Err(_) => astra_core_net::Address::Domain(addr_str.to_string()),
+            };
+
+            Arc::new(ss2022::outbound::Handler::new(
+                server_addr,
+                astra_core_net::Port(port),
+                cipher, key,
+            ))
         }
         "trojan" => {
             let cfg: TrojanOutboundConfig = config

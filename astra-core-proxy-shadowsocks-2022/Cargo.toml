@@ -1,0 +1,23 @@
+[package]
+name = "astra-core-proxy-shadowsocks-2022"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+chacha20 = { workspace = true }
+chacha20poly1305 = { workspace = true }
+sha2 = { workspace = true }
+blake3 = "1"
+ctr = { workspace = true }
+cipher = "0.5"
+async-trait = "0.1"
+hex = { workspace = true }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-transport = { path = "../astra-core-transport" }

@@ -45,6 +45,116 @@ pub fn parse_packets(s: &str) -> (u64, u64) {
 
 // ─── FragmentWriter (Go: proxy/freedom/freedom.go FragmentWriter) ─────────
 
+/// Write data with fragmentation matching Go's FragmentWriter.
+/// Returns Ok(()) on success.
+async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
+    writer: &mut W, data: &[u8], cfg: &FragmentConfig, count: u64,
+) -> Result<(), String> {
+    use tokio::io::AsyncWriteExt;
+
+    // Mode 1: TLS ClientHello (packets_from=0, packets_to=1)
+    if cfg.packets_from == 0 && cfg.packets_to == 1 {
+        if count != 1 || data.len() <= 5 || data[0] != 22 {
+            return writer.write_all(data).await.map_err(|e| e.to_string());
+        }
+        let record_len = 5 + ((data[3] as usize) << 8 | data[4] as usize);
+        if data.len() < record_len {
+            return writer.write_all(data).await.map_err(|e| e.to_string());
+        }
+
+        let tls_data = &data[5..record_len];
+        let max_split = rand_between(cfg.max_split_min, cfg.max_split_max);
+        let mut hello = Vec::new();
+        let mut split_num: u64 = 0;
+        let mut from = 0;
+
+        while from < tls_data.len() {
+            let to = (from + rand_between(cfg.length_min, cfg.length_max) as usize)
+                .min(tls_data.len());
+            split_num += 1;
+            if max_split > 0 && split_num >= max_split {
+                let remaining = &tls_data[from..];
+                let mut buf = vec![0u8; 5 + remaining.len()];
+                buf[..3].copy_from_slice(&data[..3]);
+                buf[5..].copy_from_slice(remaining);
+                let l = remaining.len() as u16;
+                buf[3..5].copy_from_slice(&l.to_be_bytes());
+
+                if cfg.interval_max == 0 {
+                    hello.extend_from_slice(&buf);
+                } else {
+                    writer.write_all(&buf).await.map_err(|e| e.to_string())?;
+                    tokio::time::sleep(std::time::Duration::from_millis(
+                        rand_between(cfg.interval_min, cfg.interval_max)
+                    )).await;
+                }
+                break;
+            }
+
+            let chunk = &tls_data[from..to];
+            let mut buf = vec![0u8; 5 + chunk.len()];
+            buf[..3].copy_from_slice(&data[..3]);
+            buf[5..].copy_from_slice(chunk);
+            let l = chunk.len() as u16;
+            buf[3..5].copy_from_slice(&l.to_be_bytes());
+            from = to;
+
+            if cfg.interval_max == 0 {
+                hello.extend_from_slice(&buf);
+            } else {
+                writer.write_all(&buf).await.map_err(|e| e.to_string())?;
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    rand_between(cfg.interval_min, cfg.interval_max)
+                )).await;
+            }
+        }
+
+        if !hello.is_empty() {
+            writer.write_all(&hello).await.map_err(|e| e.to_string())?;
+        }
+        if data.len() > record_len {
+            writer.write_all(&data[record_len..]).await.map_err(|e| e.to_string())?;
+        }
+        return Ok(());
+    }
+
+    // Mode 2: General data fragmentation
+    if cfg.packets_from != 0 && (count < cfg.packets_from || count > cfg.packets_to) {
+        return writer.write_all(data).await.map_err(|e| e.to_string());
+    }
+
+    let max_split = rand_between(cfg.max_split_min, cfg.max_split_max);
+    let mut split_num: u64 = 0;
+    let mut from = 0;
+
+    while from < data.len() {
+        let to = (from + rand_between(cfg.length_min, cfg.length_max) as usize)
+            .min(data.len());
+        split_num += 1;
+        if max_split > 0 && split_num >= max_split {
+            writer.write_all(&data[from..]).await.map_err(|e| e.to_string())?;
+            break;
+        }
+        writer.write_all(&data[from..to]).await.map_err(|e| e.to_string())?;
+        if cfg.interval_max > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(
+                rand_between(cfg.interval_min, cfg.interval_max)
+            )).await;
+        }
+        from = to;
+    }
+    Ok(())
+}
+
+fn rand_between(min: u64, max: u64) -> u64 {
+    if min >= max { return min; }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos() as u64;
+    min + (nanos % (max - min + 1))
+}
+
 /// Splits writes into fragments with random sizes and delays.
 /// Matches Go's FragmentWriter exactly.
 pub struct FragmentWriter {
@@ -238,9 +348,38 @@ impl OutboundHandler for Handler {
         self.resolve_strategy(&mut target).await;
         let mut remote = dialer.dial(session, target).await?;
 
-        // Fragment support: data from link.reader is wrapped through FragmentWriter
-        // before reaching remote. Requires split(&mut *remote) which is pending with dyn types.
-        // For now, fragment config is parsed but ignored at runtime.
+        // Wrap writer in fragmenter if configured
+        if self.config.fragment.is_some() {
+            let frag_cfg = self.config.fragment.as_ref().unwrap().clone();
+            let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
+            let mut frag_count = 0u64;
+
+            use tokio::io::AsyncReadExt;
+            let to_remote = async {
+                let mut buf = [0u8; 16384];
+                loop {
+                    match link.reader.read(&mut buf).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            frag_count += 1;
+                            write_fragmented(&mut remote_writer, &buf[..n], &frag_cfg, frag_count).await
+                                .map_err(|e| format!("fragment: {}", e))?;
+                        }
+                    }
+                }
+                Ok::<_, String>(())
+            };
+
+            let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);
+
+            tokio::select! {
+                r = to_remote => r?,
+                r = to_client => r.map(|_| ())
+                    .map_err(|e| format!("freedom copy: {}", e))?,
+            }
+
+            return Ok(());
+        }
 
         let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
 

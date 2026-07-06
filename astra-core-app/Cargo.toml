@@ -23,6 +23,7 @@ astra-core-proxy-dns = { path = "../astra-core-proxy-dns" }
 astra-core-proxy-loopback = { path = "../astra-core-proxy-loopback" }
 astra-core-proxy-blackhole = { path = "../astra-core-proxy-blackhole" }
 astra-core-proxy-shadowsocks = { path = "../astra-core-proxy-shadowsocks" }
+astra-core-proxy-shadowsocks-2022 = { path = "../astra-core-proxy-shadowsocks-2022" }
 astra-core-proxy-trojan = { path = "../astra-core-proxy-trojan" }
 astra-core-routing = { path = "../astra-core-routing" }
 astra-core-dns = { path = "../astra-core-dns" }
@@ -31,3 +32,4 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 serde_json = "1"
 hex = { workspace = true }
+base64 = { workspace = true }
