@@ -7,11 +7,11 @@
 | `proxy/blackhole/` | `astra-core-proxy-blackhole/` | ✅ Complete |
 | `proxy/dns/` | `astra-core-proxy-dns/` | ✅ Complete |
 | `proxy/dokodemo/` | `astra-core-proxy-dokodemo/` | ✅ Complete |
-| `proxy/freedom/` | `astra-core-proxy-freedom/` | ⚠️ Fragment pending |
+| `proxy/freedom/` | `astra-core-proxy-freedom/` | ✅ Complete (fragment wired) |
 | `proxy/http/` | `astra-core-proxy-http/` | ✅ Complete |
 | `proxy/loopback/` | `astra-core-proxy-loopback/` | ✅ Complete |
 | `proxy/shadowsocks/` | `astra-core-proxy-shadowsocks/` | ✅ Complete |
-| `proxy/shadowsocks_2022/` | — | ❌ Not ported |
+| `proxy/shadowsocks_2022/` | `astra-core-proxy-shadowsocks-2022/` | ✅ Complete (BLAKE3 + AEAD) |
 | `proxy/socks/` | `astra-core-proxy-socks/` | ✅ Complete |
 | `proxy/trojan/` | `astra-core-proxy-trojan/` | ✅ Complete |
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
@@ -66,7 +66,7 @@
 | `common/session/` | `astra-core-session/` | ✅ Complete |
 | `common/signal/` | — (activity timers) | ⚠️ Not ported |
 | `common/task/` | — (periodic tasks) | ✅ Via `tokio::time::interval` |
-| `common/fragment/` | `FragmentWriter` in freedom | ⚠️ Struct done, not wired |
+| `common/fragment/` | `write_fragmented()` in freedom | ✅ Complete |
 | `common/platform/` | — (env flags) | ❌ Not ported |
 | `common/geodata/` | — | ❌ Not ported |
 | `common/geodata/geosite/` | — | ❌ Not ported |
