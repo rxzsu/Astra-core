@@ -30,9 +30,9 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | HTTPUpgrade | ✅ |
 | SplitHTTP / XHTTP | ✅ |
 | mKCP | ✅ |
-| QUIC | ✅ (quinn, no obfuscation yet) |
+| QUIC | ✅ (quinn — Xray has no custom obfuscation, standard RFC 9000 only) |
 | gRPC | ✅ (h2 tunnel via tonic) |
-| REALITY | ✅ (TLS 1.3, uTLS not available in Rust ecosystem) |
+| REALITY | ❌ Blocked — requires uTLS browser ClientHello, no Rust equivalent |
 
 ### Infrastructure
 | Feature | Status |
@@ -49,8 +49,8 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | Feature | Status |
 |---------|--------|
 | Freedom fragment | Pending `Box<dyn AsyncConn>` split |
-| QUIC packet obfuscation | Not ported |
-| REALITY uTLS ClientHello | Blocked on Rust ecosystem |
+| REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
+| WireGuard outbound | Not ported |
 | WireGuard outbound | Not ported |
 | gRPC API server | Not ported |
 | Stats / traffic counting | Not ported |
