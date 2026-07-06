@@ -47,8 +47,8 @@
 | `transport/internet/splithttp/` | `astra-core-transport-splithttp/` | ✅ Complete |
 | `transport/internet/kcp/` | `astra-core-transport-kcp/` | ✅ Complete |
 | `transport/internet/grpc/` | `astra-core-transport-grpc/` | ✅ Complete |
-| `transport/internet/quic/` | `astra-core-transport-quic/` | ⚠️ No packet obfuscation |
-| `transport/internet/reality/` | `astra-core-transport-reality/` | ⚠️ No uTLS ClientHello |
+| `transport/internet/quic/` | `astra-core-transport-quic/` | ✅ Complete (Xray has **no** custom QUIC obfuscation — only standard RFC 9000 + SNI sniffing) |
+| `transport/internet/reality/` | `astra-core-transport-reality/` | ❌ Blocked — requires [uTLS](https://github.com/refraction-networking/utls) browser ClientHello. Rust ecosystem has no equivalent. Falls through to camouflage target. |
 | `transport/internet/tls/` | `rustls` 0.23 | ✅ Complete |
 
 ## Features (`common/`, `features/`)
