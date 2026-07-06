@@ -16,7 +16,7 @@
 | `proxy/trojan/` | `astra-core-proxy-trojan/` | ✅ Complete |
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
-| `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ⚠️ Partial (UDP forwarder, needs TUN/netstack) |
+| `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ✅ Complete (boringtun noise + UDP tunnel) |
 | `proxy/tun/` | — | ❌ Not ported |
 | `proxy/hysteria/` | — | ❌ Not ported |
 
