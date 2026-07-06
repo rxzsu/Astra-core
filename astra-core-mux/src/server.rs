@@ -18,15 +18,17 @@ pub struct MuxServer<R, W> {
     done: Arc<AtomicBool>,
     #[allow(dead_code)]
     done_notify: Arc<tokio::sync::Notify>,
+    new_session_tx: tokio::sync::mpsc::UnboundedSender<u16>,
 }
 
 impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'static>
     MuxServer<R, W>
 {
-    pub fn new(reader: R, writer: W) -> Arc<Self> {
+    pub fn new(reader: R, writer: W) -> (Arc<Self>, tokio::sync::mpsc::UnboundedReceiver<u16>) {
         let session_manager = Arc::new(SessionManager::new());
         let done = Arc::new(AtomicBool::new(false));
         let done_notify = Arc::new(tokio::sync::Notify::new());
+        let (new_session_tx, new_session_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let server = Arc::new(MuxServer {
             session_manager: session_manager.clone(),
@@ -34,6 +36,7 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
             reader: tokio::sync::Mutex::new(reader),
             done: done.clone(),
             done_notify: done_notify.clone(),
+            new_session_tx,
         });
 
         let s = server.clone();
@@ -48,7 +51,7 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
             s2.monitor_loop().await;
         });
 
-        server
+        (server, new_session_rx)
     }
 
     pub fn session_manager(&self) -> &Arc<SessionManager> {
@@ -60,7 +63,7 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
         write_frame(&mut *writer, meta, data).await
     }
 
-    fn is_done(&self) -> bool {
+    pub fn is_done(&self) -> bool {
         self.done.load(Ordering::Relaxed)
     }
 
@@ -76,7 +79,7 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
                 SessionStatus::New => {
                     let session = Arc::new(Session::new(meta.session_id));
                     self.session_manager.add(session.clone()).await;
-                    // Notify server dispatch to accept this session
+                    let _ = self.new_session_tx.send(meta.session_id);
                 }
                 SessionStatus::Keep => {
                     if let Some(session) = self.session_manager.get(meta.session_id).await {
