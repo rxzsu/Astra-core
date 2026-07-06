@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astra_core_config::Config;
-use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig};
+use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
@@ -54,6 +54,21 @@ fn parse_security(s: &str) -> SecurityType {
         "chacha20-poly1305" => SecurityType::ChaCha20Poly1305,
         "none" | "zero" => SecurityType::Zero,
         _ => SecurityType::Auto,
+    }
+}
+
+fn parse_ss_cipher_type(method: &str) -> Result<astra_core_proxy_shadowsocks::protocol::CipherType, String> {
+    match method {
+        "aes-128-gcm" => Ok(astra_core_proxy_shadowsocks::protocol::CipherType::Aes128Gcm),
+        "aes-256-gcm" => Ok(astra_core_proxy_shadowsocks::protocol::CipherType::Aes256Gcm),
+        "chacha20-poly1305" | "chacha20-ietf-poly1305" => {
+            Ok(astra_core_proxy_shadowsocks::protocol::CipherType::Chacha20Poly1305)
+        }
+        "xchacha20-poly1305" | "xchacha20-ietf-poly1305" => {
+            Ok(astra_core_proxy_shadowsocks::protocol::CipherType::XChacha20Poly1305)
+        }
+        "none" => Ok(astra_core_proxy_shadowsocks::protocol::CipherType::None),
+        _ => Err(format!("unsupported shadowsocks cipher method: {}", method)),
     }
 }
 
@@ -135,6 +150,47 @@ pub fn build_outbound_handler(
                 server_dest,
                 astra_core_proxy_vmess::outbound::OutboundConfig { user, address: server_addr, port: astra_core_net::Port(vnext.port) },
             ))
+        }
+        "shadowsocks" => {
+            let cfg: ShadowsocksOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("shadowsocks outbound config: {}", e))?
+                .ok_or_else(|| "shadowsocks outbound requires settings".to_string())?;
+
+            let cipher_type = parse_ss_cipher_type(&cfg.method)?;
+            let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
+                cfg.password.as_bytes(),
+                cipher_type.key_size(),
+            );
+            let client_cfg = astra_core_proxy_shadowsocks::config::ClientConfig {
+                server: cfg.address.0.clone(),
+                port: cfg.port,
+                cipher_type,
+                password: cfg.password.clone(),
+                key,
+            };
+
+            Arc::new(astra_core_proxy_shadowsocks::outbound::Handler::new(client_cfg))
+        }
+        "trojan" => {
+            let cfg: TrojanOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("trojan outbound config: {}", e))?
+                .ok_or_else(|| "trojan outbound requires settings".to_string())?;
+
+            let client_cfg = astra_core_proxy_trojan::config::ClientConfig::new(
+                cfg.address.0.clone(),
+                cfg.port,
+                cfg.password.clone(),
+            );
+
+            Arc::new(astra_core_proxy_trojan::outbound::Handler::new(client_cfg))
         }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
@@ -264,6 +320,74 @@ pub fn build_inbound_handler(
         }
         "http" => {
             Arc::new(astra_core_proxy_http::Handler::new())
+        }
+        "shadowsocks" => {
+            let cfg: ShadowsocksInboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("shadowsocks inbound config: {}", e))?
+                .ok_or_else(|| "shadowsocks inbound requires settings".to_string())?;
+
+            let accounts: Vec<astra_core_proxy_shadowsocks::config::Account> = if cfg.users.is_empty() {
+                let method = if cfg.method.is_empty() { "aes-256-gcm" } else { &cfg.method };
+                let cipher_type = parse_ss_cipher_type(method)?;
+                let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
+                    cfg.password.as_bytes(),
+                    cipher_type.key_size(),
+                );
+                vec![astra_core_proxy_shadowsocks::config::Account {
+                    cipher_type,
+                    password: cfg.password.clone(),
+                    key,
+                }]
+            } else {
+                cfg.users
+                    .iter()
+                    .map(|u| {
+                        let method = if u.method.is_empty() { &cfg.method } else { &u.method };
+                        let method = if method.is_empty() { "aes-256-gcm" } else { method };
+                        let password = if u.password.is_empty() { &cfg.password } else { &u.password };
+                        let cipher_type = parse_ss_cipher_type(method)?;
+                        let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
+                            password.as_bytes(),
+                            cipher_type.key_size(),
+                        );
+                        Ok(astra_core_proxy_shadowsocks::config::Account {
+                            cipher_type,
+                            password: password.clone(),
+                            key,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()?
+            };
+
+            let server_cfg = astra_core_proxy_shadowsocks::config::ServerConfig {
+                users: accounts,
+                network: cfg.network.map(|n| n.0).unwrap_or_default(),
+            };
+
+            Arc::new(astra_core_proxy_shadowsocks::inbound::Handler::new(server_cfg))
+        }
+        "trojan" => {
+            let cfg: TrojanInboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("trojan inbound config: {}", e))?
+                .ok_or_else(|| "trojan inbound requires settings".to_string())?;
+
+            let accounts: Vec<astra_core_proxy_trojan::config::Account> = cfg
+                .clients
+                .iter()
+                .map(|c| astra_core_proxy_trojan::config::Account::new(c.password.clone()))
+                .collect();
+
+            let server_cfg = astra_core_proxy_trojan::config::ServerConfig { users: accounts };
+
+            Arc::new(astra_core_proxy_trojan::inbound::Handler::new(server_cfg))
         }
         p => return Err(format!("unsupported inbound protocol: {}", p)),
     };
