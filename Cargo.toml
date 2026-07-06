@@ -24,10 +24,12 @@ members = [
     "astra-core-proxy-http",
     "astra-core-transport-grpc",
     "astra-core-proxy-shadowsocks",
+    "astra-core-proxy-trojan",
 ]
 
 [workspace.dependencies]
 rand = "0.9"
+hex = "0.4"
 sha2 = "0.10"
 hmac = "0.12"
 aes = "0.8"

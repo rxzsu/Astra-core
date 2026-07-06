@@ -252,6 +252,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-proxy-trojan"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "hex",
+ "rand",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "astra-core-proxy-vless"
 version = "0.1.0"
 dependencies = [
