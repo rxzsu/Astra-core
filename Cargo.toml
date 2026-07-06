@@ -25,6 +25,7 @@ members = [
     "astra-core-transport-grpc",
     "astra-core-proxy-shadowsocks",
     "astra-core-proxy-trojan",
+    "astra-core-transport-httpupgrade",
 ]
 
 [workspace.dependencies]

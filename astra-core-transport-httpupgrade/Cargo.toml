@@ -1,0 +1,10 @@
+[package]
+name = "astra-core-transport-httpupgrade"
+version = "0.1.0"
+edition = "2024"
+description = "HTTP Upgrade transport for Xray-core"
+
+[dependencies]
+astra-core-net = { path = "../astra-core-net" }
+tokio = { workspace = true }
+tracing = { workspace = true }
