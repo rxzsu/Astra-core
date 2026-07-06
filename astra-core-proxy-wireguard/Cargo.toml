@@ -1,0 +1,21 @@
+[package]
+name = "astra-core-proxy-wireguard"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+async-trait = "0.1"
+base64 = "0.22"
+x25519-dalek = "3"
+curve25519-dalek = "4"
+blake2 = "0.10"
+boringtun = "0.7"
+chacha20poly1305 = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-transport = { path = "../astra-core-transport" }

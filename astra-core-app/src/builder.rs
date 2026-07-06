@@ -55,6 +55,22 @@ fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
         .collect()
 }
 
+fn parse_endpoint(s: &str) -> Result<(Address, u16), String> {
+    let parts: Vec<&str> = s.rsplitn(2, ':').collect();
+    if parts.len() != 2 { return Err(format!("invalid endpoint: {}", s)); }
+    let port: u16 = parts[0].parse().map_err(|_| format!("invalid port in: {}", s))?;
+    let host = parts[1];
+    let addr = if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        match ip {
+            std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
+            std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
+        }
+    } else {
+        Address::Domain(host.to_string())
+    };
+    Ok((addr, port))
+}
+
 fn parse_security(s: &str) -> SecurityType {
     match s {
         "aes-128-gcm" => SecurityType::Aes128Gcm,
@@ -323,6 +339,45 @@ pub fn build_outbound_handler(
             Arc::new(astra_core_app_reverse::PortalHandler::new(
                 portal.tag.clone(),
                 portal.domain.clone(),
+            ))
+        }
+        "wireguard" => {
+            let settings = config.settings.as_ref().ok_or_else(|| "wireguard requires settings")?;
+            let private_key_b64 = settings.get("private_key").and_then(|v| v.as_str()).unwrap_or("");
+            let private_key = BASE64.decode(private_key_b64.as_bytes())
+                .map_err(|e| format!("wg key: {}", e))?;
+            if private_key.len() != 32 { return Err("wg private key must be 32 bytes".into()); }
+
+            let mut peers = Vec::new();
+            if let Some(peers_arr) = settings.get("peers").and_then(|v| v.as_array()) {
+                for p in peers_arr {
+                    let ep = p.get("endpoint").and_then(|v| v.as_str()).unwrap_or("");
+                    let pubkey_b64 = p.get("public_key").and_then(|v| v.as_str()).unwrap_or("");
+                    let pubkey = BASE64.decode(pubkey_b64.as_bytes())
+                        .map_err(|e| format!("wg pubkey: {}", e))?;
+                    let psk_b64 = p.get("pre_shared_key").and_then(|v| v.as_str()).unwrap_or("");
+                    let psk = if !psk_b64.is_empty() {
+                        BASE64.decode(psk_b64.as_bytes()).map_err(|e| format!("wg psk: {}", e))?
+                    } else { vec![0u8; 32] };
+
+                    let (ep_addr, ep_port) = parse_endpoint(ep)?;
+                    peers.push(astra_core_proxy_wireguard::PeerConfig {
+                        endpoint_address: ep_addr,
+                        endpoint_port: ep_port,
+                        public_key: pubkey,
+                        pre_shared_key: psk,
+                        allowed_ips: Vec::new(),
+                        persistent_keepalive: 0,
+                    });
+                }
+            }
+
+            Arc::new(astra_core_proxy_wireguard::Handler::new(
+                astra_core_proxy_wireguard::DeviceConfig {
+                    private_key,
+                    listen_port: 0,
+                    peers,
+                }
             ))
         }
         p => return Err(format!("unsupported outbound protocol: {}", p)),

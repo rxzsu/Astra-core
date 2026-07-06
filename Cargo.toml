@@ -32,6 +32,7 @@ members = [
     "astra-core-proxy-blackhole",
     "astra-core-proxy-shadowsocks",
     "astra-core-proxy-shadowsocks-2022",
+    "astra-core-proxy-wireguard",
     "astra-core-proxy-trojan",
     "astra-core-transport-httpupgrade", "astra-core-transport-kcp",
     "astra-core-transport-splithttp",

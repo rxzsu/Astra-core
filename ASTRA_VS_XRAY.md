@@ -11,12 +11,12 @@
 | `proxy/http/` | `astra-core-proxy-http/` | ✅ Complete |
 | `proxy/loopback/` | `astra-core-proxy-loopback/` | ✅ Complete |
 | `proxy/shadowsocks/` | `astra-core-proxy-shadowsocks/` | ✅ Complete |
-| `proxy/shadowsocks_2022/` | `astra-core-proxy-shadowsocks-2022/` | ✅ Complete (BLAKE3 + AEAD) |
+| `proxy/shadowsocks_2022/` | `astra-core-proxy-shadowsocks-2022/` | ✅ Complete (AEAD chunked TCP + UDP + BLAKE3) |
 | `proxy/socks/` | `astra-core-proxy-socks/` | ✅ Complete |
 | `proxy/trojan/` | `astra-core-proxy-trojan/` | ✅ Complete |
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
-| `proxy/wireguard/` | — | ❌ Not ported |
+| `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ⚠️ Partial (UDP forwarder, needs TUN/netstack) |
 | `proxy/tun/` | — | ❌ Not ported |
 | `proxy/hysteria/` | — | ❌ Not ported |
 
