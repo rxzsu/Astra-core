@@ -7,3 +7,4 @@ edition = "2024"
 tokio = { workspace = true }
 async-trait = "0.1"
 serde_json = "1"
+rand = { workspace = true }

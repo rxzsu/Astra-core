@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use astra_core_config::Config;
 use hex;
-use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig};
+use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
-use astra_core_dns::{DnsResolver, SimpleDnsResolver, parse_hosts};
+use astra_core_dns::{DnsResolver, UdpDnsResolver, SimpleDnsResolver, NameServer, QueryStrategy, parse_hosts};
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
@@ -229,6 +229,23 @@ pub fn build_outbound_handler(
                 password: cfg.pass,
             };
             Arc::new(astra_core_proxy_http::outbound::Handler::new(client_cfg))
+        }
+        "dns" => {
+            let cfg: DNSOutboundConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("dns outbound config: {}", e))?
+                .unwrap_or_default();
+
+            let address = if let Some(ref addr) = cfg.address {
+                ParseAddress(&addr.0)
+            } else {
+                return Err("dns outbound requires address".into());
+            };
+
+            Arc::new(astra_core_proxy_dns::Handler::new(address, cfg.port)?)
         }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
@@ -610,19 +627,38 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
 
     let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider { manager: ob_manager });
 
-    let hosts = config.dns.as_ref().and_then(|d| d.hosts.as_ref());
-    let dns_resolver: Option<Arc<dyn DnsResolver>> = match hosts {
-        Some(_) => {
-            let hosts_map = parse_hosts(hosts)?;
-            Some(Arc::new(SimpleDnsResolver::new(hosts_map)))
-        }
-        None => {
-            if config.dns.as_ref().is_some_and(|d| !d.servers.is_empty()) {
-                Some(Arc::new(SimpleDnsResolver::new(std::collections::HashMap::new())))
-            } else {
-                None
+    let dns_cfg = config.dns.as_ref();
+    let hosts_map = dns_cfg.map(|d| parse_hosts(d.hosts.as_ref())).transpose()?.unwrap_or_default();
+    let query_strategy = dns_cfg
+        .map(|d| QueryStrategy::from_str(&d.query_strategy))
+        .unwrap_or_default();
+
+    let dns_resolver: Option<Arc<dyn DnsResolver>> = if let Some(dns) = dns_cfg {
+        if !dns.servers.is_empty() {
+            let mut nameservers = Vec::new();
+            for sv in &dns.servers {
+                let mut expected_ips = Vec::new();
+                for s in &sv.expected_ips.0 {
+                    if let Ok(ip) = s.parse::<std::net::IpAddr>() {
+                        expected_ips.push(ip);
+                    }
+                }
+                nameservers.push(NameServer {
+                    address: sv.address.0.clone(),
+                    port: if sv.port != 0 { sv.port } else { 53 },
+                    domains: sv.domains.0.clone(),
+                    expected_ips,
+                });
             }
+            // Use UdpDnsResolver when nameservers are configured
+            Some(Arc::new(UdpDnsResolver::new(nameservers, hosts_map, query_strategy)) as Arc<dyn DnsResolver>)
+        } else if !hosts_map.is_empty() {
+            Some(Arc::new(SimpleDnsResolver::new(hosts_map)) as Arc<dyn DnsResolver>)
+        } else {
+            None
         }
+    } else {
+        None
     };
 
     let mut dispatcher = DefaultDispatcher::new(router, handler_provider);

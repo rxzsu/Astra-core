@@ -18,6 +18,7 @@ astra-core-proxy-vless = { path = "../astra-core-proxy-vless" }
 astra-core-proxy-vmess = { path = "../astra-core-proxy-vmess" }
 astra-core-proxy-socks = { path = "../astra-core-proxy-socks" }
 astra-core-proxy-http = { path = "../astra-core-proxy-http" }
+astra-core-proxy-dns = { path = "../astra-core-proxy-dns" }
 astra-core-proxy-shadowsocks = { path = "../astra-core-proxy-shadowsocks" }
 astra-core-proxy-trojan = { path = "../astra-core-proxy-trojan" }
 astra-core-routing = { path = "../astra-core-routing" }

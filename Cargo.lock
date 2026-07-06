@@ -71,6 +71,7 @@ dependencies = [
  "astra-core-net",
  "astra-core-proto",
  "astra-core-proxy",
+ "astra-core-proxy-dns",
  "astra-core-proxy-dokodemo",
  "astra-core-proxy-freedom",
  "astra-core-proxy-http",
@@ -141,6 +142,7 @@ name = "astra-core-dns"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "rand 0.10.2",
  "serde_json",
  "tokio",
 ]
@@ -193,6 +195,18 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "astra-core-proxy-dns"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "async-trait",
+ "tokio",
 ]
 
 [[package]]
