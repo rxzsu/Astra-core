@@ -347,26 +347,35 @@ pub fn build_outbound_handler(
             let private_key = BASE64.decode(private_key_b64.as_bytes())
                 .map_err(|e| format!("wg key: {}", e))?;
             if private_key.len() != 32 { return Err("wg private key must be 32 bytes".into()); }
+            let mut pk_arr = [0u8; 32];
+            pk_arr.copy_from_slice(&private_key);
 
             let mut peers = Vec::new();
             if let Some(peers_arr) = settings.get("peers").and_then(|v| v.as_array()) {
                 for p in peers_arr {
                     let ep = p.get("endpoint").and_then(|v| v.as_str()).unwrap_or("");
                     let pubkey_b64 = p.get("public_key").and_then(|v| v.as_str()).unwrap_or("");
-                    let pubkey = BASE64.decode(pubkey_b64.as_bytes())
+                    let pubkey_bytes = BASE64.decode(pubkey_b64.as_bytes())
                         .map_err(|e| format!("wg pubkey: {}", e))?;
+                    if pubkey_bytes.len() != 32 { return Err("wg pubkey must be 32 bytes".into()); }
+                    let mut public_key = [0u8; 32];
+                    public_key.copy_from_slice(&pubkey_bytes);
+
                     let psk_b64 = p.get("pre_shared_key").and_then(|v| v.as_str()).unwrap_or("");
-                    let psk = if !psk_b64.is_empty() {
-                        BASE64.decode(psk_b64.as_bytes()).map_err(|e| format!("wg psk: {}", e))?
-                    } else { vec![0u8; 32] };
+                    let pre_shared_key = if !psk_b64.is_empty() {
+                        let psk_bytes = BASE64.decode(psk_b64.as_bytes()).map_err(|e| format!("wg psk: {}", e))?;
+                        if psk_bytes.len() != 32 { return Err("wg psk must be 32 bytes".into()); }
+                        let mut psk = [0u8; 32];
+                        psk.copy_from_slice(&psk_bytes);
+                        Some(psk)
+                    } else { None };
 
                     let (ep_addr, ep_port) = parse_endpoint(ep)?;
                     peers.push(astra_core_proxy_wireguard::PeerConfig {
                         endpoint_address: ep_addr,
                         endpoint_port: ep_port,
-                        public_key: pubkey,
-                        pre_shared_key: psk,
-                        allowed_ips: Vec::new(),
+                        public_key,
+                        pre_shared_key,
                         persistent_keepalive: 0,
                     });
                 }
@@ -374,7 +383,7 @@ pub fn build_outbound_handler(
 
             Arc::new(astra_core_proxy_wireguard::Handler::new(
                 astra_core_proxy_wireguard::DeviceConfig {
-                    private_key,
+                    private_key: pk_arr,
                     listen_port: 0,
                     peers,
                 }
