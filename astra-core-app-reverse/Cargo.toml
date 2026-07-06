@@ -1,0 +1,14 @@
+[package]
+name = "astra-core-app-reverse"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-transport = { path = "../astra-core-transport" }
+astra-core-mux = { path = "../astra-core-mux" }

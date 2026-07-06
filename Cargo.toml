@@ -6,6 +6,7 @@ members = [
     "astra-core-dns",
     "astra-core-sniffing",
     "astra-core-mux",
+    "astra-core-app-reverse",
     "astra-core-net",
     "astra-core-proto",
     "astra-core-proxy-vless",

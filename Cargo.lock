@@ -65,6 +65,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 name = "astra-core-app"
 version = "0.1.0"
 dependencies = [
+ "astra-core-app-reverse",
  "astra-core-config",
  "astra-core-dispatcher",
  "astra-core-dns",
@@ -88,6 +89,20 @@ dependencies = [
  "astra-core-transport",
  "hex",
  "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "astra-core-app-reverse"
+version = "0.1.0"
+dependencies = [
+ "astra-core-mux",
+ "astra-core-net",
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "rand 0.10.2",
  "tokio",
  "tracing",
 ]

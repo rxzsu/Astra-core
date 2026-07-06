@@ -268,6 +268,20 @@ pub fn build_outbound_handler(
             );
             Arc::new(handler)
         }
+        "reverse" => {
+            let cfg: astra_core_config::ReverseConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("reverse config: {}", e))?
+                .unwrap_or_default();
+            let portal = cfg.portals.first().ok_or_else(|| "reverse outbound requires portal config")?;
+            Arc::new(astra_core_app_reverse::PortalHandler::new(
+                portal.tag.clone(),
+                portal.domain.clone(),
+            ))
+        }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
 
@@ -733,6 +747,17 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     // Inject dispatcher into loopback handlers
     if let Ok(mut guard) = dispatcher_cell.lock() {
         *guard = Some(dispatcher.clone());
+    }
+
+    // Initialize reverse proxy bridges
+    if let Some(ref rev) = config.reverse {
+        for b_cfg in &rev.bridges {
+            let _bridge = astra_core_app_reverse::Bridge::new(
+                b_cfg.tag.clone(),
+                b_cfg.domain.clone(),
+            );
+            // Bridge will be started when AppRuntime runs
+        }
     }
 
     let mut inbound_handlers = Vec::new();
