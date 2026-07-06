@@ -6,7 +6,7 @@ use astra_core_mux::client::MuxClient;
 use astra_core_mux::io as mux_io;
 use astra_core_mux::session::MuxClientStrategy;
 use astra_core_net::Destination;
-use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyResult};
+use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyResult, UdpLink};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 use rustls::pki_types::ServerName;
@@ -223,6 +223,10 @@ impl Dialer for Handler {
 impl DispatchHandler for Handler {
     async fn dispatch(&self, session: Session, link: &mut Link) -> ProxyResult<()> {
         self.proxy.process(session, link, self).await
+    }
+
+    async fn dispatch_udp(&self, session: Session, link: &mut UdpLink) -> ProxyResult<()> {
+        self.proxy.process_udp(session, link).await
     }
 }
 

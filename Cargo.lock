@@ -345,6 +345,7 @@ dependencies = [
 name = "astra-core-transport"
 version = "0.1.0"
 dependencies = [
+ "astra-core-net",
  "tokio",
 ]
 

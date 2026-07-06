@@ -8,7 +8,7 @@ use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_net::address::any_ip;
 use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Outbound, Session};
-use astra_core_transport::new_link_stream;
+use astra_core_transport::{new_link_stream, UdpPacket};
 
 use protocol::*;
 
@@ -183,14 +183,88 @@ async fn handle_socks5(
                 write_all(conn, &socks5_error(STATUS_CMD_NOT_SUPPORTED)).await?;
                 return Err("UDP not enabled".into());
             }
-            write_all(conn, &socks5_response(any_ip(), Port(0))).await?;
-            let mut buf = [0u8; 1024];
+
+            let outbound_session = {
+                let mut s = session.clone();
+                s.outbound = Some(Outbound {
+                    target: Destination { address: address.clone(), port, network: Network::Udp },
+                    original_target: Destination { address: address.clone(), port, network: Network::Udp },
+                    route_target: None,
+                    tag: String::new(),
+                });
+                s
+            };
+
+            let mut udp_link = dispatcher.dispatch_udp(outbound_session).await?;
+
+            let socket = tokio::net::UdpSocket::bind("0.0.0.0:0")
+                .await
+                .map_err(|e| format!("bind udp: {}", e))?;
+            let bind_port = socket.local_addr()
+                .map_err(|e| format!("local addr: {}", e))?
+                .port();
+
+            write_all(conn, &socks5_response(any_ip(), Port(bind_port))).await?;
+
+            let socket = std::sync::Arc::new(socket);
+            let client_addr = std::sync::Arc::new(tokio::sync::Mutex::<Option<std::net::SocketAddr>>::new(None));
+
+            let link_writer = udp_link.writer.clone();
+            let client_addr_clone = client_addr.clone();
+            let socket_clone = socket.clone();
+
+            // Read UDP packets from SOCKS client, parse and send through UdpLink
+            let to_upstream = tokio::spawn(async move {
+                loop {
+                    let mut recv_buf = vec![0u8; 65535];
+                    match socket_clone.recv_from(&mut recv_buf).await {
+                        Ok((n, src)) => {
+                            *client_addr_clone.lock().await = Some(src);
+                            if let Ok((addr, port, payload)) = decode_udp_packet(&recv_buf[..n]) {
+                                let target = Destination { address: addr, port, network: Network::Udp };
+                                let addr = match src.ip() {
+                                    std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
+                                    std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
+                                };
+                                let source = Destination { address: addr, port: Port(src.port()), network: Network::Udp };
+                                let pkt = UdpPacket::new(source, target, payload.to_vec());
+                                if link_writer.send(pkt).is_err() {
+                                    break;
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            // Read responses from UdpLink, wrap in SOCKS UDP header, send back to client
+            let from_upstream = tokio::spawn(async move {
+                loop {
+                    match udp_link.reader.recv().await {
+                        Some(pkt) => {
+                            let guard = client_addr.lock().await;
+                            if let Some(addr) = *guard {
+                                let response = encode_udp_packet(&pkt.source.address, pkt.source.port, &pkt.data);
+                                let _ = socket.send_to(&response, addr).await;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+            });
+
+            // Keep TCP connection alive; exit when client closes it
+            let mut keepalive = [0u8; 1];
             loop {
-                match conn.read(&mut buf).await {
+                match conn.read(&mut keepalive).await {
                     Ok(0) | Err(_) => break,
                     _ => {}
                 }
             }
+
+            let _ = to_upstream.await;
+            let _ = from_upstream.await;
             Ok(())
         }
         CMD_BIND => {

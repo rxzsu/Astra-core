@@ -1,7 +1,9 @@
-use astra_core_net::Destination;
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult};
+use std::sync::Arc;
+
+use astra_core_net::{Address, Destination, Network, Port};
+use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLink};
 use astra_core_session::Session;
-use astra_core_transport::Link;
+use astra_core_transport::{Link, UdpPacket};
 
 /// Configuration for the Freedom outbound handler.
 #[derive(Clone, Default)]
@@ -57,6 +59,56 @@ impl OutboundHandler for Handler {
         }
         .map_err(|e| format!("freedom copy: {}", e))?;
 
+        Ok(())
+    }
+
+    async fn process_udp(&self, _session: Session, link: &mut UdpLink) -> ProxyResult<()> {
+        let socket = Arc::new(
+            tokio::net::UdpSocket::bind("0.0.0.0:0")
+                .await
+                .map_err(|e| format!("bind udp: {}", e))?,
+        );
+
+        let sock_send = socket.clone();
+        let writer = link.writer.clone();
+
+        // Read responses from the socket and forward back through the link
+        let recv_handle = tokio::spawn(async move {
+            let mut buf = vec![0u8; 65535];
+            loop {
+                match sock_send.recv_from(&mut buf).await {
+                    Ok((n, src)) => {
+                        let addr = match src.ip() {
+                            std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
+                            std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
+                        };
+                        let source = Destination {
+                            address: addr,
+                            port: Port(src.port()),
+                            network: Network::Udp,
+                        };
+                        let pkt = UdpPacket::new(source.clone(), source, buf[..n].to_vec());
+                        if writer.send(pkt).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        // Read requests from the link and send to their targets
+        while let Some(packet) = link.recv().await {
+            let target = &packet.target;
+            let addr_str = format!("{}:{}", target.address, target.port.value());
+            if let Ok(mut addrs) = tokio::net::lookup_host(&addr_str).await {
+                if let Some(remote_addr) = addrs.next() {
+                    let _ = socket.send_to(&packet.data, remote_addr).await;
+                }
+            }
+        }
+
+        let _ = recv_handle.await;
         Ok(())
     }
 }

@@ -7,6 +7,7 @@ pub use inbound::InboundHandler;
 pub use outbound::OutboundHandler;
 pub use dispatcher::Dispatcher;
 pub use dialer::{AsyncConn, Dialer};
+pub use astra_core_transport::UdpLink;
 
 pub type ProxyResult<T> = Result<T, String>;
 

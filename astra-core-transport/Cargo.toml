@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 tokio = { workspace = true }
+astra-core-net = { path = "../astra-core-net" }

@@ -3,6 +3,8 @@ use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use astra_core_net::Destination;
+
 pub struct Link {
     pub reader: tokio::io::DuplexStream,
     pub writer: tokio::io::DuplexStream,
@@ -67,4 +69,44 @@ pub fn new_link_stream(link: Link) -> LinkStream {
         reader: link.reader,
         writer: link.writer,
     }
+}
+
+/// A single UDP datagram with routing info.
+#[derive(Debug, Clone)]
+pub struct UdpPacket {
+    pub source: Destination,
+    pub target: Destination,
+    pub data: Vec<u8>,
+}
+
+impl UdpPacket {
+    pub fn new(source: Destination, target: Destination, data: Vec<u8>) -> Self {
+        UdpPacket { source, target, data }
+    }
+}
+
+/// Bidirectional UDP packet channel.
+/// `reader` receives packets, `writer` sends packets.
+pub struct UdpLink {
+    pub reader: tokio::sync::mpsc::UnboundedReceiver<UdpPacket>,
+    pub writer: tokio::sync::mpsc::UnboundedSender<UdpPacket>,
+}
+
+impl UdpLink {
+    pub async fn recv(&mut self) -> Option<UdpPacket> {
+        self.reader.recv().await
+    }
+
+    pub fn send(&self, packet: UdpPacket) -> Result<(), String> {
+        self.writer.send(packet).map_err(|_| "udp link closed".into())
+    }
+}
+
+pub fn new_udp_link_pair() -> (UdpLink, UdpLink) {
+    let (tx1, rx1) = tokio::sync::mpsc::unbounded_channel();
+    let (tx2, rx2) = tokio::sync::mpsc::unbounded_channel();
+    (
+        UdpLink { reader: rx1, writer: tx2 },
+        UdpLink { reader: rx2, writer: tx1 },
+    )
 }

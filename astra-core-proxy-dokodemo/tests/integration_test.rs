@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination};
-use astra_core_proxy::{async_trait, AsyncConn, Dialer, Dispatcher, InboundHandler, OutboundHandler, ProxyResult};
+use astra_core_proxy::{async_trait, AsyncConn, Dialer, Dispatcher, InboundHandler, OutboundHandler, ProxyResult, UdpLink};
 use astra_core_session::{Outbound, Session};
 use astra_core_transport::Link;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -58,6 +58,10 @@ impl Dispatcher for TestDispatcher {
             let _ = handler.process(session, &mut outbound_link, &handler).await;
         });
         Ok(inbound_link)
+    }
+
+    async fn dispatch_udp(&self, _session: Session) -> ProxyResult<UdpLink> {
+        Err("UDP not supported in test".into())
     }
 }
 

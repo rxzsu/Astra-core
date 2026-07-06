@@ -1,6 +1,6 @@
 use astra_core_net::Destination;
 use astra_core_session::Session;
-use astra_core_transport::Link;
+use astra_core_transport::{Link, UdpLink};
 
 use crate::ProxyResult;
 
@@ -11,4 +11,9 @@ pub trait Dispatcher: Send + Sync {
         session: Session,
         dest: Destination,
     ) -> ProxyResult<Link>;
+
+    async fn dispatch_udp(
+        &self,
+        session: Session,
+    ) -> ProxyResult<UdpLink>;
 }
