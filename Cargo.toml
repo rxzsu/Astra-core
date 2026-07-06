@@ -26,6 +26,7 @@ members = [
     "astra-core-proxy-shadowsocks",
     "astra-core-proxy-trojan",
     "astra-core-transport-httpupgrade", "astra-core-transport-kcp",
+    "astra-core-transport-splithttp",
 ]
 
 [workspace.dependencies]

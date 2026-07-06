@@ -311,6 +311,7 @@ dependencies = [
  "astra-core-transport",
  "astra-core-transport-httpupgrade",
  "astra-core-transport-kcp",
+ "astra-core-transport-splithttp",
  "astra-core-transport-ws",
  "rustls",
  "rustls-pki-types",
@@ -380,6 +381,20 @@ dependencies = [
  "rand",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "astra-core-transport-splithttp"
+version = "0.1.0"
+dependencies = [
+ "astra-core-config",
+ "astra-core-net",
+ "astra-core-proxy",
+ "bytes",
+ "rand",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

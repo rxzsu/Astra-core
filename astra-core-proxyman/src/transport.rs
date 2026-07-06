@@ -21,6 +21,7 @@ pub enum Transport {
     Grpc {
         service_name: String,
     },
+    SplitHttp(astra_core_transport_splithttp::config::Config),
 }
 
 impl Default for Transport {
@@ -83,6 +84,11 @@ impl Transport {
                 accept_proxy_protocol: http.accept_proxy_protocol,
             });
         }
+        if let Some(sh) = &stream.splithttp_settings {
+            return Self::SplitHttp(
+                astra_core_transport_splithttp::config::Config::from_stream_config(sh),
+            );
+        }
         Self::RawTcp
     }
 
@@ -93,6 +99,7 @@ impl Transport {
             Self::HttpUpgrade(_) => "httpupgrade",
             Self::Kcp(_) => "mkcp",
             Self::Grpc { .. } => "grpc",
+            Self::SplitHttp(_) => "splithttp",
         }
     }
 }
@@ -172,6 +179,10 @@ pub async fn dial_transport(
                     .await
                     .map_err(|e| format!("httpupgrade dial: {}", e))?;
             Ok(Box::new(tcp))
+        }
+        Transport::SplitHttp(sh_cfg) => {
+            let cfg = Arc::new(sh_cfg.clone());
+            astra_core_transport_splithttp::dialer::dial(dest, &cfg).await
         }
         Transport::Grpc { .. } => {
             Err("grpc transport not yet implemented".into())
@@ -260,6 +271,11 @@ where
                 .await
                 .map_err(|e| format!("httpupgrade listen: {}", e))?;
             Ok(())
+        }
+        Transport::SplitHttp(sh_cfg) => {
+            let listener =
+                astra_core_transport_splithttp::listener::SplitHTTPListener::new(sh_cfg.clone());
+            listener.serve(listen_addr, on_conn).await
         }
         Transport::RawTcp => {
             let listener = tokio::net::TcpListener::bind(listen_addr)
