@@ -113,12 +113,11 @@ impl DefaultDispatcher {
         }
 
         // If tag matches a balancer, resolve it
-        if let Some(balancer) = self.balancers.get(&tag) {
-            if let Some(selected) = balancer.pick() {
+        if let Some(balancer) = self.balancers.get(&tag)
+            && let Some(selected) = balancer.pick() {
                 session.outbound.as_mut().map(|o| o.tag = selected.to_string());
                 return selected.to_string();
             }
-        }
 
         tag
     }

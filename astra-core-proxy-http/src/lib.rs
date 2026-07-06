@@ -19,7 +19,7 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     pub fn has_account(&self, username: &str, password: &str) -> bool {
-        self.accounts.get(username).map_or(false, |p| p == password)
+        self.accounts.get(username).is_some_and(|p| p == password)
     }
 }
 
@@ -95,9 +95,9 @@ impl InboundHandler for Handler {
 
             let authed = match auth_header {
                 Some(h) => {
-                    let value = h.splitn(2, ':').nth(1).unwrap_or("").trim();
+                    let value = h.split_once(':').map(|x| x.1).unwrap_or("").trim();
                     parse_basic_auth(value)
-                        .map_or(false, |(u, p)| self.config.has_account(&u, &p))
+                        .is_some_and(|(u, p)| self.config.has_account(&u, &p))
                 }
                 None => false,
             };

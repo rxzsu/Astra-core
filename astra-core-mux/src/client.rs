@@ -111,13 +111,11 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
                     self.session_manager.remove(meta.session_id).await;
                 }
                 SessionStatus::Keep => {
-                    if let Some(session) = self.session_manager.get(meta.session_id).await {
-                        if let Some(ch) = session.channels.lock().await.as_ref() {
-                            if let Some(data) = &data {
+                    if let Some(session) = self.session_manager.get(meta.session_id).await
+                        && let Some(ch) = session.channels.lock().await.as_ref()
+                            && let Some(data) = &data {
                                 let _ = ch.data_tx.send(data.clone());
                             }
-                        }
-                    }
                 }
                 SessionStatus::End => {
                     if let Some(session) = self.session_manager.get(meta.session_id).await {

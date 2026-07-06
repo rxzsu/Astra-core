@@ -9,7 +9,9 @@ pub use astra_core_proxy::ProxyResult;
 
 /// Transport protocol selection for outbound connections.
 #[derive(Clone)]
+#[derive(Default)]
 pub enum Transport {
+    #[default]
     RawTcp,
     WebSocket {
         host: String,
@@ -25,11 +27,6 @@ pub enum Transport {
     Quic(astra_core_transport_quic::config::QuicConfig),
 }
 
-impl Default for Transport {
-    fn default() -> Self {
-        Self::RawTcp
-    }
-}
 
 impl Transport {
     pub fn from_stream_config(stream: &cfg::StreamConfig) -> Self {
@@ -303,7 +300,7 @@ where
         // QUIC inbound is handled separately via the inbound TLS config
         // because QUIC requires TLS natively.
         Transport::Quic(_) => {
-            return Err("quic inbound: use TLS transport config".into());
+            Err("quic inbound: use TLS transport config".into())
         }
         Transport::Grpc { service_name: _ } => {
             use astra_core_transport_grpc::listener as grpc_listener;

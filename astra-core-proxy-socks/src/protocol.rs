@@ -114,7 +114,7 @@ pub async fn socks5_auth<C: AsyncRead + AsyncWrite + Unpin>(
         read_exact(conn, &mut passwd).await?;
         let password = String::from_utf8(passwd).map_err(|_| "invalid password".to_string())?;
 
-        let valid = config.accounts.get(&username).map_or(false, |p| p == &password);
+        let valid = config.accounts.get(&username) == Some(&password);
         if !valid {
             write_all(conn, &[0x01, 0xFF]).await?;
             return Err("invalid credentials".into());

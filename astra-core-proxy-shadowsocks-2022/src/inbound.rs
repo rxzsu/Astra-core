@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
-use astra_core_session::{Inbound, Outbound, Session};
+use astra_core_session::{Outbound, Session};
 use astra_core_transport::new_link_stream;
 
-use crate::protocol::{self, CipherType};
+use crate::protocol::CipherType;
 
 pub struct Handler {
     pub cipher: CipherType,
@@ -26,7 +26,7 @@ impl InboundHandler for Handler {
         mut conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        
 
         // Relay client ↔ dispatcher directly (SS2022 protocol handled by external tooling)
         let target = Destination {

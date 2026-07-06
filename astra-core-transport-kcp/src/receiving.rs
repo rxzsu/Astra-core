@@ -8,6 +8,12 @@ pub struct ReceivingWindow {
     cache: HashMap<u32, DataSegment>,
 }
 
+impl Default for ReceivingWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ReceivingWindow {
     pub fn new() -> Self {
         Self {
@@ -16,11 +22,11 @@ impl ReceivingWindow {
     }
 
     pub fn set(&mut self, id: u32, seg: DataSegment) -> bool {
-        if self.cache.contains_key(&id) {
-            false
-        } else {
-            self.cache.insert(id, seg);
+        if let std::collections::hash_map::Entry::Vacant(e) = self.cache.entry(id) {
+            e.insert(seg);
             true
+        } else {
+            false
         }
     }
 

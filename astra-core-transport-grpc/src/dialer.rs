@@ -8,19 +8,12 @@ use crate::proto::grpc_service_client::GrpcServiceClient;
 
 /// Configuration for gRPC dialer.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct GrpcDialerConfig {
     pub service_name: String,
     pub multi_mode: bool,
 }
 
-impl Default for GrpcDialerConfig {
-    fn default() -> Self {
-        GrpcDialerConfig {
-            service_name: String::new(),
-            multi_mode: false,
-        }
-    }
-}
 
 async fn connect_channel(dest: &Destination) -> Result<Channel, String> {
     let addr = format!("http://{}:{}", dest.address, dest.port.value());

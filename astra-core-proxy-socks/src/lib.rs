@@ -38,7 +38,7 @@ impl InboundHandler for Handler {
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
         let mut version_buf = [0u8; 1];
-        let n = (&mut conn).read(&mut version_buf).await
+        let n = conn.read(&mut version_buf).await
             .map_err(|e| format!("socks read: {}", e))?;
         if n == 0 {
             return Err("connection closed".into());

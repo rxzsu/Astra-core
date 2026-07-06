@@ -151,20 +151,18 @@ impl FrameMetadata {
             }
 
             if let Some(ref inbound) = self.inbound {
-                if let Some(ref source) = inbound.source {
-                    if source.network == Network::Tcp || source.network == Network::Udp {
+                if let Some(ref source) = inbound.source
+                    && (source.network == Network::Tcp || source.network == Network::Udp) {
                         let net_byte = if source.network == Network::Tcp { 0u8 } else { 1u8 };
                         buf.put_u8(net_byte);
                         encode_address_port(source, buf);
                     }
-                }
-                if let Some(ref local) = inbound.local {
-                    if local.network == Network::Tcp || local.network == Network::Udp {
+                if let Some(ref local) = inbound.local
+                    && (local.network == Network::Tcp || local.network == Network::Udp) {
                         let net_byte = if local.network == Network::Tcp { 0u8 } else { 1u8 };
                         buf.put_u8(net_byte);
                         encode_address_port(local, buf);
                     }
-                }
             } else if target_is_udp(self.target.as_ref()) && self.global_id != [0u8; 8] {
                 buf.put_slice(&self.global_id);
             }
@@ -251,14 +249,13 @@ impl FrameMetadata {
             }
         } else if status == SessionStatus::Keep && offset < buf.len() {
             let net_byte = buf[offset];
-            if let Some(tn) = TargetNetwork::from_byte(net_byte) {
-                if tn == TargetNetwork::Udp {
+            if let Some(tn) = TargetNetwork::from_byte(net_byte)
+                && tn == TargetNetwork::Udp {
                     offset += 1;
                     let (dest, consumed) = decode_address_port(&buf[offset..], tn)?;
                     meta.target = Some(dest);
                     offset += consumed;
                 }
-            }
         }
 
         Ok((meta, offset))

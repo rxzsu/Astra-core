@@ -1,9 +1,9 @@
 use astra_core_net::Destination;
 use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLink};
 use astra_core_session::Session;
-use astra_core_transport::{Link, UdpPacket};
+use astra_core_transport::Link;
 
-use crate::protocol::{self, CipherType};
+use crate::protocol::CipherType;
 
 pub struct Handler {
     pub server_address: astra_core_net::Address,

@@ -52,21 +52,13 @@ impl Default for BufferPolicy {
 
 /// Per-user-level session policy (Go: `Session`).
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct SessionPolicy {
     pub timeouts: TimeoutPolicy,
     pub stats: StatsPolicy,
     pub buffer: BufferPolicy,
 }
 
-impl Default for SessionPolicy {
-    fn default() -> Self {
-        SessionPolicy {
-            timeouts: TimeoutPolicy::default(),
-            stats: StatsPolicy::default(),
-            buffer: BufferPolicy::default(),
-        }
-    }
-}
 
 /// System-level stats policy (Go: `System`).
 #[derive(Debug, Clone, Default)]
@@ -112,6 +104,7 @@ pub fn override_session(base: &mut SessionPolicy, overrides: &SessionPolicy) {
 
 /// Policy manager that resolves per-level and system policies.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct PolicyManager {
     levels: HashMap<u32, SessionPolicy>,
     system: SystemPolicy,
@@ -133,14 +126,6 @@ impl PolicyManager {
     }
 }
 
-impl Default for PolicyManager {
-    fn default() -> Self {
-        PolicyManager {
-            levels: HashMap::new(),
-            system: SystemPolicy::default(),
-        }
-    }
-}
 
 /// Build policy manager from config types.
 pub fn build_policy_manager(

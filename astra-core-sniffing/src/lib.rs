@@ -87,7 +87,7 @@ pub fn sniff(data: &[u8]) -> SniffResult {
         let opcode = (data[2] >> 3) & 0x0f;
         if qr == 0 && opcode == 0 {
             let qdcount = u16::from_be_bytes([data[4], data[5]]);
-            if qdcount >= 1 && qdcount <= 10 {
+            if (1..=10).contains(&qdcount) {
                 return SniffResult { protocol: SniffProtocol::Dns, domain: None };
             }
         }

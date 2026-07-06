@@ -427,7 +427,7 @@ impl DnsResolver for SimpleDnsResolver {
             return Ok(addrs.clone());
         }
 
-        let addrs = tokio::net::lookup_host((domain.as_ref(), 0))
+        let addrs = tokio::net::lookup_host((domain, 0))
             .await
             .map_err(|e| format!("dns resolve {}: {}", domain, e))?;
 

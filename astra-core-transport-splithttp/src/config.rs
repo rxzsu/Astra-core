@@ -11,17 +11,14 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum SplitMode {
+    #[default]
     PacketUp,
     StreamUp,
     StreamOne,
 }
 
-impl Default for SplitMode {
-    fn default() -> Self {
-        Self::PacketUp
-    }
-}
 
 impl Config {
     pub fn from_stream_config(stream: &astra_core_config::transport::SplitHTTPConfig) -> Self {

@@ -10,6 +10,12 @@ pub struct SendingWindow {
     total_in_flight_size: u32,
 }
 
+impl Default for SendingWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SendingWindow {
     pub fn new() -> Self {
         Self {

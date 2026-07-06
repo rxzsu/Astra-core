@@ -432,11 +432,10 @@ impl OutboundHandler for Handler {
         while let Some(packet) = link.recv().await {
             let target = &packet.target;
             let addr_str = format!("{}:{}", target.address, target.port.value());
-            if let Ok(mut addrs) = tokio::net::lookup_host(&addr_str).await {
-                if let Some(remote_addr) = addrs.next() {
+            if let Ok(mut addrs) = tokio::net::lookup_host(&addr_str).await
+                && let Some(remote_addr) = addrs.next() {
                     let _ = socket.send_to(&packet.data, remote_addr).await;
                 }
-            }
         }
 
         let _ = recv_handle.await;

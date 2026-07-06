@@ -214,7 +214,7 @@ pub fn build_outbound_handler(
             Arc::new(astra_core_proxy_shadowsocks::outbound::Handler::new(client_cfg))
         }
         "shadowsocks-2022" => {
-            let settings = config.settings.as_ref().ok_or_else(|| "ss2022 outbound requires settings")?;
+            let settings = config.settings.as_ref().ok_or("ss2022 outbound requires settings")?;
             let addr_str = settings.get("address").and_then(|v| v.as_str()).unwrap_or("");
             let port = settings.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
             let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("");
@@ -335,14 +335,14 @@ pub fn build_outbound_handler(
                 .transpose()
                 .map_err(|e| format!("reverse config: {}", e))?
                 .unwrap_or_default();
-            let portal = cfg.portals.first().ok_or_else(|| "reverse outbound requires portal config")?;
+            let portal = cfg.portals.first().ok_or("reverse outbound requires portal config")?;
             Arc::new(astra_core_app_reverse::PortalHandler::new(
                 portal.tag.clone(),
                 portal.domain.clone(),
             ))
         }
         "wireguard" => {
-            let settings = config.settings.as_ref().ok_or_else(|| "wireguard requires settings")?;
+            let settings = config.settings.as_ref().ok_or("wireguard requires settings")?;
             let private_key_b64 = settings.get("private_key").and_then(|v| v.as_str()).unwrap_or("");
             let private_key = BASE64.decode(private_key_b64.as_bytes())
                 .map_err(|e| format!("wg key: {}", e))?;
@@ -406,8 +406,8 @@ pub fn build_outbound_handler(
                 };
                 ob_handler = ob_handler.with_tls(TlsConfig { server_name, allow_insecure: tls_cfg.allow_insecure });
             }
-        } else if stream.security == "reality" {
-            if let Some(ref _reality_cfg) = stream.reality_settings {
+        } else if stream.security == "reality"
+            && let Some(ref _reality_cfg) = stream.reality_settings {
                 let server_name = if _reality_cfg.server_name.is_empty() {
                     stream.address.as_ref().map(|a| a.0.clone()).unwrap_or_default()
                 } else {
@@ -417,26 +417,24 @@ pub fn build_outbound_handler(
                     server_name,
                     fingerprint: _reality_cfg.fingerprint.clone(),
                     public_key: {
-                        let decoded = hex::decode(&_reality_cfg.public_key).unwrap_or_default();
-                        decoded
+                        
+                        hex::decode(&_reality_cfg.public_key).unwrap_or_default()
                     },
                     short_id: {
-                        let decoded = hex::decode(&_reality_cfg.short_id).unwrap_or_default();
-                        decoded
+                        
+                        hex::decode(&_reality_cfg.short_id).unwrap_or_default()
                     },
                 });
             }
-        }
     }
 
-    if let Some(ref mux_cfg) = config.mux {
-        if mux_cfg.enabled {
+    if let Some(ref mux_cfg) = config.mux
+        && mux_cfg.enabled {
             ob_handler = ob_handler.with_mux(MuxConfig {
                 enabled: true,
                 concurrency: mux_cfg.concurrency,
             });
         }
-    }
 
     Ok(Arc::new(ob_handler))
 }
@@ -665,9 +663,9 @@ pub fn build_inbound_handler(
             handler = handler.with_transport(t);
         }
 
-        if stream.security == "tls" || stream.security == "reality" {
-            if let Some(ref tls_cfg) = stream.tls_settings {
-                if let Some(cert) = tls_cfg.certificates.first() {
+        if (stream.security == "tls" || stream.security == "reality")
+            && let Some(ref tls_cfg) = stream.tls_settings
+                && let Some(cert) = tls_cfg.certificates.first() {
                     let cert_data = if !cert.certificate.is_empty() {
                         cert.certificate.join("\n").into_bytes()
                     } else {
@@ -685,8 +683,6 @@ pub fn build_inbound_handler(
                         key_data,
                     });
                 }
-            }
-        }
     }
 
     Ok(handler)

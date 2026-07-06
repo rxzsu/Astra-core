@@ -5,6 +5,12 @@ use astra_core_transport::Link;
 /// Blackhole outbound — discards all traffic silently.
 pub struct Handler;
 
+impl Default for Handler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Handler {
     pub fn new() -> Self {
         Handler

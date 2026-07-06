@@ -29,14 +29,13 @@ impl Handler {
 
     fn find_user(&self, auth_id: &[u8; 16]) -> Option<[u8; 16]> {
         for user in &self.users {
-            if let Some(acc) = user.account.as_ref() {
-                if let Some(macc) = acc.as_any().downcast_ref::<crate::account::MemoryAccount>() {
+            if let Some(acc) = user.account.as_ref()
+                && let Some(macc) = acc.as_any().downcast_ref::<crate::account::MemoryAccount>() {
                     let cmd_key = *macc.id.cmd_key();
                     if DecodeAuthID(&cmd_key, auth_id).is_ok() {
                         return Some(cmd_key);
                     }
                 }
-            }
         }
         None
     }

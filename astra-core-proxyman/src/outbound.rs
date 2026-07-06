@@ -185,11 +185,10 @@ impl Handler {
     async fn dial_mux(&self, dest: &Destination) -> ProxyResult<Conn> {
         {
             let guard = self.mux_client.lock().await;
-            if let Some(ref client) = *guard {
-                if let Some(session_io) = mux_io::open_mux_stream(client).await {
+            if let Some(ref client) = *guard
+                && let Some(session_io) = mux_io::open_mux_stream(client).await {
                     return Ok(Box::new(session_io));
                 }
-            }
         }
 
         let conn = self.dial_transport(dest).await?;

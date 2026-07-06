@@ -82,11 +82,7 @@ impl RoundTripInfo {
             self.srtt = rtt;
             self.variation = rtt / 2;
         } else {
-            let delta = if rtt > self.srtt {
-                rtt - self.srtt
-            } else {
-                self.srtt - rtt
-            };
+            let delta = rtt.abs_diff(self.srtt);
             self.variation = (3 * self.variation + delta) / 4;
             self.srtt = (7 * self.srtt + rtt) / 8;
             if self.srtt < self.min_rtt {

@@ -209,6 +209,12 @@ pub struct StaticMuxPicker {
     workers: Vec<PortalWorker>,
 }
 
+impl Default for StaticMuxPicker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StaticMuxPicker {
     pub fn new() -> Self {
         StaticMuxPicker { workers: Vec::new() }
@@ -263,8 +269,8 @@ impl OutboundHandler for PortalHandler {
 
         // Dispatch through mux picker
         let mut picker = self.picker.lock().await;
-        if let Some(worker) = picker.pick_available() {
-            if let Some(mut session_io) = open_mux_stream(&worker.client).await {
+        if let Some(worker) = picker.pick_available()
+            && let Some(mut session_io) = open_mux_stream(&worker.client).await {
                 let (mut si_r, mut si_w) = tokio::io::split(&mut session_io);
                 let to_remote = tokio::io::copy(&mut link.reader, &mut si_w);
                 let to_local = tokio::io::copy(&mut si_r, &mut link.writer);
@@ -275,7 +281,6 @@ impl OutboundHandler for PortalHandler {
                 .map_err(|e| format!("reverse relay: {}", e))?;
                 return Ok(());
             }
-        }
         Err("no reverse worker available".into())
     }
 

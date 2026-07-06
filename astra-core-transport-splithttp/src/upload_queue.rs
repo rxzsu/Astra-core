@@ -41,6 +41,12 @@ struct UploadQueueInner {
     max_packets: usize,
 }
 
+impl Default for UploadQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UploadQueue {
     pub fn new() -> Self {
         Self {

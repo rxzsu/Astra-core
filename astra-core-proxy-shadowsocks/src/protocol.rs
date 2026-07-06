@@ -84,7 +84,7 @@ pub fn password_to_key(password: &[u8], key_size: usize) -> Vec<u8> {
     key.extend_from_slice(&md5_sum);
     while key.len() < key_size {
         let mut hasher = Md5::new();
-        hasher.update(&md5_sum);
+        hasher.update(md5_sum);
         hasher.update(password);
         md5_sum = hasher.finalize();
         key.extend_from_slice(&md5_sum);

@@ -63,7 +63,7 @@ impl WireGuardTunnel {
     }
 
     async fn send(&self, data: &[u8]) -> Result<(), String> {
-        use tokio::io::AsyncWriteExt;
+        
         // Real implementation: encrypt with WireGuard noise protocol
         self.udp_socket.send(data).await.map_err(|e| e.to_string())?;
         Ok(())
@@ -85,8 +85,8 @@ impl Handler {
 impl OutboundHandler for Handler {
     async fn process(
         &self,
-        session: Session,
-        link: &mut Link,
+        _session: Session,
+        _link: &mut Link,
         _dialer: &dyn Dialer,
     ) -> ProxyResult<()> {
         Err("WireGuard outbound: requires TUN/netstack integration — use as UDP forwarder".into())
