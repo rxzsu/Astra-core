@@ -367,6 +367,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-transport-kcp"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "async-trait",
+ "bytes",
+ "rand",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "astra-core-transport-ws"
 version = "0.1.0"
 dependencies = [

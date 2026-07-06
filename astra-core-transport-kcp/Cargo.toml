@@ -1,0 +1,13 @@
+[package]
+name = "astra-core-transport-kcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true, features = ["net", "sync", "io-util", "time"] }
+tracing = { workspace = true }
+rand = { workspace = true }
+async-trait = "0.1"
+bytes = "1"
+
+astra-core-net = { path = "../astra-core-net" }
