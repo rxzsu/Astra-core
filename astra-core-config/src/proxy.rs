@@ -134,6 +134,10 @@ pub struct FreedomFragment {
     pub length: Option<crate::types::Int32Range>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval: Option<crate::types::Int32Range>,
+    #[serde(default)]
+    pub max_split_min: u64,
+    #[serde(default)]
+    pub max_split_max: u64,
 }
 
 // ─── Dokodemo-door ───────────────────────────────────────────────────────────

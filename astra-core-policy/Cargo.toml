@@ -1,0 +1,8 @@
+[package]
+name = "astra-core-policy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { workspace = true }
+astra-core-config = { path = "../astra-core-config" }

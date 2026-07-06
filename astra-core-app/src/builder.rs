@@ -90,6 +90,19 @@ pub fn build_outbound_handler(
                 .map_err(|e| format!("freedom config: {}", e))?
                 .unwrap_or_default();
 
+            use astra_core_proxy_freedom::{parse_packets, FragmentConfig};
+            let fragment = cfg.fragment.as_ref().map(|f| {
+                let (pf, pt) = parse_packets(&f.packets);
+                let (lmin, lmax) = f.length.as_ref().map(|r| (r.from as u64, r.to as u64)).unwrap_or((1, 1));
+                let (imin, imax) = f.interval.as_ref().map(|r| (r.from as u64, r.to as u64)).unwrap_or((0, 0));
+                FragmentConfig {
+                    packets_from: pf, packets_to: pt,
+                    length_min: lmin, length_max: lmax,
+                    interval_min: imin, interval_max: imax,
+                    max_split_min: f.max_split_min.max(1),
+                    max_split_max: f.max_split_max.max(1),
+                }
+            });
             Arc::new(astra_core_proxy_freedom::Handler::new(
                 astra_core_proxy_freedom::OutboundConfig {
                     domain_strategy: cfg.domain_strategy,
@@ -98,6 +111,7 @@ pub fn build_outbound_handler(
                     } else {
                         Some(parse_destination(&cfg.redirect)?)
                     },
+                    fragment,
                 },
             ))
         }

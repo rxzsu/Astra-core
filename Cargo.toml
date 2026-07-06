@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "astra-core-buf",
     "astra-core-crypto",
+    "astra-core-policy",
     "astra-core-dns",
     "astra-core-sniffing",
     "astra-core-mux",

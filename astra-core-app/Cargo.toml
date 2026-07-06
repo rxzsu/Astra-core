@@ -12,6 +12,7 @@ astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-proxyman = { path = "../astra-core-proxyman" }
 astra-core-dispatcher = { path = "../astra-core-dispatcher" }
 astra-core-config = { path = "../astra-core-config" }
+astra-core-policy = { path = "../astra-core-policy" }
 astra-core-proxy-freedom = { path = "../astra-core-proxy-freedom" }
 astra-core-proxy-dokodemo = { path = "../astra-core-proxy-dokodemo" }
 astra-core-proxy-vless = { path = "../astra-core-proxy-vless" }

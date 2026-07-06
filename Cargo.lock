@@ -70,6 +70,7 @@ dependencies = [
  "astra-core-dispatcher",
  "astra-core-dns",
  "astra-core-net",
+ "astra-core-policy",
  "astra-core-proto",
  "astra-core-proxy",
  "astra-core-proxy-blackhole",
@@ -191,6 +192,14 @@ dependencies = [
 [[package]]
 name = "astra-core-net"
 version = "0.1.0"
+
+[[package]]
+name = "astra-core-policy"
+version = "0.1.0"
+dependencies = [
+ "astra-core-config",
+ "serde",
+]
 
 [[package]]
 name = "astra-core-proto"
