@@ -71,6 +71,7 @@ dependencies = [
  "astra-core-net",
  "astra-core-proto",
  "astra-core-proxy",
+ "astra-core-proxy-blackhole",
  "astra-core-proxy-dns",
  "astra-core-proxy-dokodemo",
  "astra-core-proxy-freedom",
@@ -195,6 +196,17 @@ dependencies = [
  "async-trait",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "astra-core-proxy-blackhole"
+version = "0.1.0"
+dependencies = [
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "async-trait",
+ "tokio",
 ]
 
 [[package]]
@@ -335,6 +347,7 @@ dependencies = [
  "astra-core-net",
  "astra-core-proxy",
  "astra-core-session",
+ "astra-core-sniffing",
  "astra-core-transport",
  "astra-core-transport-httpupgrade",
  "astra-core-transport-kcp",
@@ -364,6 +377,13 @@ name = "astra-core-session"
 version = "0.1.0"
 dependencies = [
  "astra-core-net",
+]
+
+[[package]]
+name = "astra-core-sniffing"
+version = "0.1.0"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]

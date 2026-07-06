@@ -1,0 +1,11 @@
+[package]
+name = "astra-core-proxy-blackhole"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+async-trait = "0.1"
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-transport = { path = "../astra-core-transport" }
+astra-core-session = { path = "../astra-core-session" }

@@ -33,6 +33,7 @@ impl ListenNetwork {
     }
 }
 
+#[derive(Clone)]
 pub struct TlsConfig {
     pub cert_file: Option<String>,
     pub key_file: Option<String>,
@@ -80,28 +81,24 @@ impl AlwaysOnInboundHandler {
         self
     }
 
-    async fn wrap_tls(
-        &self,
-        conn: tokio::net::TcpStream,
-    ) -> ProxyResult<Conn> {
-        if let Some(ref tls_cfg) = self.tls {
-            if !tls_cfg.cert_data.is_empty() && !tls_cfg.key_data.is_empty() {
-                let cert = rustls::pki_types::CertificateDer::from(tls_cfg.cert_data.clone());
-                let key = rustls::pki_types::PrivateKeyDer::try_from(tls_cfg.key_data.clone())
-                    .map_err(|e| format!("invalid tls key: {:?}", e))?;
-
-                let tls_config = rustls::ServerConfig::builder()
-                    .with_no_client_auth()
-                    .with_single_cert(vec![cert], key)
-                    .map_err(|e| format!("tls config: {}", e))?;
-
-                let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
-                let tls_stream = acceptor.accept(conn).await
-                    .map_err(|e| format!("tls accept: {}", e))?;
-                return Ok(Box::new(tls_stream));
-            }
+    /// Static TLS wrapping for a Conn.
+    async fn tls_wrap(conn: Conn, tls_cfg: &TlsConfig) -> ProxyResult<Conn> {
+        if tls_cfg.cert_data.is_empty() || tls_cfg.key_data.is_empty() {
+            return Ok(conn);
         }
-        Ok(Box::new(conn))
+        let cert = rustls::pki_types::CertificateDer::from(tls_cfg.cert_data.clone());
+        let key = rustls::pki_types::PrivateKeyDer::try_from(tls_cfg.key_data.clone())
+            .map_err(|e| format!("invalid tls key: {:?}", e))?;
+
+        let tls_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .map_err(|e| format!("tls config: {}", e))?;
+
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
+        let tls_stream = acceptor.accept(conn).await
+            .map_err(|e| format!("tls accept: {}", e))?;
+        Ok(Box::new(tls_stream))
     }
 
     pub async fn start(&self, dispatcher: Arc<dyn Dispatcher>) -> ProxyResult<()> {
@@ -189,8 +186,10 @@ impl AlwaysOnInboundHandler {
 
                 info!("inbound {} listening on {} (tcp)", self.tag, listen);
 
+                let tls_cfg = self.tls.clone();
+
                 loop {
-                    let (conn, peer) = match listener.accept().await {
+                    let (mut conn, peer) = match listener.accept().await {
                         Ok(c) => c,
                         Err(e) => {
                             tracing::error!("accept error: {}", e);
@@ -198,26 +197,59 @@ impl AlwaysOnInboundHandler {
                         }
                     };
 
-                    let conn = self.wrap_tls(conn).await
-                        .map_err(|e| format!("wrap_tls: {}", e))?;
-
                     let proxy = self.proxy.clone();
                     let dispatcher = dispatcher.clone();
                     let tag = self.tag.clone();
+                    let tls = tls_cfg.clone();
 
                     tokio::spawn(async move {
-                        let address = if peer.is_ipv4() {
-                            if let std::net::IpAddr::V4(v4) = peer.ip() {
-                                Address::Ipv4(v4.octets())
-                            } else {
-                                unreachable!()
+                        let address = match peer.ip() {
+                            std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
+                            std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
+                        };
+
+                        // Sniff initial bytes for protocol detection
+                        let mut sniff_buf = vec![0u8; 8192];
+                        let (sniff_result, conn) = match tokio::io::AsyncReadExt::read(&mut conn, &mut sniff_buf).await {
+                            Ok(0) | Err(_) => {
+                                (astra_core_sniffing::SniffResult::default(), Box::new(conn) as Conn)
                             }
+                            Ok(n) => {
+                                let data = sniff_buf[..n].to_vec();
+                                let result = astra_core_sniffing::sniff(&data);
+                                let wrapped = astra_core_sniffing::SniffedStream::new(conn, data);
+                                (result, Box::new(wrapped) as Conn)
+                            }
+                        };
+
+                        // Wrap in TLS if configured
+                        let conn = match tls {
+                            Some(ref tls_cfg) => {
+                                match Self::tls_wrap(conn, tls_cfg).await {
+                                    Ok(c) => c,
+                                    Err(e) => {
+                                        tracing::error!("tls wrap error: {}", e);
+                                        return;
+                                    }
+                                }
+                            }
+                            None => conn,
+                        };
+
+                        let protocol = sniff_result.protocol.as_str();
+                        let domain = sniff_result.domain.clone();
+
+                        let content = if !protocol.is_empty() || domain.is_some() {
+                            let mut c = astra_core_session::Content::default();
+                            if !protocol.is_empty() {
+                                c.protocol = Some(protocol.to_string());
+                            }
+                            if let Some(d) = domain {
+                                c.attributes.insert("sniffed_domain".to_string(), d);
+                            }
+                            Some(c)
                         } else {
-                            if let std::net::IpAddr::V6(v6) = peer.ip() {
-                                Address::Ipv6(v6.octets())
-                            } else {
-                                unreachable!()
-                            }
+                            None
                         };
 
                         let session = Session {
@@ -232,7 +264,7 @@ impl AlwaysOnInboundHandler {
                                 tag,
                             }),
                             outbound: None,
-                            content: None,
+                            content,
                         };
 
                         if let Err(e) = proxy.process(session, conn, dispatcher).await {

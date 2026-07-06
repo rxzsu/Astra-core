@@ -14,7 +14,7 @@ use astra_core_proxyman::outbound;
 use astra_core_proxyman::outbound::{MuxConfig, TlsConfig};
 use astra_core_proxyman::transport;
 use astra_core_proxy_vless::Validator as VLessValidator;
-use astra_core_routing::{DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
+use astra_core_routing::{Balancer, BalancerStrategy, DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
     ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher, NetworkMatcher,
     RouteRule, Router};
 
@@ -246,6 +246,9 @@ pub fn build_outbound_handler(
             };
 
             Arc::new(astra_core_proxy_dns::Handler::new(address, cfg.port)?)
+        }
+        "blackhole" => {
+            Arc::new(astra_core_proxy_blackhole::Handler::new())
         }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
@@ -676,6 +679,23 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
         None
     };
 
+    // Build balancers
+    let mut balancers = std::collections::HashMap::new();
+    if let Some(ref routing) = config.routing {
+        for br in &routing.balancers {
+            let strategy = BalancerStrategy::from_str(&br.strategy.r#type);
+            balancers.insert(
+                br.tag.clone(),
+                Balancer::new(
+                    br.tag.clone(),
+                    br.selector.0.clone(),
+                    strategy,
+                    if br.fallback_tag.is_empty() { None } else { Some(br.fallback_tag.clone()) },
+                ),
+            );
+        }
+    }
+
     let mut dispatcher = DefaultDispatcher::new(router, handler_provider);
     if let Some(resolver) = dns_resolver {
         dispatcher = dispatcher.with_dns_resolver(resolver);
@@ -683,6 +703,9 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     if config.fake_dns.is_some() {
         let fake = Arc::new(FakeDnsResolver::new_default());
         dispatcher = dispatcher.with_fake_dns(fake);
+    }
+    if !balancers.is_empty() {
+        dispatcher = dispatcher.with_balancers(balancers);
     }
     let dispatcher = Arc::new(dispatcher);
 

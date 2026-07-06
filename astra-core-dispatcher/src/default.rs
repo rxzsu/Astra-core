@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use astra_core_dns::{DnsResolver, FakeDnsResolver};
 use astra_core_net::Destination;
 use astra_core_proxy::{async_trait, Dispatcher, ProxyResult, UdpLink};
-use astra_core_routing::{DomainStrategy, Router, RoutingContext};
+use astra_core_routing::{Balancer, DomainStrategy, Router, RoutingContext};
 use astra_core_session::Session;
 use astra_core_transport::{new_link_pair, new_udp_link_pair, Link};
 
@@ -14,6 +15,7 @@ pub struct DefaultDispatcher {
     handler_provider: Arc<dyn HandlerProvider>,
     dns_resolver: Option<Arc<dyn DnsResolver>>,
     fake_dns: Option<Arc<FakeDnsResolver>>,
+    balancers: HashMap<String, Balancer>,
 }
 
 pub trait HandlerProvider: Send + Sync {
@@ -23,7 +25,11 @@ pub trait HandlerProvider: Send + Sync {
 
 impl DefaultDispatcher {
     pub fn new(router: Arc<Router>, handler_provider: Arc<dyn HandlerProvider>) -> Self {
-        DefaultDispatcher { router, handler_provider, dns_resolver: None, fake_dns: None }
+        DefaultDispatcher {
+            router, handler_provider,
+            dns_resolver: None, fake_dns: None,
+            balancers: HashMap::new(),
+        }
     }
 
     pub fn with_dns_resolver(mut self, resolver: Arc<dyn DnsResolver>) -> Self {
@@ -33,6 +39,11 @@ impl DefaultDispatcher {
 
     pub fn with_fake_dns(mut self, fake_dns: Arc<FakeDnsResolver>) -> Self {
         self.fake_dns = Some(fake_dns);
+        self
+    }
+
+    pub fn with_balancers(mut self, balancers: HashMap<String, Balancer>) -> Self {
+        self.balancers = balancers;
         self
     }
 
@@ -87,14 +98,29 @@ impl DefaultDispatcher {
     }
 
     /// Pick outbound tag for the given context, updating session if matched.
+    /// Resolves balancer tags to the selected outbound tag.
     fn pick_outbound_tag(&self, session: &mut Session, ctx: &RoutingContext) -> String {
-        match self.router.pick_route(ctx) {
+        let tag = match self.router.pick_route(ctx) {
             Some(r) => {
                 session.outbound.as_mut().map(|o| o.tag = r.outbound_tag.clone());
                 r.outbound_tag
             }
             None => String::new(),
+        };
+
+        if tag.is_empty() {
+            return tag;
         }
+
+        // If tag matches a balancer, resolve it
+        if let Some(balancer) = self.balancers.get(&tag) {
+            if let Some(selected) = balancer.pick() {
+                session.outbound.as_mut().map(|o| o.tag = selected.to_string());
+                return selected.to_string();
+            }
+        }
+
+        tag
     }
 
     async fn routed_dispatch(
@@ -138,9 +164,10 @@ impl Dispatcher for DefaultDispatcher {
         let handler_provider = self.handler_provider.clone();
         let dns_resolver = self.dns_resolver.clone();
         let fake_dns = self.fake_dns.clone();
+        let balancers = self.balancers.clone();
 
         tokio::spawn(async move {
-            let dispatcher = DefaultDispatcher { router, handler_provider, dns_resolver, fake_dns };
+            let dispatcher = DefaultDispatcher { router, handler_provider, dns_resolver, fake_dns, balancers };
             if let Err(e) = dispatcher.routed_dispatch(session, outbound_link, &dest).await {
                 tracing::error!("dispatch error: {}", e);
             }
@@ -156,10 +183,11 @@ impl Dispatcher for DefaultDispatcher {
         let handler_provider = self.handler_provider.clone();
         let dns_resolver = self.dns_resolver.clone();
         let fake_dns = self.fake_dns.clone();
+        let balancers = self.balancers.clone();
 
         tokio::spawn(async move {
             let handler_provider = handler_provider.clone();
-            let dispatcher = DefaultDispatcher { router, handler_provider: handler_provider.clone(), dns_resolver, fake_dns };
+            let dispatcher = DefaultDispatcher { router, handler_provider: handler_provider.clone(), dns_resolver, fake_dns, balancers };
 
             let mut session = session;
             let mut ctx = DefaultDispatcher::build_routing_context(&session);
