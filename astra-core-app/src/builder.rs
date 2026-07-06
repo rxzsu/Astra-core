@@ -9,6 +9,7 @@ use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
 use astra_core_proxyman::inbound::AlwaysOnInboundHandler;
 use astra_core_proxyman::outbound;
 use astra_core_proxyman::outbound::{MuxConfig, TlsConfig};
+use astra_core_proxyman::transport;
 use astra_core_proxy_vless::Validator as VLessValidator;
 use astra_core_routing::{DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
     ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher, NetworkMatcher,
@@ -204,6 +205,11 @@ pub fn build_outbound_handler(
     let mut ob_handler = outbound::Handler::new(tag, handler);
 
     if let Some(ref stream) = config.stream_settings {
+        let t = transport::Transport::from_stream_config(stream);
+        if !matches!(t, transport::Transport::RawTcp) {
+            ob_handler = ob_handler.with_transport(t);
+        }
+
         if stream.security == "tls" {
             if let Some(ref tls_cfg) = stream.tls_settings {
                 let server_name = if tls_cfg.server_name.is_empty() {
@@ -393,7 +399,16 @@ pub fn build_inbound_handler(
     };
 
     let listen_addr = get_listen_addr(config);
-    Ok(AlwaysOnInboundHandler::new(tag, proxy, listen_addr))
+    let mut handler = AlwaysOnInboundHandler::new(tag, proxy, listen_addr);
+
+    if let Some(ref stream) = config.stream_settings {
+        let t = transport::Transport::from_stream_config(stream);
+        if !matches!(t, transport::Transport::RawTcp) {
+            handler = handler.with_transport(t);
+        }
+    }
+
+    Ok(handler)
 }
 
 fn build_router(config: &Config) -> Result<Router, String> {

@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use astra_core_net::Destination;
-use astra_core_proxy::{async_trait, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Outbound, Session};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 
 use crate::encoding::{DecodeRequestHeader, EncodeResponseHeader};
 use crate::validator::UserGetter;
@@ -25,10 +24,10 @@ impl InboundHandler for Handler {
     async fn process(
         &self,
         session: Session,
-        mut conn: TcpStream,
+        conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
-        let (mut reader, mut writer) = tokio::io::split(&mut conn);
+        let (mut reader, mut writer) = tokio::io::split(conn);
 
         let mut len_buf = [0u8; 2];
         reader.read_exact(&mut len_buf).await

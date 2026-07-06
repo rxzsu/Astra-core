@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::Session;
 use astra_core_transport::new_link_stream;
-use tokio::net::TcpStream;
 
 #[derive(Debug, Clone, Default)]
 pub struct InboundConfig {
@@ -43,7 +42,7 @@ impl InboundHandler for Handler {
     async fn process(
         &self,
         session: Session,
-        conn: TcpStream,
+        conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
         let dest = self.resolve_dest()?;
@@ -51,7 +50,7 @@ impl InboundHandler for Handler {
         let mut link_stream = new_link_stream(link);
         let mut conn = conn;
 
-        tokio::io::copy_bidirectional(&mut conn, &mut link_stream)
+        tokio::io::copy_bidirectional(&mut *conn, &mut link_stream)
             .await
             .map_err(|e| format!("dokodemo copy: {}", e))?;
         Ok(())

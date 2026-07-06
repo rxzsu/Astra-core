@@ -10,6 +10,10 @@ astra-core-transport = { path = "../astra-core-transport" }
 astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-dispatcher = { path = "../astra-core-dispatcher" }
 astra-core-mux = { path = "../astra-core-mux" }
+astra-core-config = { path = "../astra-core-config" }
+astra-core-transport-kcp = { path = "../astra-core-transport-kcp" }
+astra-core-transport-httpupgrade = { path = "../astra-core-transport-httpupgrade" }
+astra-core-transport-ws = { path = "../astra-core-transport-ws" }
 tokio = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }

@@ -10,7 +10,7 @@ use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyRes
 use astra_core_session::Session;
 use astra_core_transport::Link;
 use rustls::pki_types::ServerName;
-use tokio::net::TcpStream;
+use crate::transport;
 
 /// TLS configuration for outbound connections.
 pub struct TlsConfig {
@@ -85,6 +85,7 @@ pub struct Handler {
     pub tag: String,
     proxy: Arc<dyn OutboundHandler>,
     tls: Option<TlsConfig>,
+    transport: transport::Transport,
     pub mux: Option<MuxConfig>,
     mux_client: tokio::sync::Mutex<Option<Arc<MuxClientType>>>,
 }
@@ -95,6 +96,7 @@ impl Handler {
             tag,
             proxy,
             tls: None,
+            transport: transport::Transport::RawTcp,
             mux: None,
             mux_client: tokio::sync::Mutex::new(None),
         }
@@ -105,18 +107,22 @@ impl Handler {
         self
     }
 
+    pub fn with_transport(mut self, t: transport::Transport) -> Self {
+        self.transport = t;
+        self
+    }
+
     pub fn with_mux(mut self, mux: MuxConfig) -> Self {
         self.mux = Some(mux);
         self
     }
 
-    /// Dial the underlying transport (TCP or TLS) without mux.
+    /// Dial the underlying transport (TCP/TLS or KCP/WS/etc.) without mux.
     async fn dial_transport(&self, dest: &Destination) -> ProxyResult<Conn> {
-        let addr = format!("{}:{}", dest.address, dest.port.value());
-        let stream = TcpStream::connect(&addr)
-            .await
-            .map_err(|e| format!("dial {}: {}", addr, e))?;
+        // First dial the base transport
+        let raw = transport::dial_transport(&self.transport, dest).await?;
 
+        // Apply TLS on top if configured
         if let Some(ref tls_cfg) = self.tls {
             let server_name_str = tls_cfg.server_name.clone();
             let server_name = ServerName::try_from(server_name_str)
@@ -138,18 +144,17 @@ impl Handler {
 
             let connector = tokio_rustls::TlsConnector::from(Arc::new(config));
             let tls_stream = connector
-                .connect(server_name, stream)
+                .connect(server_name, raw)
                 .await
                 .map_err(|e| format!("tls handshake: {}", e))?;
             Ok(Box::new(tls_stream))
         } else {
-            Ok(Box::new(stream))
+            Ok(raw)
         }
     }
 
     /// Dial using mux: reuse or create a mux client and open a new session.
     async fn dial_mux(&self, dest: &Destination) -> ProxyResult<Conn> {
-        // Try to open a session on an existing mux client first.
         {
             let guard = self.mux_client.lock().await;
             if let Some(ref client) = *guard {
@@ -159,7 +164,6 @@ impl Handler {
             }
         }
 
-        // No available session — create a new mux connection.
         let conn = self.dial_transport(dest).await?;
         let mux_client = MuxClientType::new_from_stream(conn, MuxClientStrategy::default());
 
@@ -172,6 +176,7 @@ impl Handler {
     }
 }
 
+#[async_trait]
 #[async_trait]
 impl Dialer for Handler {
     async fn dial(

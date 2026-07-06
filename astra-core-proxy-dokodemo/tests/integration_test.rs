@@ -101,7 +101,7 @@ async fn test_dokodemo_to_freedom_echo() {
             outbound: None,
             content: None,
         };
-        dokodemo.process(session, conn, dispatcher).await.unwrap();
+        dokodemo.process(session, Box::new(conn), dispatcher).await.unwrap();
     });
 
     // 4. Client connects and does echo test

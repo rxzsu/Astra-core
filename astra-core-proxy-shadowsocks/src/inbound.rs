@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use rand::RngCore;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 
-use astra_core_proxy::{async_trait, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Content, Inbound, Outbound, Session};
 
 use crate::config::ServerConfig;
@@ -27,7 +26,7 @@ impl InboundHandler for Handler {
     async fn process(
         &self,
         _session: Session,
-        conn: TcpStream,
+        conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
         let user = &self.config.users[0];

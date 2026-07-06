@@ -302,12 +302,16 @@ dependencies = [
 name = "astra-core-proxyman"
 version = "0.1.0"
 dependencies = [
+ "astra-core-config",
  "astra-core-dispatcher",
  "astra-core-mux",
  "astra-core-net",
  "astra-core-proxy",
  "astra-core-session",
  "astra-core-transport",
+ "astra-core-transport-httpupgrade",
+ "astra-core-transport-kcp",
+ "astra-core-transport-ws",
  "rustls",
  "rustls-pki-types",
  "tokio",

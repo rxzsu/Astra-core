@@ -1,9 +1,8 @@
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Outbound, Session};
 use astra_core_transport::new_link_stream;
 
@@ -21,7 +20,7 @@ impl InboundHandler for Handler {
     async fn process(
         &self,
         session: Session,
-        mut conn: TcpStream,
+        mut conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
         let (mut reader, mut writer) = tokio::io::split(&mut conn);
