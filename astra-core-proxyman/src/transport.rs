@@ -85,6 +85,11 @@ impl Transport {
                 accept_proxy_protocol: http.accept_proxy_protocol,
             });
         }
+        if let Some(grpc) = &stream.grpc_settings {
+            return Self::Grpc {
+                service_name: grpc.service_name.clone(),
+            };
+        }
         if let Some(sh) = &stream.splithttp_settings {
             return Self::SplitHttp(
                 astra_core_transport_splithttp::config::Config::from_stream_config(sh),
@@ -189,8 +194,15 @@ pub async fn dial_transport(
             let cfg = Arc::new(sh_cfg.clone());
             astra_core_transport_splithttp::dialer::dial(dest, &cfg).await
         }
-        Transport::Grpc { .. } => {
-            Err("grpc transport not yet implemented".into())
+        Transport::Grpc { service_name } => {
+            let config = astra_core_transport_grpc::dialer::GrpcDialerConfig {
+                service_name: service_name.clone(),
+                multi_mode: false,
+            };
+            let hunk = astra_core_transport_grpc::dialer::dial_grpc(dest, &config)
+                .await
+                .map_err(|e| format!("grpc dial: {}", e))?;
+            Ok(Box::new(hunk))
         }
         Transport::Quic(quic_cfg) => {
             let quic_conn = astra_core_transport_quic::dialer::dial_quic(dest, quic_cfg)
@@ -293,6 +305,16 @@ where
         Transport::Quic(_) => {
             return Err("quic inbound: use TLS transport config".into());
         }
+        Transport::Grpc { service_name: _ } => {
+            use astra_core_transport_grpc::listener as grpc_listener;
+            let handler: grpc_listener::GrpcConnHandler = Arc::new(move |hunk| {
+                on_conn(Box::new(hunk));
+            });
+            grpc_listener::serve_grpc(listen_addr, handler)
+                .await
+                .map_err(|e| format!("grpc serve: {}", e))?;
+            Ok(())
+        }
         Transport::RawTcp => {
             let listener = tokio::net::TcpListener::bind(listen_addr)
                 .await
@@ -305,6 +327,5 @@ where
                 on_conn(Box::new(conn));
             }
         }
-        _ => Err("transport listening not supported".into()),
     }
 }

@@ -13,6 +13,7 @@ astra-core-mux = { path = "../astra-core-mux" }
 astra-core-config = { path = "../astra-core-config" }
 astra-core-transport-kcp = { path = "../astra-core-transport-kcp" }
 astra-core-sniffing = { path = "../astra-core-sniffing" }
+astra-core-transport-grpc = { path = "../astra-core-transport-grpc" }
 astra-core-transport-httpupgrade = { path = "../astra-core-transport-httpupgrade" }
 astra-core-transport-ws = { path = "../astra-core-transport-ws" }
 astra-core-transport-splithttp = { path = "../astra-core-transport-splithttp" }

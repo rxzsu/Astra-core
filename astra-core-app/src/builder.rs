@@ -78,6 +78,7 @@ fn parse_ss_cipher_type(method: &str) -> Result<astra_core_proxy_shadowsocks::pr
 
 pub fn build_outbound_handler(
     config: &astra_core_config::OutboundDetourConfig,
+    dispatcher_cell: astra_core_proxy_loopback::DispatcherCell,
 ) -> Result<Arc<dyn DispatchHandler>, String> {
     let handler: Arc<dyn OutboundHandlerTrait> = match config.protocol.as_str() {
         "freedom" => {
@@ -249,6 +250,23 @@ pub fn build_outbound_handler(
         }
         "blackhole" => {
             Arc::new(astra_core_proxy_blackhole::Handler::new())
+        }
+        "loopback" => {
+            let cfg: astra_core_config::proxy::LoopbackConfig = config
+                .settings
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|e| format!("loopback config: {}", e))?
+                .unwrap_or_default();
+            if cfg.inbound_tag.is_empty() {
+                return Err("loopback outbound requires inbound_tag".into());
+            }
+            let handler = astra_core_proxy_loopback::Handler::new(
+                cfg.inbound_tag,
+                dispatcher_cell.clone(),
+            );
+            Arc::new(handler)
         }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
@@ -624,9 +642,12 @@ fn build_router(config: &Config) -> Result<Router, String> {
 pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let router = Arc::new(build_router(config)?);
 
+    let dispatcher_cell: astra_core_proxy_loopback::DispatcherCell =
+        Arc::new(std::sync::Mutex::new(None));
+
     let mut ob_manager = outbound::Manager::new();
     for ob_config in &config.outbounds {
-        let handler = build_outbound_handler(ob_config)?;
+        let handler = build_outbound_handler(ob_config, dispatcher_cell.clone())?;
         let tag = ob_config.tag.clone();
         ob_manager.add_handler(tag, handler);
     }
@@ -708,6 +729,11 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
         dispatcher = dispatcher.with_balancers(balancers);
     }
     let dispatcher = Arc::new(dispatcher);
+
+    // Inject dispatcher into loopback handlers
+    if let Ok(mut guard) = dispatcher_cell.lock() {
+        *guard = Some(dispatcher.clone());
+    }
 
     let mut inbound_handlers = Vec::new();
     for ib_config in &config.inbounds {

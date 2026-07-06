@@ -63,6 +63,17 @@ impl Dispatcher for TestDispatcher {
     async fn dispatch_udp(&self, _session: Session) -> ProxyResult<UdpLink> {
         Err("UDP not supported in test".into())
     }
+
+    async fn dispatch_link(&self, mut session: Session, dest: Destination, link: &mut Link) -> ProxyResult<()> {
+        session.outbound = Some(Outbound {
+            target: dest.clone(),
+            original_target: dest,
+            route_target: None,
+            tag: String::new(),
+        });
+        let handler = TestFreedom { echo_addr: self.handler.echo_addr };
+        handler.process(session, link, &handler).await
+    }
 }
 
 #[tokio::test]

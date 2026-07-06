@@ -16,4 +16,13 @@ pub trait Dispatcher: Send + Sync {
         &self,
         session: Session,
     ) -> ProxyResult<UdpLink>;
+
+    /// Dispatch using an existing link instead of creating a new one.
+    /// Used by loopback outbound for re-dispatching traffic.
+    async fn dispatch_link(
+        &self,
+        session: Session,
+        dest: Destination,
+        link: &mut Link,
+    ) -> ProxyResult<()>;
 }

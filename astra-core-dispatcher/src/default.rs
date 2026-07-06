@@ -226,4 +226,31 @@ impl Dispatcher for DefaultDispatcher {
 
         Ok(inbound_link)
     }
+
+    async fn dispatch_link(&self, session: Session, _dest: Destination, link: &mut Link) -> ProxyResult<()> {
+        let mut ctx = Self::build_routing_context(&session);
+        self.enrich_with_fake_dns(&mut ctx);
+        let strategy = self.router.domain_strategy();
+
+        if strategy == DomainStrategy::IpOnDemand {
+            self.resolve_context(&mut ctx).await;
+        }
+
+        let mut session = session;
+        let mut outbound_tag = self.pick_outbound_tag(&mut session, &ctx);
+
+        if outbound_tag.is_empty() && strategy == DomainStrategy::IpIfNonMatch {
+            self.resolve_context(&mut ctx).await;
+            outbound_tag = self.pick_outbound_tag(&mut session, &ctx);
+        }
+
+        let handler = if !outbound_tag.is_empty() {
+            self.handler_provider.get_handler(&outbound_tag)
+        } else {
+            self.handler_provider.get_default_handler()
+        };
+
+        let handler = handler.ok_or_else(|| "no outbound handler available".to_string())?;
+        handler.dispatch(session, link).await
+    }
 }
