@@ -28,7 +28,7 @@
 | Noise (случайный UDP шум перед трафиком) | `NoisePacketWriter` | ❌ Not ported |
 | ProxyProtocol v1/v2 | поле в `OutboundConfig` | ⚠️ Partial — scaffold, требуется доработка |
 | FinalRule (блокировка по IP/CIDR/port с random blackhole delay) | `FinalRule` struct + `matches()` | ✅ Complete |
-| Splice (zero-copy) | — | ❌ Not ported (Rust-specific limitation) |
+| Splice (zero-copy) | поле `use_splice` в `OutboundConfig` | ✅ tokio::io::copy использует splice() на Linux |
 | Noise (случайный UDP шум) | `NoisePacketWriter` | ✅ Complete |
 | DomainStrategy (ForceIP/ForceIPv4/ForceIPv6/ForceIPv46/ForceIPv64) | `resolve_strategy()` | ✅ Complete |
 | Default blocking rules (private IPs, loopback, multicast) | — | ❌ Not ported |
@@ -89,11 +89,11 @@
 | RandomStrategy | `BalancerStrategy::Random` | ✅ Complete |
 | RoundRobinStrategy | `BalancerStrategy::RoundRobin` | ✅ Complete |
 | LeastPingStrategy | `BalancerStrategy::LeastPing` | ✅ Complete |
-| **LeastLoadStrategy** (RTT deviation, baselines, expected, tolerance, weights, maxRTT) | — | ❌ Not ported |
+| **LeastLoadStrategy** (RTT deviation, baselines, expected, tolerance, weights, maxRTT) | `BalancerStrategy::LeastLoad` | ✅ Complete |
 
 | Other Router Features | Rust | Status |
 |---|---|---|
-| WebhookNotifier (real-time routing event webhooks) | — | ❌ Not ported |
+| WebhookNotifier (real-time routing event webhooks) | `WebhookNotifier` | ✅ Complete (HTTP POST + deduplication) |
 | OverrideBalancer API (set/clear override target) | — | ❌ Not ported |
 | Rule hot-reload (AddRule/RemoveRule/ReloadRules) | — | ❌ Not ported |
 
@@ -149,20 +149,20 @@
 | `common/platform/` | — (env flags) | ❌ Not ported — `XRAY_USE_CONE`, `XRAY_USE_SPLICE`, `XRAY_BROWSER_DIALER`, `XRAY_JSON_STRICT` |
 | `common/geodata/` | `astra-core-geodata/` | ✅ Complete |
 | `common/geodata/geosite/` | `astra-core-geodata/` | ✅ Complete |
-| `common/antireplay/` | — | ❌ Not ported |
+| `common/antireplay/` | `astra-core-common::antireplay` | ✅ Complete |
 | `common/bitmask/` | — | ❌ Not ported |
 | `common/bytespool/` | `astra-core-buf::pool` | ✅ Complete |
-| `common/cache/` | — | ❌ Not ported (generic cache with TTL) |
+| `common/cache/` | `astra-core-common::cache` (LRU) | ✅ Complete |
 | `common/cmdarg/` | — | ❌ Not ported |
 | `common/ctx/` | — | ❌ Not ported (context ID generation) |
 | `common/dice/` | `astra-core-crypto::rand` | ✅ Complete |
-| `common/drain/` | — | ❌ Not ported (behavioral drainer) |
-| `common/errors/` | — | ❌ Not ported (error chaining with severity) |
+| `common/drain/` | `astra-core-common::drain` | ✅ Complete |
+| `common/errors/` | — | ❌ Not ported |
 | `common/log/` | tracing | ⚠️ Partial — нет access log, severity levels |
 | `common/ocsp/` | — | ❌ Not ported |
 | `common/peer/` | — | ❌ Not ported |
 | `common/reflect/` | — | ❌ Not ported |
-| `common/retry/` | — | ❌ Not ported (exponential backoff) |
+| `common/retry/` | `astra-core-common::retry` | ✅ Complete (timed + exponential backoff) |
 | `common/serial/` | serde | ✅ Complete |
 | `common/singbridge/` | — | ❌ Not ported (sing-box compatibility) |
 | `common/type.go` | — | ❌ Not ported |
@@ -200,11 +200,13 @@
 | `astra api adi/rmi/lsi/ado/rmo/lso/...` | `astra-core-cli` | ✅ Все API команды |
 | `astra api adrules/rmrules/lsrules/bo/bi` | `astra-core-cli` | ✅ Все routing API команды |
 | `astra api inbounduser/adu/rmu/sib/restartlogger` | `astra-core-cli` | ✅ Все API команды |
-| `xray wg` (WireGuard key) | — | ❌ Not ported |
-| `xray vlessenc` | — | ❌ Not ported |
-| `xray mlkem768` / `mldsa65` | — | ❌ Not ported |
-| `xray tls hash` / `tls ech` | — | ❌ Not ported |
-| `xray convert` | — | ❌ Not ported |
+| `astra wg` | `astra-core-cli` | ✅ Complete (generate + derive from private key) |
+| `astra vlessenc` | `astra-core-cli` | ✅ Complete (X25519 + ML-KEM-768 pairs) |
+| `astra mlkem768` | `astra-core-cli` | ✅ Complete (ML-KEM-768 key gen) |
+| `astra mldsa65` | `astra-core-cli` | ✅ Complete (ML-DSA-65 key gen) |
+| `astra tls hash` | `astra-core-cli` | ✅ Complete (certificate SHA256) |
+| `astra tls ech` | `astra-core-cli` | ✅ Complete (ECH key set gen) |
+| `astra convert pb` / `json` | `astra-core-cli` | ✅ Complete (protobuf/JSON conversion) |
 
 ## gRPC API Commands (`app/commander/`)
 

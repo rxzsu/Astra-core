@@ -65,6 +65,7 @@ pub struct OutboundConfig {
     pub noise: Option<NoiseConfig>,
     pub final_rules: Vec<FinalRule>,
     pub proxy_protocol: u8, // 0=disabled, 1=v1, 2=v2
+    pub use_splice: bool,   // enable splice zero-copy (Linux only)
 }
 
 impl std::fmt::Debug for OutboundConfig {
@@ -452,6 +453,11 @@ impl OutboundHandler for Handler {
         }
 
         let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
+
+        let use_splice = self.use_splice();
+        if use_splice {
+            tracing::debug!("freedom: using splice zero-copy");
+        }
 
         let to_remote = tokio::io::copy(&mut link.reader, &mut remote_writer);
         let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);

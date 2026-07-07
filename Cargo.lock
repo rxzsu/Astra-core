@@ -635,6 +635,11 @@ version = "0.1.0"
 dependencies = [
  "ipnetwork",
  "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

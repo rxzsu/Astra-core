@@ -141,6 +141,7 @@ pub fn build_outbound_handler(
                     noise: None,
                     final_rules: vec![],
                     proxy_protocol: 0,
+                    use_splice: false,
                 },
             ))
         }

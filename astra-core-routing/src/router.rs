@@ -39,9 +39,10 @@ impl Router {
 
     /// Pick a route for the given context.
     /// Returns None if no rule matches (caller should use default handler).
+    /// Fires webhooks on match.
     pub fn pick_route(&self, ctx: &RoutingContext) -> Option<RouteResult> {
         for rule in &self.rules {
-            if rule.matches(ctx) {
+            if rule.matches_and_notify(ctx) {
                 if !rule.outbound_tag.is_empty() {
                     return Some(RouteResult {
                         outbound_tag: rule.outbound_tag.clone(),

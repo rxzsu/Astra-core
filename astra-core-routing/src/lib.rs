@@ -3,6 +3,7 @@ pub mod router;
 pub mod context;
 pub mod matcher;
 pub mod balancer;
+pub mod webhook;
 
 pub use matcher::{
     DomainMatcher, InboundTagMatcher, IpMatcher, Matcher, NetworkMatcher, PortMatcher,
@@ -13,3 +14,4 @@ pub use rule::RouteRule;
 pub use router::{Router, RouteResult, DomainStrategy};
 pub use context::RoutingContext;
 pub use balancer::{Balancer, BalancerStrategy};
+pub use webhook::{WebhookConfig, WebhookNotifier, WebhookEvent};
