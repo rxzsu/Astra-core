@@ -18,7 +18,7 @@
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
 | `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ✅ Complete (boringtun noise + UDP tunnel) |
 | `proxy/tun/` | — | ❌ Not ported |
-| `proxy/hysteria/` | — | ❌ Not ported |
+| `proxy/hysteria/` | `astra-core-proxy-hysteria/` | ✅ Complete (QUIC transport, Brutal CC, auth) |
 
 ## App Layer (`app/`)
 
@@ -26,7 +26,7 @@
 |---|---|---|
 | `app/commander/` | `astra-core-app-grpc/` | ✅ HandlerService + StatsService |
 | `app/dispatcher/` | `astra-core-dispatcher/` | ✅ Complete |
-| `app/dns/` | `astra-core-dns/` | ⚠️ No TCP DNS, no caching |
+| `app/dns/` | `astra-core-dns/` | ✅ UDP + TCP (RFC 1035), hosts, Fake DNS |
 | `app/log/` | — | ❌ Not ported (uses tracing) |
 | `app/metrics/` | `astra-core-metrics/` | ✅ Prometheus /metrics endpoint |
 | `app/observatory/` | `astra-core-observatory/` | ✅ TCP probe + balancer failover |

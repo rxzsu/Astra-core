@@ -6,7 +6,7 @@ use astra_core_stats::StatsManager;
 use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
-use astra_core_dns::{DnsResolver, UdpDnsResolver, SimpleDnsResolver, FakeDnsResolver, NameServer, QueryStrategy, parse_hosts};
+use astra_core_dns::{DnsResolver, UdpDnsResolver, TcpDnsResolver, SimpleDnsResolver, FakeDnsResolver, NameServer, QueryStrategy, parse_hosts};
 use astra_core_proxy_shadowsocks_2022 as ss2022;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -394,6 +394,24 @@ pub fn build_outbound_handler(
                     peers,
                 }
             ))
+        }
+        "hysteria" => {
+            let settings = config.settings.as_ref().ok_or("hysteria requires settings")?;
+            let password = settings.get("password").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let up = settings.get("up").and_then(|v| v.as_str()).unwrap_or("10 mbps").to_string();
+            let down = settings.get("down").and_then(|v| v.as_str()).unwrap_or("10 mbps").to_string();
+            let server = settings.get("server").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let server_name = settings.get("serverName").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let obfs = settings.get("obfs").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let config = astra_core_proxy_hysteria::HysteriaConfig {
+                server: server.or_else(|| settings.get("address").and_then(|v| v.as_str()).map(|s| s.to_string())),
+                server_name,
+                password,
+                up,
+                down,
+                obfs,
+            };
+            Arc::new(astra_core_proxy_hysteria::HysteriaOutbound::new(config))
         }
         p => return Err(format!("unsupported outbound protocol: {}", p)),
     };
@@ -872,6 +890,7 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let dns_resolver: Option<Arc<dyn DnsResolver>> = if let Some(dns) = dns_cfg {
         if !dns.servers.is_empty() {
             let mut nameservers = Vec::new();
+            let mut use_tcp = false;
             for sv in &dns.servers {
                 let mut expected_ips = Vec::new();
                 for s in &sv.expected_ips.0 {
@@ -879,15 +898,27 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                         expected_ips.push(ip);
                     }
                 }
+                let raw = sv.address.0.clone();
+                let (protocol, addr) = if let Some(rest) = raw.strip_prefix("tcp://") {
+                    use_tcp = true;
+                    ("tcp".into(), rest.to_string())
+                } else {
+                    ("udp".into(), raw)
+                };
+                let port = if sv.port != 0 { sv.port } else { 53 };
                 nameservers.push(NameServer {
-                    address: sv.address.0.clone(),
-                    port: if sv.port != 0 { sv.port } else { 53 },
+                    address: addr,
+                    port,
+                    protocol,
                     domains: sv.domains.0.clone(),
                     expected_ips,
                 });
             }
-            // Use UdpDnsResolver when nameservers are configured
-            Some(Arc::new(UdpDnsResolver::new(nameservers, hosts_map, query_strategy)) as Arc<dyn DnsResolver>)
+            if use_tcp {
+                Some(Arc::new(TcpDnsResolver::new(nameservers, hosts_map, query_strategy)) as Arc<dyn DnsResolver>)
+            } else {
+                Some(Arc::new(UdpDnsResolver::new(nameservers, hosts_map, query_strategy)) as Arc<dyn DnsResolver>)
+            }
         } else if !hosts_map.is_empty() {
             Some(Arc::new(SimpleDnsResolver::new(hosts_map)) as Arc<dyn DnsResolver>)
         } else {

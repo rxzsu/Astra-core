@@ -31,6 +31,7 @@ astra-core-dns = { path = "../astra-core-dns" }
 astra-core-stats = { path = "../astra-core-stats" }
 astra-core-observatory = { path = "../astra-core-observatory" }
 astra-core-geodata = { path = "../astra-core-geodata" }
+astra-core-proxy-hysteria = { path = "../astra-core-proxy-hysteria" }
 astra-core-app-reverse = { path = "../astra-core-app-reverse" }
 tokio = { workspace = true }
 tracing = { workspace = true }

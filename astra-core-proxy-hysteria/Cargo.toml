@@ -1,0 +1,22 @@
+[package]
+name = "astra-core-proxy-hysteria"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+async-trait = "0.1"
+quinn = { workspace = true }
+quinn-proto = "0.11"
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+webpki-roots = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bytes = "1"
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-session = { path = "../astra-core-session" }
+astra-core-config = { path = "../astra-core-config" }
+astra-core-transport = { path = "../astra-core-transport" }

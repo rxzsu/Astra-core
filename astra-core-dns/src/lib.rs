@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 
+use tokio::io::AsyncReadExt;
+
 
 
 // ─── DNS constants ──────────────────────────────────────────────────────────
@@ -193,6 +195,7 @@ const DNS_HEADER_SIZE: usize = 12;
 pub struct NameServer {
     pub address: String,
     pub port: u16,
+    pub protocol: String,
     pub domains: Vec<String>,
     pub expected_ips: Vec<IpAddr>,
 }
@@ -289,6 +292,117 @@ impl DnsResolver for UdpDnsResolver {
             .0;
 
             if let Ok(ips) = parse_dns_response(&buf[..n]) {
+                if !ns.expected_ips.is_empty() {
+                    let filtered: Vec<IpAddr> = ips
+                        .into_iter()
+                        .filter(|ip| ns.expected_ips.contains(ip))
+                        .collect();
+                    if !filtered.is_empty() {
+                        all_ips.extend(filtered);
+                        break;
+                    }
+                } else {
+                    all_ips.extend(ips);
+                    if !all_ips.is_empty() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if all_ips.is_empty() {
+            Err(format!("no addresses found for {}", domain))
+        } else {
+            Ok(all_ips)
+        }
+    }
+}
+
+// ─── TcpDnsResolver ────────────────────────────────────────────────────────
+
+/// Resolves domains by sending DNS queries over TCP (RFC 1035 section 4.2.2).
+pub struct TcpDnsResolver {
+    nameservers: Vec<NameServer>,
+    hosts: HashMap<String, Vec<IpAddr>>,
+    query_strategy: QueryStrategy,
+}
+
+impl TcpDnsResolver {
+    pub fn new(
+        nameservers: Vec<NameServer>,
+        hosts: HashMap<String, Vec<IpAddr>>,
+        query_strategy: QueryStrategy,
+    ) -> Self {
+        TcpDnsResolver { nameservers, hosts, query_strategy }
+    }
+}
+
+#[async_trait::async_trait]
+impl DnsResolver for TcpDnsResolver {
+    async fn resolve(&self, domain: &str) -> Result<Vec<IpAddr>, String> {
+        let lower = domain.to_lowercase();
+
+        if let Some(addrs) = self.hosts.get(&lower) {
+            return Ok(addrs.clone());
+        }
+
+        let ns = self
+            .nameservers
+            .iter()
+            .find(|ns| ns.matches_domain(&lower))
+            .unwrap_or(&self.nameservers[0]);
+
+        let ns_addr = format!("{}:{}", ns.address, ns.port);
+
+        let qtypes: &[u16] = match self.query_strategy {
+            QueryStrategy::UseIp4 => &[QTYPE_A],
+            QueryStrategy::UseIp6 => &[QTYPE_AAAA],
+            QueryStrategy::UseIp => &[QTYPE_A, QTYPE_AAAA],
+        };
+
+        let mut all_ips = Vec::new();
+        for &qtype in qtypes {
+            let query = build_dns_query(&lower, qtype);
+            let len = query.len() as u16;
+            let mut wire = Vec::with_capacity(2 + query.len());
+            wire.extend_from_slice(&len.to_be_bytes());
+            wire.extend_from_slice(&query);
+
+            let stream = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                tokio::net::TcpStream::connect(&ns_addr),
+            )
+            .await
+            .map_err(|_| format!("tcp dns timeout connecting to {}", ns_addr))?
+            .map_err(|e| format!("tcp dns connect {}: {}", ns_addr, e))?;
+
+            let (mut r, mut w) = tokio::io::split(stream);
+            use tokio::io::AsyncWriteExt;
+            if w.write_all(&wire).await.is_err() {
+                continue;
+            }
+            drop(w);
+
+            let mut len_buf = [0u8; 2];
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                r.read_exact(&mut len_buf),
+            )
+            .await
+            .map_err(|_| format!("tcp dns timeout reading length for {}", domain))?
+            .map_err(|e| format!("tcp dns read length: {}", e))?;
+
+            let resp_len = u16::from_be_bytes(len_buf) as usize;
+            let mut resp = vec![0u8; resp_len];
+            tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                r.read_exact(&mut resp),
+            )
+            .await
+            .map_err(|_| format!("tcp dns timeout reading response for {}", domain))?
+            .map_err(|e| format!("tcp dns read response: {}", e))?;
+
+            if let Ok(ips) = parse_dns_response(&resp) {
                 if !ns.expected_ips.is_empty() {
                     let filtered: Vec<IpAddr> = ips
                         .into_iter()
@@ -519,6 +633,7 @@ mod tests {
         let ns = NameServer {
             address: "8.8.8.8".into(),
             port: 53,
+            protocol: "udp".into(),
             domains: vec!["domain:example.com".into()],
             expected_ips: vec![],
         };
@@ -532,6 +647,7 @@ mod tests {
         let ns = NameServer {
             address: "8.8.8.8".into(),
             port: 53,
+            protocol: "udp".into(),
             domains: vec!["keyword:google".into()],
             expected_ips: vec![],
         };

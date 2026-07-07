@@ -58,6 +58,8 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | Feature | Status |
 |---------|--------|
 | GeoIP / GeoSite (geoip.dat, geosite.dat) | ✅ Load `.dat` files via prost protobuf; build routing matchers from `geoip:XX` / `geosite:XX` |
+| TCP DNS (tcp:// nameserver) | ✅ RFC 1035 TCP DNS queries with 2-byte length prefix |
+| Hysteria protocol | ✅ QUIC-based with Brutal congestion control, password auth, connection pool |
 
 ## Architecture
 
@@ -80,6 +82,7 @@ astra-core/
 ├── astra-core-proxy-dokodemo/      — Transparent proxy inbound
 ├── astra-core-proxy-freedom/       — Direct outbound
 ├── astra-core-proxy-http/          — HTTP CONNECT inbound/outbound
+├── astra-core-proxy-hysteria/      — Hysteria QUIC proxy (Brutal CC)
 ├── astra-core-proxy-loopback/      — Traffic chaining outbound
 ├── astra-core-proxy-shadowsocks/   — Shadowsocks inbound/outbound
 ├── astra-core-proxy-socks/         — SOCKS4/4a/5 inbound/outbound

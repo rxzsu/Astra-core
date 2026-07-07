@@ -92,6 +92,7 @@ dependencies = [
  "astra-core-proxy-dokodemo",
  "astra-core-proxy-freedom",
  "astra-core-proxy-http",
+ "astra-core-proxy-hysteria",
  "astra-core-proxy-loopback",
  "astra-core-proxy-shadowsocks",
  "astra-core-proxy-shadowsocks-2022",
@@ -352,6 +353,28 @@ dependencies = [
  "async-trait",
  "base64",
  "tokio",
+]
+
+[[package]]
+name = "astra-core-proxy-hysteria"
+version = "0.1.0"
+dependencies = [
+ "astra-core-config",
+ "astra-core-net",
+ "astra-core-proxy",
+ "astra-core-session",
+ "astra-core-transport",
+ "async-trait",
+ "bytes",
+ "quinn",
+ "quinn-proto",
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

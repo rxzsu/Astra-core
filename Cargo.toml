@@ -43,6 +43,7 @@ members = [
 "astra-core-observatory",
 "astra-core-metrics",
 "astra-core-geodata",
+"astra-core-proxy-hysteria",
 ]
 
 [workspace.dependencies]
