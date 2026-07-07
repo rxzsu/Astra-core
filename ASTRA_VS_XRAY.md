@@ -94,7 +94,7 @@
 | Other Router Features | Rust | Status |
 |---|---|---|
 | WebhookNotifier (real-time routing event webhooks) | `WebhookNotifier` | ✅ Complete (HTTP POST + deduplication) |
-| OverrideBalancer API (set/clear override target) | — | ❌ Not ported |
+| OverrideBalancer API (set/clear override target) | `Balancer::set_override/clear_override` | ✅ Complete |
 | Rule hot-reload (AddRule/RemoveRule/ReloadRules) | — | ❌ Not ported |
 
 ### Stats sub-features (`app/stats/`)
@@ -167,7 +167,7 @@
 | `common/singbridge/` | — | ❌ Not ported (sing-box compatibility) |
 | `common/type.go` | — | ❌ Not ported |
 | `common/units/` | — | ❌ Not ported |
-| `common/utils/` | — | ❌ Not ported (TypedSyncMap, HTTP utils) |
+| `common/utils/` | `astra-core-common::utils` | ✅ Complete (SyncMap, HTTP padding, default headers) |
 | `common/uuid/` | `uuid` crate | ✅ Complete |
 | `common/xudp/` | — | ❌ Not ported |
 
@@ -177,14 +177,14 @@
 |---|---|---|
 | `send_through` (bind to interface) | — | ❌ Not ported |
 | `tproxy` (transparent proxy) | — | ❌ Not ported |
-| `tcpFastOpen` | `astra-core-proxy` | ✅ `Handler::with_tcp_fast_open()` |
-| `tcpKeepAlive` | `astra-core-proxy` | ✅ `Handler::with_keepalive()` |
-| `mark` (netfilter mark) | — | ❌ Not ported |
+| `tcpFastOpen` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_FASTOPEN_CONNECT |
+| `tcpKeepAlive` | `astra-core-proxyman::sockopt` | ✅ Cross-platform (socket2) |
+| `mark` (netfilter mark) | `astra-core-proxyman::sockopt` | ✅ Linux: SO_MARK |
 | `interface` (bind to device) | — | ❌ Not ported |
 | `acceptProxyProtocol` | — (HTTPUpgrade has it) | ❌ Not ported in all transports |
-| `tcpCongestion` (BBR/CUBIC) | — | ❌ Not ported |
+| `tcpCongestion` (BBR/CUBIC) | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_CONGESTION |
 | `VStream` (WS w/ http/1.1 upgrade) | — | ❌ Not ported |
-| `sockopt` в session.Context | — | ❌ Not ported |
+| `tcp_window_clamp` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_WINDOW_CLAMP |
 
 ## CLI Commands (`main/commands/`)
 

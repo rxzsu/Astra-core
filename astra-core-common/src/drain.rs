@@ -36,7 +36,11 @@ impl BehaviorSeedLimitedDrainer {
             1
         };
         let rand_rolled = if rand_drain_max > 0 {
-            rand::random::<i32>().abs() % rand_drain_max
+            let nanos = ::std::time::SystemTime::now()
+                .duration_since(::std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos() as i32;
+            nanos.abs() % rand_drain_max
         } else {
             0
         };
