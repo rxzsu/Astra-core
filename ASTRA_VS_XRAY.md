@@ -154,19 +154,19 @@
 | `common/bytespool/` | `astra-core-buf::pool` | ✅ Complete |
 | `common/cache/` | `astra-core-common::cache` (LRU) | ✅ Complete |
 | `common/cmdarg/` | — | ❌ Not ported |
-| `common/ctx/` | — | ❌ Not ported (context ID generation) |
+| `common/ctx/` | `astra-core-common::ctx` | ✅ Complete (context ID generation) |
 | `common/dice/` | `astra-core-crypto::rand` | ✅ Complete |
 | `common/drain/` | `astra-core-common::drain` | ✅ Complete |
-| `common/errors/` | — | ❌ Not ported |
+| `common/errors/` | `astra-core-common::errors` | ✅ Complete (XrayError with severity + chaining) |
 | `common/log/` | tracing | ⚠️ Partial — нет access log, severity levels |
 | `common/ocsp/` | — | ❌ Not ported |
 | `common/peer/` | — | ❌ Not ported |
-| `common/reflect/` | — | ❌ Not ported |
+| `common/reflect/` | `astra-core-common::reflect` | ✅ Complete (JSON marshal with type injection) |
 | `common/retry/` | `astra-core-common::retry` | ✅ Complete (timed + exponential backoff) |
 | `common/serial/` | serde | ✅ Complete |
 | `common/singbridge/` | — | ❌ Not ported (sing-box compatibility) |
 | `common/type.go` | — | ❌ Not ported |
-| `common/units/` | — | ❌ Not ported |
+| `common/units/` | `astra-core-common::units` | ✅ Complete (bytes + time formatters) |
 | `common/utils/` | `astra-core-common::utils` | ✅ Complete (SyncMap, HTTP padding, default headers) |
 | `common/uuid/` | `uuid` crate | ✅ Complete |
 | `common/xudp/` | — | ❌ Not ported |
