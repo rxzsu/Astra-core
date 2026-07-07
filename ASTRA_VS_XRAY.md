@@ -24,7 +24,7 @@
 
 | Go (Xray-core) | Rust (astra-core) | Status |
 |---|---|---|
-| `app/commander/` | — | ❌ gRPC management API |
+| `app/commander/` | `astra-core-app-grpc/` | ✅ HandlerService + StatsService |
 | `app/dispatcher/` | `astra-core-dispatcher/` | ✅ Complete |
 | `app/dns/` | `astra-core-dns/` | ⚠️ No TCP DNS, no caching |
 | `app/log/` | — | ❌ Not ported (uses tracing) |
@@ -34,7 +34,7 @@
 | `app/proxyman/` | `astra-core-proxyman/` | ✅ Complete |
 | `app/reverse/` | `astra-core-app-reverse/` | ✅ Complete |
 | `app/router/` | `astra-core-routing/` | ✅ Complete |
-| `app/stats/` | — | ❌ Traffic counters |
+| `app/stats/` | `astra-core-stats/` | ✅ Counter, Channel, StatsManager |
 | `app/version/` | — | ❌ Not ported |
 
 ## Transports (`transport/internet/`)
@@ -58,7 +58,7 @@
 | `features/routing/` | `astra-core-routing/` | ✅ Complete |
 | `features/policy/` | `astra-core-policy/` | ✅ Complete |
 | `features/outbound/` | `astra-core-proxyman/outbound.rs` | ✅ Complete |
-| `features/stats/` | — | ❌ Not ported |
+| `features/stats/` | `astra-core-stats/` | ✅ Counters + channels |
 | `common/mux/` | `astra-core-mux/` | ✅ Complete |
 | `common/buf/` | `astra-core-buf/` | ✅ Complete |
 | `common/net/` | `astra-core-net/` | ✅ Complete |

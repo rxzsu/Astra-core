@@ -8,6 +8,8 @@ members = [
     "astra-core-sniffing",
     "astra-core-mux",
     "astra-core-app-reverse",
+"astra-core-stats",
+"astra-core-app-grpc",
     "astra-core-net",
     "astra-core-proto",
     "astra-core-proxy-vless",

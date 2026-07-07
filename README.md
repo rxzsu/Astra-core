@@ -48,12 +48,7 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 ### Missing / In Progress
 | Feature | Status |
 |---------|--------|
-| Freedom fragment | Pending `Box<dyn AsyncConn>` split |
 | REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
-| WireGuard outbound | Not ported |
-| WireGuard outbound | Not ported |
-| gRPC API server | Not ported |
-| Stats / traffic counting | Not ported |
 | Observatory (health check) | Not ported |
 
 ## Architecture
@@ -95,7 +90,9 @@ astra-core/
 ├── astra-core-transport-reality/   — REALITY TLS 1.3
 ├── astra-core-transport-splithttp/ — SplitHTTP / XHTTP
 ├── astra-core-transport-ws/        — WebSocket
-└── astra-core-main/        — Entrypoint
+├── astra-core-stats/               — Traffic counters (Counter, Channel, StatsManager)
+├── astra-core-app-grpc/            — gRPC API server (HandlerService + StatsService)
+└── astra-core-main/               — Entrypoint
 
 website/                     — Vue + Tailwind + motion-v landing page
 ```

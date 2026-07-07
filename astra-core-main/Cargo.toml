@@ -9,8 +9,10 @@ path = "src/main.rs"
 
 [dependencies]
 astra-core-app = { path = "../astra-core-app" }
+astra-core-app-grpc = { path = "../astra-core-app-grpc" }
 astra-core-config = { path = "../astra-core-config" }
 astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-proxy-loopback = { path = "../astra-core-proxy-loopback" }
 tokio = { workspace = true, features = ["full", "signal"] }
 tracing = { workspace = true }
 tracing-subscriber = "0.3"

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use astra_core_config::Config;
+use astra_core_stats::StatsManager;
 use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
@@ -24,6 +25,8 @@ use astra_core_routing::{Balancer, BalancerStrategy, DomainStrategy, DomainMatch
 pub struct AppRuntime {
     pub dispatcher: Arc<DefaultDispatcher>,
     pub inbound_handlers: Vec<AlwaysOnInboundHandler>,
+    pub outbound_manager: Arc<outbound::Manager>,
+    pub stats_manager: Arc<StatsManager>,
 }
 
 fn convert_address(config_addr: &astra_core_config::types::Address) -> Address {
@@ -762,7 +765,7 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let dispatcher_cell: astra_core_proxy_loopback::DispatcherCell =
         Arc::new(std::sync::Mutex::new(None));
 
-    let mut ob_manager = outbound::Manager::new();
+    let ob_manager = Arc::new(outbound::Manager::new());
     for ob_config in &config.outbounds {
         let handler = build_outbound_handler(ob_config, dispatcher_cell.clone())?;
         let tag = ob_config.tag.clone();
@@ -770,18 +773,18 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     }
 
     struct Provider {
-        manager: outbound::Manager,
+        manager: Arc<outbound::Manager>,
     }
     impl HandlerProvider for Provider {
         fn get_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
-            self.manager.get_handler(tag).cloned()
+            self.manager.get_handler(tag)
         }
         fn get_default_handler(&self) -> Option<Arc<dyn DispatchHandler>> {
-            self.manager.get_default_handler().cloned()
+            self.manager.get_default_handler()
         }
     }
 
-    let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider { manager: ob_manager });
+    let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider { manager: ob_manager.clone() });
 
     let dns_cfg = config.dns.as_ref();
     let hosts_map = dns_cfg.map(|d| parse_hosts(d.hosts.as_ref())).transpose()?.unwrap_or_default();
@@ -869,8 +872,12 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
         inbound_handlers.push(handler);
     }
 
+    let stats_manager = Arc::new(StatsManager::new());
+
     Ok(AppRuntime {
         dispatcher,
         inbound_handlers,
+        outbound_manager: ob_manager,
+        stats_manager,
     })
 }

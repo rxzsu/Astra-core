@@ -1,0 +1,105 @@
+syntax = "proto3";
+package xray.app.grpc.api;
+
+service HandlerService {
+  rpc AddInbound (AddInboundRequest) returns (AddInboundResponse);
+  rpc RemoveInbound (RemoveInboundRequest) returns (RemoveInboundResponse);
+  rpc AddOutbound (AddOutboundRequest) returns (AddOutboundResponse);
+  rpc RemoveOutbound (RemoveOutboundRequest) returns (RemoveOutboundResponse);
+  rpc GetInbounds (GetInboundsRequest) returns (GetInboundsResponse);
+  rpc GetOutbounds (GetOutboundsRequest) returns (GetOutboundsResponse);
+}
+
+message AddInboundRequest {
+  string config = 1; // JSON config for the inbound
+}
+
+message AddInboundResponse {}
+
+message RemoveInboundRequest {
+  string tag = 1;
+}
+
+message RemoveInboundResponse {}
+
+message AddOutboundRequest {
+  string config = 1; // JSON config for the outbound
+}
+
+message AddOutboundResponse {}
+
+message RemoveOutboundRequest {
+  string tag = 1;
+}
+
+message RemoveOutboundResponse {}
+
+message GetInboundsRequest {}
+
+message GetInboundsResponse {
+  repeated string tags = 1;
+}
+
+message GetOutboundsRequest {}
+
+message GetOutboundsResponse {
+  repeated string tags = 1;
+}
+
+service StatsService {
+  rpc GetStats (GetStatsRequest) returns (GetStatsResponse);
+  rpc QueryStats (QueryStatsRequest) returns (QueryStatsResponse);
+  rpc GetSysStats (GetSysStatsRequest) returns (GetSysStatsResponse);
+}
+
+message GetStatsRequest {
+  string name = 1;
+  bool reset = 2;
+}
+
+message GetStatsResponse {
+  string name = 1;
+  int64 value = 2;
+}
+
+message QueryStatsRequest {
+  string pattern = 1; // glob-style pattern to match counter names
+  bool reset = 2;
+}
+
+message QueryStatsResponse {
+  repeated Stat stats = 1;
+}
+
+message Stat {
+  string name = 1;
+  int64 value = 2;
+}
+
+message GetSysStatsRequest {}
+
+message GetSysStatsResponse {
+  uint64 num_goroutine = 1;
+  uint64 num_gc = 2;
+  uint64 alloc = 3;
+  uint64 total_alloc = 4;
+  SysStats sys = 5;
+  uint64 mallocs = 6;
+  uint64 frees = 7;
+  uint64 live_objects = 8;
+  uint64 pause_total_ns = 9;
+  uint64 uptime_seconds = 10;
+}
+
+message SysStats {
+  uint64 num_goroutine = 1;
+  uint64 num_gc = 2;
+  uint64 alloc = 3;
+  uint64 total_alloc = 4;
+  uint64 sys = 5;
+  uint64 mallocs = 6;
+  uint64 frees = 7;
+  uint64 live_objects = 8;
+  uint64 pause_total_ns = 9;
+  uint64 uptime = 10;
+}

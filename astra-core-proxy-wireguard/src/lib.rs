@@ -68,7 +68,7 @@ impl WireGuardTunnel {
     }
 
     async fn run_loop(&self) {
-        let mut src = [0u8; 2000];
+        let _src = [0u8; 2000];
         let mut dst = [0u8; 2000];
 
         loop {

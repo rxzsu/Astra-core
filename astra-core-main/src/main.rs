@@ -1,5 +1,9 @@
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use astra_core_app::build_config;
 use astra_core_config::Config;
+use astra_core_proxy_loopback::DispatcherCell;
 
 #[tokio::main]
 async fn main() {
@@ -48,6 +52,30 @@ async fn main() {
                 tracing::error!("inbound handler error: {}", e);
             }
         });
+    }
+
+    // gRPC API server
+    if let Some(ref api_cfg) = config.api {
+        if !api_cfg.listen.is_empty() {
+            let dispatcher: Arc<dyn astra_core_proxy::Dispatcher> = runtime.dispatcher.clone();
+            let cell: DispatcherCell = Arc::new(Mutex::new(Some(dispatcher)));
+
+            let grpc_config = astra_core_app_grpc::GrpcApiConfig {
+                listen_addr: api_cfg.listen.clone(),
+                stats_manager: runtime.stats_manager.clone(),
+                outbound_manager: runtime.outbound_manager.clone(),
+                dispatcher_cell: cell,
+            };
+
+            tokio::spawn(async move {
+                if let Err(e) = astra_core_app_grpc::serve_grpc_api(grpc_config).await {
+                    tracing::error!("gRPC API server error: {}", e);
+                }
+            });
+
+            let services: Vec<&str> = api_cfg.services.iter().map(|s| s.as_str()).collect();
+            tracing::info!("gRPC API server listening on {} with services: {:?}", api_cfg.listen, services);
+        }
     }
 
     tracing::info!("astra-core started. press Ctrl+C to stop.");

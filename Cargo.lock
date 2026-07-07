@@ -101,11 +101,34 @@ dependencies = [
  "astra-core-proxyman",
  "astra-core-routing",
  "astra-core-session",
+ "astra-core-stats",
  "astra-core-transport",
  "base64",
  "hex",
  "serde_json",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "astra-core-app-grpc"
+version = "0.1.0"
+dependencies = [
+ "astra-core-app",
+ "astra-core-config",
+ "astra-core-dispatcher",
+ "astra-core-proxy",
+ "astra-core-proxy-loopback",
+ "astra-core-proxyman",
+ "astra-core-stats",
+ "prost",
+ "protoc-bin-vendored",
+ "regex-lite",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
  "tracing",
 ]
 
@@ -185,8 +208,10 @@ name = "astra-core-main"
 version = "0.1.0"
 dependencies = [
  "astra-core-app",
+ "astra-core-app-grpc",
  "astra-core-config",
  "astra-core-proxy",
+ "astra-core-proxy-loopback",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -475,6 +500,14 @@ name = "astra-core-sniffing"
 version = "0.1.0"
 dependencies = [
  "tokio",
+]
+
+[[package]]
+name = "astra-core-stats"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2357,6 +2390,12 @@ dependencies = [
  "memchr",
  "regex-syntax",
 ]
+
+[[package]]
+name = "regex-lite"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
 
 [[package]]
 name = "regex-syntax"

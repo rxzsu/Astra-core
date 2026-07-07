@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use astra_core_dispatcher::DispatchHandler;
 use astra_core_mux::client::MuxClient;
@@ -230,8 +231,8 @@ impl DispatchHandler for Handler {
 }
 
 pub struct Manager {
-    handlers: HashMap<String, Arc<dyn DispatchHandler>>,
-    default_handler: Option<Arc<dyn DispatchHandler>>,
+    handlers: RwLock<HashMap<String, Arc<dyn DispatchHandler>>>,
+    default_handler: RwLock<Option<Arc<dyn DispatchHandler>>>,
 }
 
 impl Default for Manager {
@@ -243,23 +244,41 @@ impl Default for Manager {
 impl Manager {
     pub fn new() -> Self {
         Manager {
-            handlers: HashMap::new(),
-            default_handler: None,
+            handlers: RwLock::new(HashMap::new()),
+            default_handler: RwLock::new(None),
         }
     }
 
-    pub fn add_handler(&mut self, tag: String, handler: Arc<dyn DispatchHandler>) {
-        if self.default_handler.is_none() {
-            self.default_handler = Some(handler.clone());
+    pub fn add_handler(&self, tag: String, handler: Arc<dyn DispatchHandler>) {
+        let mut dh = self.default_handler.write().unwrap();
+        if dh.is_none() {
+            *dh = Some(handler.clone());
         }
-        self.handlers.insert(tag, handler);
+        drop(dh);
+        self.handlers.write().unwrap().insert(tag, handler);
     }
 
-    pub fn get_handler(&self, tag: &str) -> Option<&Arc<dyn DispatchHandler>> {
-        self.handlers.get(tag)
+    pub fn get_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
+        self.handlers.read().unwrap().get(tag).cloned()
     }
 
-    pub fn get_default_handler(&self) -> Option<&Arc<dyn DispatchHandler>> {
-        self.default_handler.as_ref()
+    pub fn get_default_handler(&self) -> Option<Arc<dyn DispatchHandler>> {
+        self.default_handler.read().unwrap().clone()
+    }
+
+    pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
+        let removed = self.handlers.write().unwrap().remove(tag);
+        if removed.is_some() {
+            if self.default_handler.read().unwrap().as_ref().map(|h| std::ptr::addr_eq(Arc::as_ptr(h), Arc::as_ptr(removed.as_ref().unwrap()))).unwrap_or(false) {
+                // If we removed the default handler, pick a new default
+                let mut dh = self.default_handler.write().unwrap();
+                *dh = self.handlers.read().unwrap().values().next().cloned();
+            }
+        }
+        removed
+    }
+
+    pub fn list_handlers(&self) -> Vec<String> {
+        self.handlers.read().unwrap().keys().cloned().collect()
     }
 }

@@ -28,6 +28,7 @@ astra-core-proxy-shadowsocks-2022 = { path = "../astra-core-proxy-shadowsocks-20
 astra-core-proxy-trojan = { path = "../astra-core-proxy-trojan" }
 astra-core-routing = { path = "../astra-core-routing" }
 astra-core-dns = { path = "../astra-core-dns" }
+astra-core-stats = { path = "../astra-core-stats" }
 astra-core-app-reverse = { path = "../astra-core-app-reverse" }
 tokio = { workspace = true }
 tracing = { workspace = true }

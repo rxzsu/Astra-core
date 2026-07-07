@@ -1,0 +1,24 @@
+[package]
+name = "astra-core-app-grpc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+astra-core-stats = { path = "../astra-core-stats" }
+astra-core-app = { path = "../astra-core-app" }
+astra-core-config = { path = "../astra-core-config" }
+astra-core-proxyman = { path = "../astra-core-proxyman" }
+astra-core-dispatcher = { path = "../astra-core-dispatcher" }
+astra-core-proxy = { path = "../astra-core-proxy" }
+astra-core-proxy-loopback = { path = "../astra-core-proxy-loopback" }
+tokio = { workspace = true, features = ["full", "signal"] }
+tonic = { workspace = true }
+prost = { workspace = true }
+tonic-prost = "0.14"
+tracing = { workspace = true }
+serde_json = "1"
+regex-lite = "0.1"
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+protoc-bin-vendored = "3"
