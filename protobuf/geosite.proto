@@ -1,0 +1,29 @@
+syntax = "proto3";
+package v2ray.core.app.geosite;
+option go_package = "github.com/v2fly/v2ray-core/v5/app/geosite";
+
+message GeoSiteList {
+  repeated GeoSite entry = 1;
+}
+
+message GeoSite {
+  string country_code = 1;
+  repeated Domain domain = 2;
+}
+
+message Domain {
+  enum Type {
+    Plain = 0;
+    Regex = 1;
+    Domain = 2;
+    Full = 3;
+  }
+  Type type = 1;
+  string value = 2;
+  DomainAttribute attribute = 3;
+}
+
+message DomainAttribute {
+  bool selected = 1;
+  repeated string name = 2;
+}
