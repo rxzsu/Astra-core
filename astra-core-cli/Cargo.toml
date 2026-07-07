@@ -1,0 +1,26 @@
+[package]
+name = "astra-core-cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "astra"
+path = "src/main.rs"
+
+[dependencies]
+astra-core-app-grpc = { path = "../astra-core-app-grpc" }
+astra-core-config = { path = "../astra-core-config" }
+tokio = { workspace = true, features = ["full"] }
+tonic = { workspace = true }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+rcgen = "0.13"
+curve25519-dalek = { version = "4", default-features = false, features = ["digest", "group"] }
+getrandom = "0.2"
+rand = { workspace = true }
+uuid = { workspace = true }
+hex = { workspace = true }
+base64 = "0.22"
+tokio-rustls = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+webpki-roots = { workspace = true }
