@@ -36,9 +36,9 @@
 
 | Go (Xray-core) | Rust (astra-core) | Status |
 |---|---|---|
-| `app/commander/` | `astra-core-app-grpc/` | ⚠️ Partial — gRPC reflection не портирована (см. API команды) |
+| `app/commander/` | `astra-core-app-grpc/` | ✅ HandlerService, StatsService, RoutingService, LoggerService (gRPC reflection не портирована) |
 | `app/dispatcher/` | `astra-core-dispatcher/` | ✅ Complete |
-| `app/dns/` | `astra-core-dns/` | ⚠️ Partial — см. DNS sub-features |
+| `app/dns/` | `astra-core-dns/` | ✅ UDP, TCP, DoH, FakeDNS, cache, EDNS0, parallel, priority routing, static hosts |
 | `app/log/` | — | ❌ Not ported (использует tracing) — нет dual access/error лога, file/console/syslog handler'ов |
 | `app/metrics/` | `astra-core-metrics/` | ⚠️ Partial — нет per-outbound metrics |
 | `app/observatory/` | `astra-core-observatory/` | ⚠️ Partial — Go: HTTP(S) probe (configurable URL, generate_204); Rust: только TCP port probe |
@@ -56,18 +56,18 @@
 |---|---|---|
 | UDP nameserver | `UdpDnsResolver` | ✅ Complete |
 | TCP nameserver (RFC 1035) | `TcpDnsResolver` | ✅ Complete |
-| DoH (DNS-over-HTTPS) | — | ❌ Not ported |
-| DoQ (DNS-over-QUIC) | — | ❌ Not ported |
-| h2c nameserver | — | ❌ Not ported |
+| DoH (DNS-over-HTTPS) | `DoHResolver` | ✅ Complete |
+| DoQ (DNS-over-QUIC) | `DoQResolver` | ✅ Complete (базовая реализация, требует доработки интеграции) |
+| h2c nameserver | `DoHResolver` | ✅ (через h2c URL схему) |
 | Local (system resolver) | `SimpleDnsResolver` | ✅ Complete |
 | FakeDNS | `FakeDnsResolver` | ✅ Complete |
-| Cached (serveStale with TTL) | — | ❌ Not ported |
-| Domain-based routing with priority (`!+` tags) | — | ❌ Not ported |
-| Expected/Unexpected IP filtering | — | ❌ Not ported |
-| Client IP (EDNS0) | — | ❌ Not ported |
-| DisableFallback / disableFallbackIfMatch | — | ❌ Not ported |
-| enableParallelQuery | — | ❌ Not ported |
-| StaticHosts with domain replacement (proxiedDomain) | — | ❌ Not ported |
+| Cached (serveStale with TTL) | `CacheController` | ✅ Complete |
+| Domain-based routing with priority (`!+` tags) | `sort_clients_by_domain()` | ✅ Complete |
+| Expected/Unexpected IP filtering | `filter_expected()` | ✅ Complete |
+| Client IP (EDNS0) | `build_edns0_subnet_option()` | ✅ Complete |
+| DisableFallback / disableFallbackIfMatch | в `do_nameserver_lookup()` | ✅ Complete |
+| enableParallelQuery | `parallel_query()` | ✅ Complete |
+| StaticHosts with domain replacement (proxiedDomain) | `StaticHosts::lookup_recursive()` | ✅ Complete |
 
 ### Router sub-features (`app/router/`)
 
@@ -211,28 +211,28 @@
 | Go API | Rust | Status |
 |---|---|---|
 | HandlerService (add/remove/get inbounds/outbounds) | `HandlerSvc` | ✅ Complete |
-| StatsService (get/query/sys stats) | `StatsSvc` | ✅ Complete |
+| HandlerService (AlterInbound — add/remove users) | `HandlerSvc::alter_inbound` | ✅ Complete |
+| HandlerService (GetInboundUsers, GetInboundUsersCount) | `HandlerSvc::get_inbound_users` / `get_inbound_users_count` | ✅ Complete |
+| RoutingService (AddRule, RemoveRule, ListRule) | `RoutingSvc` | ✅ Complete |
+| RoutingService (OverrideBalancerTarget, GetBalancerInfo) | `RoutingSvc` | ✅ Complete |
+| LoggerService (RestartLogger) | `LoggerSvc` | ✅ Complete |
+| StatsService (GetStats, QueryStats, GetSysStats) | `StatsSvc` | ✅ Complete |
+| StatsService (GetStatsOnline, GetStatsOnlineIpList) | `StatsSvc` | ✅ Complete |
+| StatsService (GetUsersStats, GetAllOnlineUsers) | `StatsSvc` | ✅ Complete |
 | gRPC reflection | — | ❌ Not ported |
-| `api stats query/sys/online/get` | — | ❌ Not ported |
-| `api inbound user add/remove/count` | — | ❌ Not ported |
-| `api inbounds add/list/remove` | — | ❌ Not ported |
-| `api outbounds add/list/remove` | — | ❌ Not ported |
-| `api rules add/list/remove` | — | ❌ Not ported |
-| `api balancer override/info` | — | ❌ Not ported |
-| `api source_ip_block` | — | ❌ Not ported |
-| `api logger restart` | — | ❌ Not ported |
+| CLI команды (xray api ...) | — | ❌ Not ported (нужен отдельный CLI бинарник) |
 
 ## Config Parsing (`infra/conf/`)
 
 | Go feature | Rust | Status |
 |---|---|---|
 | JSON | serde (serde_json) | ✅ Complete |
-| YAML | — | ❌ Not ported |
-| TOML | — | ❌ Not ported |
+| YAML | serde_yaml (`Config::from_yaml`) | ✅ Complete |
+| TOML | toml crate (`Config::from_toml`) | ✅ Complete |
 | Protobuf | — | ❌ Not ported |
-| JSON5/JSONC (Java/Python comments) | — | ❌ Not ported |
-| Config override/merge (multiple files) | — | ❌ Not ported |
-| Auto-detect format | — | ❌ Not ported |
+| JSON5/JSONC (Java/Python comments) | `JsonCommentReader` | ✅ Complete |
+| Config override/merge (multiple files) | `Config::override_with()` + `merge_configs()` | ✅ Complete |
+| Auto-detect format | `detect_format()` по расширению | ✅ Complete |
 | Strict JSON mode (`XRAY_JSON_STRICT`) | — | ❌ Not ported |
 | Protocol-specific config builders (all proxies) | serde Deserialize | ✅ Complete |
 

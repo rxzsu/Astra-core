@@ -6,7 +6,7 @@ use astra_core_stats::StatsManager;
 use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
-use astra_core_dns::{DnsResolver, UdpDnsResolver, TcpDnsResolver, SimpleDnsResolver, FakeDnsResolver, NameServer, QueryStrategy, parse_hosts};
+use astra_core_dns::{DnsResolver, UdpDnsResolver, TcpDnsResolver, SimpleDnsResolver, FakeDnsResolver, DoHResolver, NameServer, QueryStrategy, StaticHosts, parse_hosts};
 use astra_core_proxy_shadowsocks_2022 as ss2022;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -916,15 +916,23 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider { manager: ob_manager.clone() });
 
     let dns_cfg = config.dns.as_ref();
-    let hosts_map = dns_cfg.map(|d| parse_hosts(d.hosts.as_ref())).transpose()?.unwrap_or_default();
+    let hosts = dns_cfg.map(|d| parse_hosts(d.hosts.as_ref())).transpose()?.unwrap_or(StaticHosts::new());
     let query_strategy = dns_cfg
         .map(|d| QueryStrategy::from_str(&d.query_strategy))
         .unwrap_or_default();
+    let disable_cache = dns_cfg.map(|d| d.disable_cache).unwrap_or(false);
+    let enable_parallel = dns_cfg.map(|d| d.enable_parallel_query).unwrap_or(false);
+    let disable_fallback = dns_cfg.map(|d| d.disable_fallback).unwrap_or(false);
+    let disable_fallback_if_match = dns_cfg.map(|d| d.disable_fallback_if_match).unwrap_or(false);
 
     let dns_resolver: Option<Arc<dyn DnsResolver>> = if let Some(dns) = dns_cfg {
         if !dns.servers.is_empty() {
             let mut nameservers = Vec::new();
             let mut use_tcp = false;
+            let mut use_doh = false;
+            let mut use_doq = false;
+            let mut doh_url = String::new();
+            let mut doq_endpoint = String::new();
             for sv in &dns.servers {
                 let mut expected_ips = Vec::new();
                 for s in &sv.expected_ips.0 {
@@ -932,31 +940,68 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                         expected_ips.push(ip);
                     }
                 }
+                let client_ip = sv.client_ip.as_ref().map(|a| a.0.parse::<std::net::IpAddr>()).transpose().map_err(|e| format!("invalid client_ip: {}", e))?;
                 let raw = sv.address.0.clone();
-                let (protocol, addr) = if let Some(rest) = raw.strip_prefix("tcp://") {
+                let (protocol, addr) = if let Some(rest) = raw.strip_prefix("https://") {
+                    use_doh = true;
+                    doh_url = format!("https://{}", rest);
+                    ("doh".into(), rest.to_string())
+                } else if let Some(rest) = raw.strip_prefix("h2c://") {
+                    use_doh = true;
+                    doh_url = format!("https://{}", rest);
+                    ("doh".into(), rest.to_string())
+                } else if let Some(rest) = raw.strip_prefix("https+local://") {
+                    use_doh = true;
+                    doh_url = format!("https://{}", rest);
+                    ("doh".into(), rest.to_string())
+                } else if let Some(rest) = raw.strip_prefix("quic+local://") {
+                    use_doq = true;
+                    doq_endpoint = rest.to_string();
+                    ("doq".into(), rest.to_string())
+                } else if let Some(rest) = raw.strip_prefix("tcp://") {
                     use_tcp = true;
                     ("tcp".into(), rest.to_string())
+                } else if let Some(rest) = raw.strip_prefix("tcp+local://") {
+                    use_tcp = true;
+                    ("tcp+local".into(), rest.to_string())
                 } else {
                     ("udp".into(), raw)
                 };
                 let port = if sv.port != 0 { sv.port } else { 53 };
+                let addr_with_port = if port != 53 || !addr.contains(':') {
+                    addr
+                } else {
+                    addr
+                };
                 nameservers.push(NameServer {
-                    address: addr,
+                    address: if protocol == "doh" || protocol == "doq" { addr_with_port } else { format!("{}:{}", addr_with_port, port) },
                     port,
                     protocol,
                     domains: sv.domains.0.clone(),
                     expected_ips,
+                    client_ip,
+                    skip_fallback: sv.skip_fallback,
+                    tag: sv.tag.clone(),
+                    query_strategy: QueryStrategy::from_str(&sv.query_strategy),
                 });
             }
-            if use_tcp {
-                Some(Arc::new(TcpDnsResolver::new(nameservers, hosts_map, query_strategy)) as Arc<dyn DnsResolver>)
+            if use_doh {
+                Some(Arc::new(DoHResolver::new(
+                    doh_url, nameservers, hosts, query_strategy, disable_cache,
+                )) as Arc<dyn DnsResolver>)
+            } else if use_tcp {
+                Some(Arc::new(TcpDnsResolver::new(
+                    nameservers, hosts, query_strategy,
+                    disable_cache, enable_parallel, disable_fallback, disable_fallback_if_match,
+                )) as Arc<dyn DnsResolver>)
             } else {
-                Some(Arc::new(UdpDnsResolver::new(nameservers, hosts_map, query_strategy)) as Arc<dyn DnsResolver>)
+                Some(Arc::new(UdpDnsResolver::new(
+                    nameservers, hosts, query_strategy,
+                    disable_cache, enable_parallel, disable_fallback, disable_fallback_if_match,
+                )) as Arc<dyn DnsResolver>)
             }
-        } else if !hosts_map.is_empty() {
-            Some(Arc::new(SimpleDnsResolver::new(hosts_map)) as Arc<dyn DnsResolver>)
         } else {
-            None
+            Some(Arc::new(SimpleDnsResolver::new(hosts)) as Arc<dyn DnsResolver>)
         }
     } else {
         None

@@ -8,6 +8,8 @@ description = "Xray-core JSON config parser for astra-core"
 serde = { workspace = true }
 serde_json = "1"
 serde_with = "3"
+serde_yaml = "0.9"
+toml = "0.8"
 astra-core-net = { path = "../astra-core-net" }
 astra-core-proto = { path = "../astra-core-proto" }
 astra-core-routing = { path = "../astra-core-routing" }

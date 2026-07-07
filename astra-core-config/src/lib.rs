@@ -1,10 +1,13 @@
 pub mod dns;
+pub mod json_reader;
 pub mod log;
 pub mod policy;
 pub mod proxy;
 pub mod router;
 pub mod transport;
 pub mod types;
+
+use std::io::Read;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -174,6 +177,47 @@ pub struct SniffingConfig {
     pub route_only: bool,
 }
 
+// ─── Config format auto-detection ─────────────────────────────────────────────
+
+/// Detect config format from file extension.
+pub fn detect_format(path: &str) -> &'static str {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".yaml") || lower.ends_with(".yml") {
+        "yaml"
+    } else if lower.ends_with(".toml") {
+        "toml"
+    } else if lower.ends_with(".pb") || lower.ends_with(".protobuf") {
+        "protobuf"
+    } else {
+        "json"
+    }
+}
+
+/// Load config from a reader with format auto-detection (defaults to JSON).
+pub fn load_config<R: Read>(reader: R, format: &str) -> Result<Config, String> {
+    match format {
+        "yaml" => Config::from_yaml_reader(reader),
+        "toml" => Config::from_toml_reader(reader),
+        _ => Config::from_json_reader(reader),
+    }
+}
+
+// ─── Config Merge/Override ────────────────────────────────────────────────────
+
+/// Merge a list of config sources into one by applying override rules.
+/// First source is the base, subsequent sources override/append/prepend.
+/// `filenames` are used to determine override behavior (e.g. "tail" in name => append outbounds).
+pub fn merge_configs(configs: Vec<(Config, String)>) -> Config {
+    let mut iter = configs.into_iter();
+    let Some((mut base, _)) = iter.next() else {
+        return Config::default();
+    };
+    for (override_cfg, filename) in iter {
+        base.override_with(&override_cfg, &filename);
+    }
+    base
+}
+
 // ─── Helper: parse from JSON string ──────────────────────────────────────────
 
 impl Config {
@@ -185,6 +229,82 @@ impl Config {
     /// Parse Xray config from JSON bytes.
     pub fn from_slice(json: &[u8]) -> Result<Self, String> {
         serde_json::from_slice(json).map_err(|e| format!("config parse error: {}", e))
+    }
+
+    /// Parse Xray config from a reader with JSON comment stripping.
+    pub fn from_json_reader<R: Read>(reader: R) -> Result<Self, String> {
+        let mut stripped = String::new();
+        json_reader::JsonCommentReader::new(reader)
+            .read_to_string(&mut stripped)
+            .map_err(|e| format!("read config: {}", e))?;
+        serde_json::from_str(&stripped).map_err(|e| format!("config parse error: {}", e))
+    }
+
+    /// Parse Xray config from a YAML string.
+    pub fn from_yaml(yaml: &str) -> Result<Self, String> {
+        let json_value: serde_json::Value =
+            serde_yaml::from_str(yaml).map_err(|e| format!("yaml parse error: {}", e))?;
+        serde_json::from_value(json_value).map_err(|e| format!("config parse from yaml error: {}", e))
+    }
+
+    /// Parse Xray config from a YAML reader (with comment stripping).
+    pub fn from_yaml_reader<R: Read>(reader: R) -> Result<Self, String> {
+        let mut raw = String::new();
+        json_reader::JsonCommentReader::new(reader)
+            .read_to_string(&mut raw)
+            .map_err(|e| format!("read yaml: {}", e))?;
+        Self::from_yaml(&raw)
+    }
+
+    /// Parse Xray config from a TOML string.
+    pub fn from_toml(toml_str: &str) -> Result<Self, String> {
+        let config_map: serde_json::Value =
+            toml::from_str(toml_str).map_err(|e| format!("toml parse error: {}", e))?;
+        serde_json::from_value(config_map).map_err(|e| format!("config parse from toml error: {}", e))
+    }
+
+    /// Parse Xray config from a TOML reader.
+    pub fn from_toml_reader<R: Read>(mut reader: R) -> Result<Self, String> {
+        let mut raw = String::new();
+        reader.read_to_string(&mut raw).map_err(|e| format!("read toml: {}", e))?;
+        Self::from_toml(&raw)
+    }
+
+    /// Override this config with another. Follows Go conventions:
+    /// - Top-level scalars: replaced if non-None in override
+    /// - Inbounds: matched by tag → replace; unmatched → append
+    /// - Outbounds: matched by tag → replace; unmatched → prepend (unless filename has "tail" → append)
+    pub fn override_with(&mut self, other: &Config, filename: &str) {
+        if other.log.is_some() { self.log = other.log.clone(); }
+        if other.routing.is_some() { self.routing = other.routing.clone(); }
+        if other.dns.is_some() { self.dns = other.dns.clone(); }
+        if other.policy.is_some() { self.policy = other.policy.clone(); }
+        if other.api.is_some() { self.api = other.api.clone(); }
+        if other.stats.is_some() { self.stats = other.stats.clone(); }
+        if other.reverse.is_some() { self.reverse = other.reverse.clone(); }
+        if other.observatory.is_some() { self.observatory = other.observatory.clone(); }
+        if other.fake_dns.is_some() { self.fake_dns = other.fake_dns.clone(); }
+
+        // Inbounds: match by tag → replace; else append
+        for ob in &other.inbounds {
+            if let Some(idx) = self.inbounds.iter().position(|x| x.tag == ob.tag && !ob.tag.is_empty()) {
+                self.inbounds[idx] = ob.clone();
+            } else {
+                self.inbounds.push(ob.clone());
+            }
+        }
+
+        // Outbounds: match by tag → replace; else prepend (default) or append (if "tail" in filename)
+        let is_tail = filename.to_lowercase().contains("tail");
+        for ob in &other.outbounds {
+            if let Some(idx) = self.outbounds.iter().position(|x| x.tag == ob.tag && !ob.tag.is_empty()) {
+                self.outbounds[idx] = ob.clone();
+            } else if is_tail {
+                self.outbounds.push(ob.clone());
+            } else {
+                self.outbounds.insert(0, ob.clone());
+            }
+        }
     }
 }
 

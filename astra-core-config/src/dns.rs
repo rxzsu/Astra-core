@@ -21,6 +21,8 @@ pub struct DNSConfig {
     pub disable_fallback: bool,
     #[serde(default)]
     pub disable_fallback_if_match: bool,
+    #[serde(default)]
+    pub enable_parallel_query: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

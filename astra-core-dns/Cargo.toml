@@ -4,7 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 async-trait = "0.1"
 serde_json = "1"
+serde = { workspace = true }
 rand = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
+quinn = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+webpki-roots = { workspace = true }
+regex-lite = "0.1"
+tracing = { workspace = true }
+thiserror = "2"
+futures = "0.3"

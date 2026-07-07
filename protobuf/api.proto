@@ -8,6 +8,9 @@ service HandlerService {
   rpc RemoveOutbound (RemoveOutboundRequest) returns (RemoveOutboundResponse);
   rpc GetInbounds (GetInboundsRequest) returns (GetInboundsResponse);
   rpc GetOutbounds (GetOutboundsRequest) returns (GetOutboundsResponse);
+  rpc AlterInbound (AlterInboundRequest) returns (AlterInboundResponse);
+  rpc GetInboundUsers (GetInboundUserRequest) returns (GetInboundUserResponse);
+  rpc GetInboundUsersCount (GetInboundUserRequest) returns (GetInboundUsersCountResponse);
 }
 
 message AddInboundRequest {
@@ -40,10 +43,34 @@ message GetOutboundsResponse {
   repeated string tags = 1;
 }
 
+message AlterInboundRequest {
+  string tag = 1;
+  string operation = 2; // "addUser" or "removeUser"
+  string email = 3;
+  string config = 4;    // user config JSON
+}
+message AlterInboundResponse {}
+
+message GetInboundUserRequest {
+  string tag = 1;
+  string email = 2;
+}
+message GetInboundUserResponse {
+  int32 count = 1;
+  repeated string emails = 2;
+}
+message GetInboundUsersCountResponse {
+  int32 count = 1;
+}
+
 service StatsService {
   rpc GetStats (GetStatsRequest) returns (GetStatsResponse);
   rpc QueryStats (QueryStatsRequest) returns (QueryStatsResponse);
   rpc GetSysStats (GetSysStatsRequest) returns (GetSysStatsResponse);
+  rpc GetStatsOnline (GetStatsRequest) returns (GetStatsResponse);
+  rpc GetStatsOnlineIpList (GetStatsRequest) returns (StatsOnlineIpListResponse);
+  rpc GetUsersStats (GetUsersStatsRequest) returns (GetUsersStatsResponse);
+  rpc GetAllOnlineUsers (GetAllOnlineUsersRequest) returns (GetAllOnlineUsersResponse);
 }
 
 message GetStatsRequest {
@@ -92,3 +119,84 @@ message SysStats {
   uint64 pause_total_ns = 9;
   uint64 uptime = 10;
 }
+
+message StatsOnlineIpListResponse {
+  repeated IpInfo ips = 1;
+}
+message IpInfo {
+  string ip = 1;
+  int64 last_access_time = 2;
+  int64 uplink = 3;
+  int64 downlink = 4;
+}
+
+message GetUsersStatsRequest {
+  bool include_traffic = 1;
+  bool reset = 2;
+}
+message GetUsersStatsResponse {
+  repeated UserStats users = 1;
+}
+message UserStats {
+  string email = 1;
+  repeated IpInfo ips = 2;
+  int64 uplink = 3;
+  int64 downlink = 4;
+}
+
+message GetAllOnlineUsersRequest {}
+message GetAllOnlineUsersResponse {
+  repeated string emails = 1;
+}
+
+// ─── RoutingService ──────────────────────────────────────────────────────────
+
+service RoutingService {
+  rpc AddRule (AddRuleRequest) returns (AddRuleResponse);
+  rpc RemoveRule (RemoveRuleRequest) returns (RemoveRuleResponse);
+  rpc ListRule (ListRuleRequest) returns (ListRuleResponse);
+  rpc OverrideBalancerTarget (OverrideBalancerTargetRequest) returns (OverrideBalancerTargetResponse);
+  rpc GetBalancerInfo (GetBalancerInfoRequest) returns (GetBalancerInfoResponse);
+}
+
+message AddRuleRequest {
+  string config = 1;    // JSON routing rule
+  bool should_append = 2;
+}
+message AddRuleResponse {}
+
+message RemoveRuleRequest {
+  string rule_tag = 1;
+}
+message RemoveRuleResponse {}
+
+message ListRuleRequest {}
+message ListRuleResponse {
+  repeated string rule_tags = 1;
+}
+
+message OverrideBalancerTargetRequest {
+  string balancer_tag = 1;
+  string target = 2;
+}
+message OverrideBalancerTargetResponse {}
+
+message GetBalancerInfoRequest {
+  string tag = 1;
+}
+message GetBalancerInfoResponse {
+  BalancerMsg balancer = 1;
+}
+message BalancerMsg {
+  string tag = 1;
+  string override_target = 2;
+  repeated string selects = 3;
+}
+
+// ─── LoggerService ───────────────────────────────────────────────────────────
+
+service LoggerService {
+  rpc RestartLogger (RestartLoggerRequest) returns (RestartLoggerResponse);
+}
+message RestartLoggerRequest {}
+message RestartLoggerResponse {}
