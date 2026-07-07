@@ -28,3 +28,5 @@ rustls-pki-types = { workspace = true }
 webpki-roots = { workspace = true }
 tracing = { workspace = true }
 quinn = { workspace = true }
+socket2 = "0.5"
+libc = "0.2"

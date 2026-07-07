@@ -61,6 +61,8 @@ pub struct Balancer {
     /// Per-outbound metrics for LeastLoad.
     pub metrics: Arc<RwLock<std::collections::HashMap<String, OutboundMetrics>>>,
     pub least_load_config: LeastLoadConfig,
+    /// Override target (Go: app/router/balancing_override.go).
+    override_target: Arc<RwLock<Option<String>>>,
 }
 
 impl Balancer {
@@ -71,6 +73,7 @@ impl Balancer {
             alive: None,
             metrics: Arc::new(RwLock::new(std::collections::HashMap::new())),
             least_load_config: LeastLoadConfig::default(),
+            override_target: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -82,6 +85,31 @@ impl Balancer {
     pub fn with_least_load_config(mut self, config: LeastLoadConfig) -> Self {
         self.least_load_config = config;
         self
+    }
+
+    /// Override the balancer's selection to always return a specific tag.
+    pub fn set_override(&self, target: &str) {
+        *self.override_target.write().unwrap() = if target.is_empty() {
+            None
+        } else {
+            Some(target.to_string())
+        };
+    }
+
+    /// Clear the override, returning to normal selection.
+    pub fn clear_override(&self) {
+        *self.override_target.write().unwrap() = None;
+    }
+
+    /// Get the current override target, if any.
+    pub fn get_override(&self) -> Option<String> {
+        self.override_target.read().unwrap().clone()
+    }
+
+    /// Pick a tag, respecting override. Returns the tag to use, or None for fallback.
+    pub fn pick_override(&self) -> Option<String> {
+        // Check override first (Go: app/router/balancing_override.go)
+        self.override_target.read().unwrap().clone()
     }
 
     pub fn pick(&self) -> Option<&str> {
