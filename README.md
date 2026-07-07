@@ -32,6 +32,7 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | mKCP | ✅ |
 | QUIC | ✅ (quinn — Xray has no custom obfuscation, standard RFC 9000 only) |
 | gRPC | ✅ (h2 tunnel via tonic) |
+| H2 (HTTP/2) | ✅ (h2 crate, bidirectional stream) |
 | REALITY | ❌ Blocked — requires uTLS browser ClientHello, no Rust equivalent |
 
 ### Infrastructure
@@ -60,6 +61,7 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | GeoIP / GeoSite (geoip.dat, geosite.dat) | ✅ Load `.dat` files via prost protobuf; build routing matchers from `geoip:XX` / `geosite:XX` |
 | TCP DNS (tcp:// nameserver) | ✅ RFC 1035 TCP DNS queries with 2-byte length prefix |
 | Hysteria protocol | ✅ QUIC-based with Brutal congestion control, password auth, connection pool |
+| H2 transport | ✅ Native HTTP/2 transport (h2 crate), inbound + outbound, TLS required |
 
 ## Architecture
 

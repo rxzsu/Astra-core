@@ -469,6 +469,57 @@ impl AlwaysOnInboundHandler {
 
                 Ok(())
             }
+            transport::Transport::H2 { .. } => {
+                info!("inbound {} listening on {} (h2)", self.tag, listen);
+
+                let tls_cfg = self.tls.as_ref().ok_or_else(|| {
+                    "H2 inbound requires TLS config with certificates".to_string()
+                })?;
+
+                let proxy = self.proxy.clone();
+                let dispatcher = dispatcher.clone();
+                let tag = self.tag.clone();
+
+                let cert_data = tls_cfg.cert_data.clone();
+                let key_data = tls_cfg.key_data.clone();
+
+                let on_conn = Arc::new(move |conn: Conn| {
+                    let proxy = proxy.clone();
+                    let dispatcher = dispatcher.clone();
+                    let tag = tag.clone();
+
+                    tokio::spawn(async move {
+                        let session = Session {
+                            inbound: Some(Inbound {
+                                source: Destination {
+                                    address: Address::Ipv4([0, 0, 0, 0]),
+                                    port: Port(0),
+                                    network: Network::Tcp,
+                                },
+                                local: None,
+                                gateway: None,
+                                tag,
+                            }),
+                            outbound: None,
+                            content: None,
+                        };
+
+                        if let Err(e) = proxy.process(session, conn, dispatcher).await {
+                            tracing::error!("inbound process error: {}", e);
+                        }
+                    });
+                });
+
+                astra_core_transport_h2::listener::serve_h2(
+                    &listen,
+                    cert_data,
+                    key_data,
+                    on_conn,
+                )
+                .await?;
+
+                Ok(())
+            }
             _ => {
                 info!(
                     "inbound {} listening on {} ({})",

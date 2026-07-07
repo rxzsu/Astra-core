@@ -25,11 +25,28 @@ pub enum Transport {
     },
     SplitHttp(astra_core_transport_splithttp::config::Config),
     Quic(astra_core_transport_quic::config::QuicConfig),
+    H2 {
+        host: String,
+        path: String,
+    },
 }
 
 
 impl Transport {
     pub fn from_stream_config(stream: &cfg::StreamConfig) -> Self {
+        if stream.network.is_h2() {
+            let host = stream.http_settings
+                .as_ref()
+                .and_then(|h| h.host.first())
+                .cloned()
+                .unwrap_or_default();
+            let path = stream.http_settings
+                .as_ref()
+                .map(|h| h.path.clone())
+                .filter(|p| !p.is_empty())
+                .unwrap_or_else(|| "/".into());
+            return Self::H2 { host, path };
+        }
         if let Some(kcp) = &stream.kcp_settings {
             return Self::Kcp(astra_core_transport_kcp::config::Config {
                 mtu: kcp.mtu.unwrap_or(1350),
@@ -107,6 +124,7 @@ impl Transport {
             Self::Grpc { .. } => "grpc",
             Self::SplitHttp(_) => "splithttp",
             Self::Quic(_) => "quic",
+            Self::H2 { .. } => "h2",
         }
     }
 }
@@ -206,6 +224,9 @@ pub async fn dial_transport(
                 .await
                 .map_err(|e| format!("quic dial: {}", e))?;
             Ok(Box::new(quic_conn))
+        }
+        Transport::H2 { host, path } => {
+            astra_core_transport_h2::dialer::dial_h2(dest, host, path).await
         }
         Transport::RawTcp => {
             let tcp = tokio::net::TcpStream::connect(&addr_str)
@@ -311,6 +332,9 @@ where
                 .await
                 .map_err(|e| format!("grpc serve: {}", e))?;
             Ok(())
+        }
+        Transport::H2 { .. } => {
+            Err("h2 inbound: use TLS transport config".into())
         }
         Transport::RawTcp => {
             let listener = tokio::net::TcpListener::bind(listen_addr)

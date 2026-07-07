@@ -20,6 +20,7 @@ astra-core-transport-splithttp = { path = "../astra-core-transport-splithttp" }
 astra-core-transport-reality = { path = "../astra-core-transport-reality" }
 astra-core-transport-quic = { path = "../astra-core-transport-quic" }
 astra-core-proxy-hysteria = { path = "../astra-core-proxy-hysteria" }
+astra-core-transport-h2 = { path = "../astra-core-transport-h2" }
 tokio = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls = { workspace = true }

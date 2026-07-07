@@ -518,6 +518,7 @@ dependencies = [
  "astra-core-sniffing",
  "astra-core-transport",
  "astra-core-transport-grpc",
+ "astra-core-transport-h2",
  "astra-core-transport-httpupgrade",
  "astra-core-transport-kcp",
  "astra-core-transport-quic",
@@ -588,6 +589,23 @@ dependencies = [
  "tonic-prost-build",
  "tower",
  "tracing",
+]
+
+[[package]]
+name = "astra-core-transport-h2"
+version = "0.1.0"
+dependencies = [
+ "astra-core-net",
+ "astra-core-proxy",
+ "bytes",
+ "h2",
+ "http",
+ "rustls",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

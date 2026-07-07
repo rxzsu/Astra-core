@@ -1,0 +1,17 @@
+[package]
+name = "astra-core-transport-h2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+webpki-roots = { workspace = true }
+h2 = "0.4"
+http = "1"
+bytes = "1"
+tracing = { workspace = true }
+astra-core-net = { path = "../astra-core-net" }
+astra-core-proxy = { path = "../astra-core-proxy" }

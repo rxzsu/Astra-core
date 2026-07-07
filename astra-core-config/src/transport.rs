@@ -36,6 +36,8 @@ pub struct StreamConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quic_settings: Option<QUICConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub http_settings: Option<HttpConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sockopt: Option<SocketConfig>,
 }
 
@@ -162,6 +164,17 @@ pub struct QUICConfig {
     pub key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub header: Option<serde_json::Value>,
+}
+
+// ─── HTTP/2 (h2) ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpConfig {
+    #[serde(default)]
+    pub host: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub path: String,
 }
 
 // ─── TLS ─────────────────────────────────────────────────────────────────────

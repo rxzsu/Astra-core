@@ -44,6 +44,7 @@ members = [
 "astra-core-metrics",
 "astra-core-geodata",
 "astra-core-proxy-hysteria",
+"astra-core-transport-h2",
 ]
 
 [workspace.dependencies]

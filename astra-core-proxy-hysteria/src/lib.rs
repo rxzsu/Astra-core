@@ -7,10 +7,10 @@ use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_proxy::{Conn, Dispatcher, InboundHandler, OutboundHandler, ProxyResult};
 use astra_core_proxy::dialer::Dialer;
 use astra_core_session::{Inbound, Session};
-use astra_core_transport::{Link, UdpLink};
+use astra_core_transport::{Link, UdpLink, UdpPacket};
 use quinn::crypto::rustls::QuicClientConfig;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -250,10 +250,73 @@ impl OutboundHandler for HysteriaOutbound {
 
     async fn process_udp(
         &self,
-        _session: Session,
-        _link: &mut UdpLink,
+        session: Session,
+        link: &mut UdpLink,
     ) -> ProxyResult<()> {
-        Err("hysteria UDP not yet implemented".into())
+        let conn = self.pool.get_or_create().await?;
+        let dest = &session.outbound.as_ref().ok_or("no outbound target")?.target;
+        let addr_str = format!("{}:{}\n", dest.address, dest.port.value());
+
+        let (mut send, mut recv) = conn.open_bi().await.map_err(|e| format!("open stream: {}", e))?;
+        send.write_all(addr_str.as_bytes()).await.map_err(|e| format!("send addr: {}", e))?;
+        send.write_all(b"u\n").await.map_err(|e| format!("send udp mode: {}", e))?;
+
+        let placeholder = Destination {
+            address: Address::Ipv4([0, 0, 0, 0]),
+            port: Port(0),
+            network: Network::Udp,
+        };
+
+        let link_writer = link.writer.clone();
+        let link_reader = &mut link.reader;
+
+        // link -> stream (length-prefixed packets)
+        let to_stream = async {
+            loop {
+                let pkt = link_reader.recv().await;
+                match pkt {
+                    Some(pkt) => {
+                        let len = pkt.data.len() as u16;
+                        send.write_all(&len.to_be_bytes()).await
+                            .map_err(|e| format!("write udp len: {}", e))?;
+                        send.write_all(&pkt.data).await
+                            .map_err(|e| format!("write udp data: {}", e))?;
+                    }
+                    None => break,
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<_, String>(())
+        };
+
+        // stream -> link (length-prefixed packets)
+        let to_link = async {
+            let mut len_buf = [0u8; 2];
+            loop {
+                match recv.read_exact(&mut len_buf).await {
+                    Ok(()) => {
+                        let len = u16::from_be_bytes(len_buf) as usize;
+                        let mut data = vec![0u8; len];
+                        if recv.read_exact(&mut data).await.is_err() {
+                            break;
+                        }
+                        let pkt = UdpPacket::new(placeholder.clone(), placeholder.clone(), data);
+                        if link_writer.send(pkt).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<_, String>(())
+        };
+
+        tokio::select! {
+            _ = to_stream => {},
+            _ = to_link => {},
+        };
+        Ok(())
     }
 }
 
@@ -273,7 +336,7 @@ impl HysteriaInbound {
     }
 }
 
-/// Handle a single hysteria stream (address string + relay).
+/// Handle a single hysteria stream. Detects UDP vs TCP mode from the protocol marker.
 pub async fn handle_hysteria_stream(
     stream: Conn,
     dispatcher: Arc<dyn Dispatcher>,
@@ -302,27 +365,97 @@ pub async fn handle_hysteria_stream(
         Address::Domain(host.to_string())
     };
 
-    let target = Destination {
+    // Peek at remaining buffer to detect UDP mode marker "u\n"
+    let is_udp = match buf_reader.fill_buf().await {
+        Ok(buf) if buf.len() >= 2 && buf[0] == b'u' && buf[1] == b'\n' => true,
+        _ => false,
+    };
+
+    if is_udp {
+        buf_reader.consume(2);
+        let stream_reader = buf_reader.into_inner();
+        let session = Session {
+            inbound: Some(Inbound { source, local: None, gateway: None, tag }),
+            outbound: None,
+            content: None,
+        };
+        let mut udp_link = dispatcher.dispatch_udp(session).await?;
+
+        let placeholder = Destination {
+            address: Address::Ipv4([0, 0, 0, 0]),
+            port: Port(0),
+            network: Network::Udp,
+        };
+
+        let udp_writer = udp_link.writer.clone();
+        let udp_reader = &mut udp_link.reader;
+
+        // stream -> udp_link
+        let to_udp = async {
+            let mut len_buf = [0u8; 2];
+            loop {
+                if stream_reader.read_exact(&mut len_buf).await.is_err() {
+                    break;
+                }
+                let len = u16::from_be_bytes(len_buf) as usize;
+                let mut data = vec![0u8; len];
+                if stream_reader.read_exact(&mut data).await.is_err() {
+                    break;
+                }
+                let pkt = UdpPacket::new(placeholder.clone(), placeholder.clone(), data);
+                if udp_writer.send(pkt).is_err() {
+                    break;
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<_, String>(())
+        };
+
+        // udp_link -> stream
+        let to_writer = async {
+            loop {
+                let pkt = udp_reader.recv().await;
+                match pkt {
+                    Some(pkt) => {
+                        let len = pkt.data.len() as u16;
+                        if writer.write_all(&len.to_be_bytes()).await.is_err() {
+                            break;
+                        }
+                        if writer.write_all(&pkt.data).await.is_err() {
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<_, String>(())
+        };
+
+        tokio::select! {
+            _ = to_udp => {},
+            _ = to_writer => {},
+        };
+        return Ok(());
+    }
+
+    // TCP mode (default, backward compatible)
+    let tcp_target = Destination {
         address,
         port: Port(port_num),
         network: Network::Tcp,
     };
 
     let session = Session {
-        inbound: Some(Inbound {
-            source,
-            local: None,
-            gateway: None,
-            tag,
-        }),
+        inbound: Some(Inbound { source, local: None, gateway: None, tag }),
         outbound: None,
         content: None,
     };
 
-    let link = dispatcher.dispatch(session, target).await?;
+    let link = dispatcher.dispatch(session, tcp_target).await?;
     let (mut link_reader, mut link_writer) = tokio::io::split(astra_core_transport::new_link_stream(link));
 
-    let mut stream_reader = BufReader::new(&mut reader).into_inner();
+    let mut stream_reader = buf_reader.into_inner();
     let c1 = tokio::io::copy(&mut stream_reader, &mut link_writer);
     let c2 = tokio::io::copy(&mut link_reader, &mut writer);
     tokio::pin!(c1, c2);
