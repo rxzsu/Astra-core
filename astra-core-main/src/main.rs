@@ -78,6 +78,20 @@ async fn main() {
         }
     }
 
+    // Prometheus metrics server
+    if let Some(ref metrics_addr) = runtime.metrics_addr {
+        let metrics_server = astra_core_metrics::MetricsServer::new(
+            runtime.stats_manager.clone(),
+            metrics_addr.clone(),
+        );
+        tokio::spawn(async move {
+            if let Err(e) = metrics_server.start().await {
+                tracing::error!("metrics server error: {}", e);
+            }
+        });
+        tracing::info!("Prometheus metrics on http://{}/metrics", metrics_addr);
+    }
+
     tracing::info!("astra-core started. press Ctrl+C to stop.");
 
     tokio::signal::ctrl_c().await.expect("failed to listen for ctrl-c");

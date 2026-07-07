@@ -93,6 +93,7 @@ astra-core/
 ├── astra-core-stats/               — Traffic counters (Counter, Channel, StatsManager)
 ├── astra-core-app-grpc/            — gRPC API server (HandlerService + StatsService)
 ├── astra-core-observatory/        — Health checks + balancer auto-failover
+├── astra-core-metrics/            — Prometheus /metrics endpoint
 └── astra-core-main/               — Entrypoint
 
 website/                     — Vue + Tailwind + motion-v landing page

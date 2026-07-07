@@ -41,6 +41,7 @@ members = [
     "astra-core-transport-reality",
 "astra-core-transport-quic",
 "astra-core-observatory",
+"astra-core-metrics",
 ]
 
 [workspace.dependencies]

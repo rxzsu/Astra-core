@@ -28,6 +28,7 @@ pub struct AppRuntime {
     pub inbound_handlers: Vec<AlwaysOnInboundHandler>,
     pub outbound_manager: Arc<outbound::Manager>,
     pub stats_manager: Arc<StatsManager>,
+    pub metrics_addr: Option<String>,
 }
 
 fn convert_address(config_addr: &astra_core_config::types::Address) -> Address {
@@ -910,10 +911,24 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
 
     let stats_manager = Arc::new(StatsManager::new());
 
+    let metrics_addr = if config.stats.is_some() {
+        if config.api.as_ref().map(|a| !a.listen.is_empty()).unwrap_or(false) {
+            // Derive metrics port from API port + 1
+            let api_addr = config.api.as_ref().unwrap();
+            if let Some(port_end) = api_addr.listen.rfind(':') {
+                let base = &api_addr.listen[..port_end + 1];
+                if let Ok(port) = api_addr.listen[port_end + 1..].parse::<u16>() {
+                    Some(format!("{}{}", base, port + 1))
+                } else { Some("0.0.0.0:8080".into()) }
+            } else { Some("0.0.0.0:8080".into()) }
+        } else { Some("0.0.0.0:8080".into()) }
+    } else { None };
+
     Ok(AppRuntime {
         dispatcher,
         inbound_handlers,
         outbound_manager: ob_manager,
         stats_manager,
+        metrics_addr,
     })
 }

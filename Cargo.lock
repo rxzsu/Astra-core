@@ -211,11 +211,21 @@ dependencies = [
  "astra-core-app",
  "astra-core-app-grpc",
  "astra-core-config",
+ "astra-core-metrics",
  "astra-core-proxy",
  "astra-core-proxy-loopback",
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "astra-core-metrics"
+version = "0.1.0"
+dependencies = [
+ "astra-core-stats",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
