@@ -43,13 +43,16 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | Sniffing (TLS SNI, HTTP Host, DNS, BitTorrent) | ✅ |
 | Policy system (timeouts, buffer sizes, per-user levels) | ✅ |
 | Mux (client/server, framing, session management) | ✅ |
+| Observatory (health checks + auto-failover) | ✅ |
+| Prometheus metrics (/metrics endpoint) | ✅ |
+| Activity timers (idle timeout on connections) | ✅ |
+| TCP keepalive + socket options | ✅ |
 | TLS (rustls 0.23, server/client) | ✅ |
 
 ### Missing / In Progress
 | Feature | Status |
 |---------|--------|
 | REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
-| Observatory (health check) | ✅ TCP probe + balancer integration |
 
 ## Architecture
 

@@ -5,15 +5,26 @@ use astra_core_app::build_config;
 use astra_core_config::Config;
 use astra_core_proxy_loopback::DispatcherCell;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let config_path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "config.json".to_string());
+    // Parse CLI arguments
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--version" || a == "-v") {
+        println!("Astra-Core v{}", VERSION);
+        println!("Platform: {} / {}", std::env::consts::OS, std::env::consts::ARCH);
+        println!("Rust: {}", env!("CARGO_PKG_RUST_VERSION"));
+        return;
+    }
 
-    let config_json = match tokio::fs::read_to_string(&config_path).await {
+    let config_path = args.get(1)
+        .map(|s| s.as_str())
+        .unwrap_or("config.json");
+
+    let config_json = match tokio::fs::read_to_string(config_path).await {
         Ok(s) => s,
         Err(e) => {
             tracing::error!("failed to read config file {}: {}", config_path, e);
@@ -30,7 +41,9 @@ async fn main() {
     };
 
     tracing::info!(
-        "loaded config: {} inbounds, {} outbounds",
+        "Astra-Core v{} | {} | {} inbounds, {} outbounds",
+        VERSION,
+        config_path,
         config.inbounds.len(),
         config.outbounds.len()
     );

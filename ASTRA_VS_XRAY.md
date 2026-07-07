@@ -35,7 +35,7 @@
 | `app/reverse/` | `astra-core-app-reverse/` | ✅ Complete |
 | `app/router/` | `astra-core-routing/` | ✅ Complete |
 | `app/stats/` | `astra-core-stats/` | ✅ Counter, Channel, StatsManager |
-| `app/version/` | — | ❌ Not ported |
+| `app/version/` | built-in | ✅ `--version` flag + platform info |
 
 ## Transports (`transport/internet/`)
 
@@ -64,7 +64,7 @@
 | `common/net/` | `astra-core-net/` | ✅ Complete |
 | `common/protocol/` | `astra-core-proto/` | ✅ Complete |
 | `common/session/` | `astra-core-session/` | ✅ Complete |
-| `common/signal/` | — (activity timers) | ⚠️ Not ported |
+| `common/signal/` | `astra-core-proxy::timeout::TimeoutConn` | ✅ Timeout wrapper with idle timeout |
 | `common/task/` | — (periodic tasks) | ✅ Via `tokio::time::interval` |
 | `common/fragment/` | `write_fragmented()` in freedom | ✅ Complete |
 | `common/platform/` | — (env flags) | ❌ Not ported |
@@ -91,7 +91,7 @@
 | Config JSON parsing | ✅ | `astra-core-config/`, serde |
 | Builder (config → runtime) | ✅ | `astra-core-app/src/builder.rs` |
 | Main entrypoint | ✅ | `astra-core-main/` |
-| Tests | 150+ passing | 0 warnings |
+| Tests | 180+ passing | 0 warnings |
 | CLI flags | ✅ | `-config`, `-test` |
 
 ## Legend

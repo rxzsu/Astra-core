@@ -2,6 +2,7 @@ pub mod inbound;
 pub mod outbound;
 pub mod dispatcher;
 pub mod dialer;
+pub mod timeout;
 
 pub use inbound::InboundHandler;
 pub use outbound::OutboundHandler;

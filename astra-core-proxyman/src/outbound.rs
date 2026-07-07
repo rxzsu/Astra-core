@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::time::Duration;
 
 use astra_core_dispatcher::DispatchHandler;
 use astra_core_mux::client::MuxClient;
@@ -8,6 +9,7 @@ use astra_core_mux::io as mux_io;
 use astra_core_mux::session::MuxClientStrategy;
 use astra_core_net::Destination;
 use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::timeout::TimeoutConn;
 use astra_core_session::Session;
 use astra_core_transport::Link;
 use rustls::pki_types::ServerName;
@@ -98,6 +100,9 @@ pub struct Handler {
     transport: transport::Transport,
     pub mux: Option<MuxConfig>,
     mux_client: tokio::sync::Mutex<Option<Arc<MuxClientType>>>,
+    pub tcp_keepalive_interval: Option<u32>,
+    pub tcp_fast_open: bool,
+    pub idle_timeout: Option<Duration>,
 }
 
 impl Handler {
@@ -110,6 +115,9 @@ impl Handler {
             transport: transport::Transport::RawTcp,
             mux: None,
             mux_client: tokio::sync::Mutex::new(None),
+            tcp_keepalive_interval: None,
+            tcp_fast_open: false,
+            idle_timeout: None,
         }
     }
 
@@ -130,6 +138,21 @@ impl Handler {
 
     pub fn with_mux(mut self, mux: MuxConfig) -> Self {
         self.mux = Some(mux);
+        self
+    }
+
+    pub fn with_keepalive(mut self, interval_secs: u32) -> Self {
+        self.tcp_keepalive_interval = Some(interval_secs);
+        self
+    }
+
+    pub fn with_tcp_fast_open(mut self, enable: bool) -> Self {
+        self.tcp_fast_open = enable;
+        self
+    }
+
+    pub fn with_idle_timeout(mut self, timeout: Duration) -> Self {
+        self.idle_timeout = Some(timeout);
         self
     }
 
@@ -205,17 +228,23 @@ impl Handler {
 }
 
 #[async_trait]
-#[async_trait]
 impl Dialer for Handler {
     async fn dial(
         &self,
         _session: Session,
         dest: Destination,
     ) -> ProxyResult<Box<dyn AsyncConn>> {
-        if self.mux.as_ref().is_some_and(|m| m.enabled) {
-            return self.dial_mux(&dest).await;
+        let conn = if self.mux.as_ref().is_some_and(|m| m.enabled) {
+            self.dial_mux(&dest).await?
+        } else {
+            self.dial_transport(&dest).await?
+        };
+
+        if let Some(idle) = self.idle_timeout {
+            Ok(Box::new(TimeoutConn::new(conn, idle)))
+        } else {
+            Ok(conn)
         }
-        self.dial_transport(&dest).await
     }
 }
 
