@@ -48,6 +48,8 @@ pub struct AlwaysOnInboundHandler {
     transport: transport::Transport,
     tls: Option<TlsConfig>,
     network: ListenNetwork,
+    hysteria_password: Option<String>,
+    hysteria_obfs: Option<String>,
 }
 
 impl AlwaysOnInboundHandler {
@@ -63,6 +65,8 @@ impl AlwaysOnInboundHandler {
             transport: transport::Transport::RawTcp,
             tls: None,
             network: ListenNetwork::Tcp,
+            hysteria_password: None,
+            hysteria_obfs: None,
         }
     }
 
@@ -78,6 +82,12 @@ impl AlwaysOnInboundHandler {
 
     pub fn with_network(mut self, network: ListenNetwork) -> Self {
         self.network = network;
+        self
+    }
+
+    pub fn with_hysteria(mut self, password: String, obfs: Option<String>) -> Self {
+        self.hysteria_password = Some(password);
+        self.hysteria_obfs = obfs;
         self
     }
 
@@ -101,7 +111,112 @@ impl AlwaysOnInboundHandler {
         Ok(Box::new(tls_stream))
     }
 
+    /// Start a hysteria QUIC server. Called from `start()` when hysteria_password is set.
+    async fn start_hysteria(&self, dispatcher: Arc<dyn Dispatcher>) -> ProxyResult<()> {
+        let listen = self.listen_addr.clone();
+        info!("inbound {} listening on {} (hysteria/quic)", self.tag, listen);
+
+        let tls_cfg = self.tls.as_ref().ok_or_else(|| {
+            "hysteria inbound requires TLS config with certificates".to_string()
+        })?;
+
+        let cert = rustls::pki_types::CertificateDer::from(tls_cfg.cert_data.clone());
+        let key = rustls::pki_types::PrivateKeyDer::try_from(tls_cfg.key_data.clone())
+            .map_err(|e| format!("invalid tls key: {:?}", e))?;
+
+        let tls_config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert], key)
+            .map_err(|e| format!("tls config: {}", e))?;
+
+        let quic_tls: quinn::crypto::rustls::QuicServerConfig = tls_config
+            .try_into()
+            .map_err(|e: quinn::crypto::rustls::NoInitialCipherSuite| format!("QUIC TLS: {}", e))?;
+
+        let mut quic_server = quinn::ServerConfig::with_crypto(Arc::new(quic_tls));
+        let mut transport_cfg = quinn::TransportConfig::default();
+        transport_cfg.max_concurrent_bidi_streams(1000u32.into());
+        transport_cfg.datagram_receive_buffer_size(Some(65536));
+        quic_server.transport_config(Arc::new(transport_cfg));
+
+        let listen_addr: std::net::SocketAddr = listen
+            .parse()
+            .map_err(|e| format!("invalid listen address: {}", e))?;
+        let endpoint = quinn::Endpoint::server(quic_server, listen_addr)
+            .map_err(|e| format!("create QUIC endpoint: {}", e))?;
+
+        let password = self.hysteria_password.clone().unwrap_or_default();
+        let tag = self.tag.clone();
+
+        loop {
+            match endpoint.accept().await {
+                Some(connecting) => {
+                    let password = password.clone();
+                    let tag = tag.clone();
+                    let dispatcher = dispatcher.clone();
+
+                    tokio::spawn(async move {
+                        match connecting.await {
+                            Ok(conn) => {
+                                // Auth on first stream
+                                if let Err(e) = astra_core_proxy_hysteria::hysteria_auth_first_stream(
+                                    &conn, &password,
+                                ).await {
+                                    tracing::error!("hysteria auth error: {}", e);
+                                    return;
+                                }
+
+                                // Accept subsequent streams
+                                loop {
+                                    match conn.accept_bi().await {
+                                        Ok((send, recv)) => {
+                                            let dispatcher = dispatcher.clone();
+                                            let tag = tag.clone();
+                                            let source = Destination {
+                                                address: Address::Ipv4([0, 0, 0, 0]),
+                                                port: Port(0),
+                                                network: Network::Tcp,
+                                            };
+
+                                            tokio::spawn(async move {
+                                                let stream = Box::new(
+                                                    astra_core_transport_quic::connection::QuicStream::new(send, recv)
+                                                ) as Conn;
+
+                                                if let Err(e) = astra_core_proxy_hysteria::handle_hysteria_stream(
+                                                    stream, dispatcher, tag, source,
+                                                ).await {
+                                                    tracing::error!("hysteria stream error: {}", e);
+                                                }
+                                            });
+                                        }
+                                        Err(quinn::ConnectionError::ApplicationClosed { .. })
+                                        | Err(quinn::ConnectionError::Reset) => break,
+                                        Err(e) => {
+                                            tracing::error!("hysteria accept stream: {}", e);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("hysteria accept connection: {}", e);
+                            }
+                        }
+                    });
+                }
+                None => break,
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn start(&self, dispatcher: Arc<dyn Dispatcher>) -> ProxyResult<()> {
+        // Hysteria mode: handle QUIC directly
+        if self.hysteria_password.is_some() {
+            return self.start_hysteria(dispatcher).await;
+        }
         let listen = self.listen_addr.clone();
 
         match &self.transport {

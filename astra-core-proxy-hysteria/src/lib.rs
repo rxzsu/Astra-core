@@ -3,12 +3,14 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use astra_core_proxy::{OutboundHandler, ProxyResult};
+use astra_core_net::{Address, Destination, Network, Port};
+use astra_core_proxy::{Conn, Dispatcher, InboundHandler, OutboundHandler, ProxyResult};
 use astra_core_proxy::dialer::Dialer;
-use astra_core_session::Session;
+use astra_core_session::{Inbound, Session};
 use astra_core_transport::{Link, UdpLink};
 use quinn::crypto::rustls::QuicClientConfig;
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -24,6 +26,12 @@ pub struct HysteriaConfig {
     pub obfs: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct HysteriaInboundConfig {
+    pub password: String,
+    pub obfs: Option<String>,
+}
+
 // ─── Auth protocol ──────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize)]
@@ -34,7 +42,7 @@ struct AuthRequest {
 #[derive(Serialize, Deserialize)]
 struct AuthResponse {
     ok: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     error: String,
 }
 
@@ -247,4 +255,271 @@ impl OutboundHandler for HysteriaOutbound {
     ) -> ProxyResult<()> {
         Err("hysteria UDP not yet implemented".into())
     }
+}
+
+// ─── Hysteria Inbound ──────────────────────────────────────────────────────
+
+pub struct HysteriaInbound {
+    config: HysteriaInboundConfig,
+}
+
+impl HysteriaInbound {
+    pub fn new(config: HysteriaInboundConfig) -> Self {
+        HysteriaInbound { config }
+    }
+
+    pub fn password(&self) -> &str {
+        &self.config.password
+    }
+}
+
+/// Handle a single hysteria stream (address string + relay).
+pub async fn handle_hysteria_stream(
+    stream: Conn,
+    dispatcher: Arc<dyn Dispatcher>,
+    tag: String,
+    source: Destination,
+) -> ProxyResult<()> {
+    let (mut reader, mut writer) = tokio::io::split(stream);
+
+    let mut buf_reader = BufReader::new(&mut reader);
+    let mut addr_line = String::new();
+    buf_reader.read_line(&mut addr_line).await
+        .map_err(|e| format!("hysteria: read addr: {}", e))?;
+
+    let addr_str = addr_line.trim();
+    let (host, port_str) = addr_str.split_once(':')
+        .ok_or_else(|| format!("hysteria: invalid addr: {}", addr_str))?;
+
+    let port_num: u16 = port_str.parse()
+        .map_err(|_| format!("hysteria: invalid port: {}", port_str))?;
+
+    let address = if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
+        Address::Ipv4(ip.octets())
+    } else if let Ok(ip) = host.parse::<std::net::Ipv6Addr>() {
+        Address::Ipv6(ip.octets())
+    } else {
+        Address::Domain(host.to_string())
+    };
+
+    let target = Destination {
+        address,
+        port: Port(port_num),
+        network: Network::Tcp,
+    };
+
+    let session = Session {
+        inbound: Some(Inbound {
+            source,
+            local: None,
+            gateway: None,
+            tag,
+        }),
+        outbound: None,
+        content: None,
+    };
+
+    let link = dispatcher.dispatch(session, target).await?;
+    let (mut link_reader, mut link_writer) = tokio::io::split(astra_core_transport::new_link_stream(link));
+
+    let mut stream_reader = BufReader::new(&mut reader).into_inner();
+    let c1 = tokio::io::copy(&mut stream_reader, &mut link_writer);
+    let c2 = tokio::io::copy(&mut link_reader, &mut writer);
+    tokio::pin!(c1, c2);
+
+    tokio::select! {
+        _ = c1 => {},
+        _ = c2 => {},
+    };
+    Ok(())
+}
+
+/// Perform hysteria authentication on the first stream.
+/// Returns Ok if auth passes, Err otherwise.
+pub async fn hysteria_auth_first_stream(
+    conn: &quinn::Connection,
+    expected_password: &str,
+) -> Result<(), String> {
+    let (mut send, mut recv) = conn.accept_bi().await
+        .map_err(|e| format!("hysteria: accept auth stream: {}", e))?;
+
+    let buf = recv.read_to_end(4096).await
+        .map_err(|e| format!("hysteria: read auth: {}", e))?;
+
+    let auth_req: AuthRequest = serde_json::from_slice(&buf)
+        .map_err(|e| format!("hysteria: parse auth: {}", e))?;
+
+    if auth_req.auth != expected_password {
+        let resp = AuthResponse { ok: false, error: "invalid password".into() };
+        let body = serde_json::to_string(&resp)
+            .map_err(|e| format!("hysteria: serialize auth resp: {}", e))?;
+        send.write_all(body.as_bytes()).await
+            .map_err(|e| format!("hysteria: send auth resp: {}", e))?;
+        return Err("hysteria: auth rejected".into());
+    }
+
+    let resp = AuthResponse { ok: true, error: String::new() };
+    let body = serde_json::to_string(&resp)
+        .map_err(|e| format!("hysteria: serialize auth ok: {}", e))?;
+    send.write_all(body.as_bytes()).await
+        .map_err(|e| format!("hysteria: send auth ok: {}", e))?;
+    send.finish().map_err(|e| format!("hysteria: finish auth: {}", e))?;
+
+    Ok(())
+}
+
+#[async_trait::async_trait]
+impl InboundHandler for HysteriaInbound {
+    async fn process(
+        &self,
+        _session: Session,
+        _conn: Conn,
+        _dispatcher: Arc<dyn Dispatcher>,
+    ) -> ProxyResult<()> {
+        Err("hysteria inbound uses QUIC directly, not individual streams".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+    use quinn::congestion::Controller;
+
+    #[test]
+    fn test_parse_bandwidth_mbps() {
+        assert_eq!(parse_bandwidth("10 mbps").unwrap(), 10_000_000);
+        assert_eq!(parse_bandwidth("10mbps").unwrap(), 10_000_000);
+        assert_eq!(parse_bandwidth("10m").unwrap(), 10_000_000);
+        assert_eq!(parse_bandwidth("10 M").unwrap(), 10_000_000);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_kbps() {
+        assert_eq!(parse_bandwidth("500 kbps").unwrap(), 500_000);
+        assert_eq!(parse_bandwidth("500k").unwrap(), 500_000);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_gbps() {
+        assert_eq!(parse_bandwidth("1 gbps").unwrap(), 1_000_000_000);
+        assert_eq!(parse_bandwidth("2g").unwrap(), 2_000_000_000);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_bps() {
+        assert_eq!(parse_bandwidth("1000 bps").unwrap(), 1000);
+        assert_eq!(parse_bandwidth("500b").unwrap(), 500);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_numeric() {
+        assert_eq!(parse_bandwidth("5").unwrap(), 5_000_000);
+        assert_eq!(parse_bandwidth("0.5").unwrap(), 500_000);
+    }
+
+    #[test]
+    fn test_parse_bandwidth_invalid() {
+        assert!(parse_bandwidth("").is_err());
+        assert!(parse_bandwidth("abc").is_err());
+    }
+
+    #[test]
+    fn test_brutal_controller_initial_cwnd() {
+        let ctrl = BrutalController::new(10_000_000);
+        assert!(ctrl.window() >= 1250000, "10Mbps target window");
+    }
+
+    #[test]
+    fn test_brutal_controller_min_cwnd() {
+        let ctrl = BrutalController::new(1000);
+        assert_eq!(ctrl.initial_window(), 2048);
+        assert!(ctrl.window() >= 2048);
+    }
+
+    #[test]
+    fn test_brutal_controller_on_loss_reduction() {
+        let mut ctrl = BrutalController::new(10_000_000);
+        let initial = ctrl.window();
+        ctrl.on_congestion_event(Instant::now(), Instant::now(), true, 1000);
+        assert!(ctrl.window() < initial, "cwnd should reduce on loss");
+        assert!(ctrl.window() >= 2048, "cwnd should not go below min");
+    }
+
+    #[test]
+    fn test_brutal_controller_on_loss_non_persistent() {
+        let mut ctrl = BrutalController::new(10_000_000);
+        let initial = ctrl.window();
+        // Non-persistent loss with 0 lost_bytes should NOT reduce cwnd
+        ctrl.on_congestion_event(Instant::now(), Instant::now(), false, 0);
+        assert_eq!(ctrl.window(), initial, "non-persistent loss with 0 lost should not reduce");
+    }
+
+    #[test]
+    fn test_hysteria_config_serde() {
+        let json = r#"{
+            "server": "example.com:443",
+            "serverName": "example.com",
+            "password": "secret",
+            "up": "10 mbps",
+            "down": "100 mbps"
+        }"#;
+        let cfg: HysteriaConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.server.as_deref(), Some("example.com:443"));
+        assert_eq!(cfg.server_name.as_deref(), Some("example.com"));
+        assert_eq!(cfg.password, "secret");
+        assert_eq!(cfg.up, "10 mbps");
+        assert_eq!(cfg.down, "100 mbps");
+        assert!(cfg.obfs.is_none());
+    }
+
+    #[test]
+    fn test_hysteria_config_with_obfs() {
+        let json = r#"{"password":"x","up":"1m","down":"1m","obfs":"f4.com"}"#;
+        let cfg: HysteriaConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.obfs.as_deref(), Some("f4.com"));
+    }
+
+    #[test]
+    fn test_auth_request_serialize() {
+        let req = AuthRequest { auth: "mypassword".into() };
+        let json = serde_json::to_string(&req).unwrap();
+        assert_eq!(json, r#"{"auth":"mypassword"}"#);
+    }
+
+    #[test]
+    fn test_auth_response_ok() {
+        let resp = AuthResponse { ok: true, error: String::new() };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains(r#""ok":true"#));
+        assert!(!json.contains("error"));
+    }
+
+    #[test]
+    fn test_auth_response_error() {
+        let resp = AuthResponse { ok: false, error: "bad password".into() };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains(r#""ok":false"#));
+        assert!(json.contains(r#""error":"bad password""#));
+    }
+
+    #[test]
+    fn test_hysteria_inbound_config() {
+        let cfg = HysteriaInboundConfig {
+            password: "test".into(),
+            obfs: None,
+        };
+        let handler = HysteriaInbound::new(cfg);
+        assert_eq!(handler.password(), "test");
+    }
+
+    #[test]
+    fn test_hysteria_inbound_config_with_obfs() {
+        let cfg = HysteriaInboundConfig {
+            password: "secret".into(),
+            obfs: Some("f4.com".into()),
+        };
+        assert_eq!(cfg.obfs.as_deref(), Some("f4.com"));
+    }
+
 }

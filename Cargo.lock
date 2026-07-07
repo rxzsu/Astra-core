@@ -513,6 +513,7 @@ dependencies = [
  "astra-core-mux",
  "astra-core-net",
  "astra-core-proxy",
+ "astra-core-proxy-hysteria",
  "astra-core-session",
  "astra-core-sniffing",
  "astra-core-transport",

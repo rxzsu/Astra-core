@@ -669,11 +669,45 @@ pub fn build_inbound_handler(
 
             Arc::new(astra_core_proxy_trojan::inbound::Handler::new(server_cfg))
         }
+        "hysteria" => {
+            let password = config.settings
+                .as_ref()
+                .and_then(|s| s.get("password"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let obfs = config.settings
+                .as_ref()
+                .and_then(|s| s.get("obfs"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let in_cfg = astra_core_proxy_hysteria::HysteriaInboundConfig {
+                password: password.clone(),
+                obfs: obfs.clone(),
+            };
+            Arc::new(astra_core_proxy_hysteria::HysteriaInbound::new(in_cfg))
+        }
         p => return Err(format!("unsupported inbound protocol: {}", p)),
     };
 
     let listen_addr = get_listen_addr(config);
     let mut handler = AlwaysOnInboundHandler::new(tag, proxy, listen_addr);
+
+    // If hysteria, set up hysteria-specific config
+    if config.protocol == "hysteria" {
+        let password = config.settings
+            .as_ref()
+            .and_then(|s| s.get("password"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let obfs = config.settings
+            .as_ref()
+            .and_then(|s| s.get("obfs"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        handler = handler.with_hysteria(password, obfs);
+    }
 
     // Determine listen network from protocol config
     if let Some(settings) = config.settings.as_ref() {

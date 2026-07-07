@@ -107,6 +107,28 @@ async fn main() {
 
     tracing::info!("astra-core started. press Ctrl+C to stop.");
 
-    tokio::signal::ctrl_c().await.expect("failed to listen for ctrl-c");
+    // Wait for shutdown signal: Ctrl+C or SIGTERM
+    let ctrl_c = tokio::signal::ctrl_c();
+    #[cfg(unix)]
+    let mut sigterm = {
+        let sig = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate());
+        sig.ok()
+    };
+
+    #[cfg(unix)]
+    {
+        tokio::select! {
+            _ = ctrl_c => {},
+            _ = sigterm.as_mut().unwrap().recv() => {},
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        ctrl_c.await.expect("failed to listen for ctrl-c");
+    }
+
     tracing::info!("shutting down...");
+    // Give spawned tasks a moment to clean up
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    tracing::info!("goodbye.");
 }

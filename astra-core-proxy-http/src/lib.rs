@@ -166,3 +166,55 @@ impl Default for Handler {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_basic_auth_valid() {
+        let creds = base64::engine::general_purpose::STANDARD.encode("user:pass");
+        let header = format!("Basic {}", creds);
+        let result = parse_basic_auth(&header);
+        assert_eq!(result, Some(("user".into(), "pass".into())));
+    }
+
+    #[test]
+    fn test_parse_basic_auth_no_prefix() {
+        assert_eq!(parse_basic_auth("Bearer token"), None);
+        assert_eq!(parse_basic_auth(""), None);
+    }
+
+    #[test]
+    fn test_parse_basic_auth_invalid_base64() {
+        assert_eq!(parse_basic_auth("Basic !!!invalid!!!"), None);
+    }
+
+    #[test]
+    fn test_parse_basic_auth_no_colon() {
+        let encoded = base64::engine::general_purpose::STANDARD.encode("justuser");
+        assert_eq!(parse_basic_auth(&format!("Basic {}", encoded)), None);
+    }
+
+    #[test]
+    fn test_parse_basic_auth_empty_password() {
+        let encoded = base64::engine::general_purpose::STANDARD.encode("user:");
+        let result = parse_basic_auth(&format!("Basic {}", encoded));
+        assert_eq!(result, Some(("user".into(), "".into())));
+    }
+
+    #[test]
+    fn test_http_config_has_account() {
+        let mut cfg = HttpConfig::default();
+        cfg.accounts.insert("alice".into(), "secret".into());
+        assert!(cfg.has_account("alice", "secret"));
+        assert!(!cfg.has_account("alice", "wrong"));
+        assert!(!cfg.has_account("bob", "secret"));
+    }
+
+    #[test]
+    fn test_http_config_no_accounts() {
+        let cfg = HttpConfig::default();
+        assert!(!cfg.has_account("any", "any"));
+    }
+}
