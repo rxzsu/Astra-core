@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::sync::{Arc, RwLock};
 
 use astra_core_config::Config;
 use astra_core_stats::StatsManager;
@@ -825,15 +826,50 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     if let Some(ref routing) = config.routing {
         for br in &routing.balancers {
             let strategy = BalancerStrategy::from_str(&br.strategy.r#type);
-            balancers.insert(
+            let balancer = Balancer::new(
                 br.tag.clone(),
-                Balancer::new(
-                    br.tag.clone(),
-                    br.selector.0.clone(),
-                    strategy,
-                    if br.fallback_tag.is_empty() { None } else { Some(br.fallback_tag.clone()) },
-                ),
+                br.selector.0.clone(),
+                strategy,
+                if br.fallback_tag.is_empty() { None } else { Some(br.fallback_tag.clone()) },
             );
+            balancers.insert(br.tag.clone(), balancer);
+        }
+    }
+
+    // Start observatory if configured — injects alive tracking into each balancer
+    if let Some(ref obs_cfg) = config.observatory {
+        if obs_cfg.enable && !obs_cfg.selector.is_empty() {
+            let alive_tags: Arc<RwLock<HashSet<String>>> = Arc::new(RwLock::new(HashSet::new()));
+            for tag in &obs_cfg.selector {
+                alive_tags.write().unwrap().insert(tag.clone());
+            }
+
+            let probe_host = obs_cfg.probe_url.as_deref()
+                .and_then(|u| u.split(':').next())
+                .unwrap_or("1.1.1.1")
+                .to_string();
+            let probe_port = obs_cfg.probe_url.as_deref()
+                .and_then(|u| u.split(':').nth(1))
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(80);
+            let interval = if obs_cfg.probe_interval > 0 { obs_cfg.probe_interval as u64 } else { 10 };
+
+            // Attach alive set to each balancer whose selector overlaps
+            for b in balancers.values_mut() {
+                if obs_cfg.selector.iter().any(|t| b.selector.contains(t)) {
+                    *b = b.clone().with_alive(alive_tags.clone());
+                }
+            }
+
+            let observatory = astra_core_observatory::Observatory::new(
+                obs_cfg.selector.clone(),
+                alive_tags,
+                probe_host,
+                probe_port,
+                interval,
+            );
+
+            observatory.start();
         }
     }
 

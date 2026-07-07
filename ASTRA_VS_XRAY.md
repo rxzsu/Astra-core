@@ -29,7 +29,7 @@
 | `app/dns/` | `astra-core-dns/` | ⚠️ No TCP DNS, no caching |
 | `app/log/` | — | ❌ Not ported (uses tracing) |
 | `app/metrics/` | — | ❌ Prometheus metrics |
-| `app/observatory/` | — | ❌ Outbound health checks |
+| `app/observatory/` | `astra-core-observatory/` | ✅ TCP probe + balancer failover |
 | `app/policy/` | `astra-core-policy/` | ✅ Complete |
 | `app/proxyman/` | `astra-core-proxyman/` | ✅ Complete |
 | `app/reverse/` | `astra-core-app-reverse/` | ✅ Complete |

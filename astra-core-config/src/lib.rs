@@ -31,6 +31,8 @@ pub struct Config {
     pub stats: Option<Value>,
     #[serde(default)]
     pub reverse: Option<ReverseConfig>,
+    #[serde(default)]
+    pub observatory: Option<ObservatoryConfig>,
     #[serde(default, rename = "fakeDns")]
     pub fake_dns: Option<serde_json::Value>,
 }
@@ -46,6 +48,24 @@ pub struct APIConfig {
     #[serde(default)]
     pub services: Vec<String>,
 }
+
+/// Observatory config (health check).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservatoryConfig {
+    #[serde(default)]
+    pub selector: Vec<String>,
+    #[serde(default = "default_probe_interval")]
+    pub probe_interval: u32,
+    #[serde(default)]
+    pub probe_type: String,
+    #[serde(default)]
+    pub probe_url: Option<String>,
+    #[serde(default)]
+    pub enable: bool,
+}
+
+fn default_probe_interval() -> u32 { 10 }
 
 /// Reverse proxy config.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

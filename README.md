@@ -49,7 +49,7 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | Feature | Status |
 |---------|--------|
 | REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
-| Observatory (health check) | Not ported |
+| Observatory (health check) | ✅ TCP probe + balancer integration |
 
 ## Architecture
 
@@ -92,6 +92,7 @@ astra-core/
 ├── astra-core-transport-ws/        — WebSocket
 ├── astra-core-stats/               — Traffic counters (Counter, Channel, StatsManager)
 ├── astra-core-app-grpc/            — gRPC API server (HandlerService + StatsService)
+├── astra-core-observatory/        — Health checks + balancer auto-failover
 └── astra-core-main/               — Entrypoint
 
 website/                     — Vue + Tailwind + motion-v landing page
