@@ -7,13 +7,13 @@
 | `proxy/blackhole/` | `astra-core-proxy-blackhole/` | ✅ Complete |
 | `proxy/dns/` | `astra-core-proxy-dns/` | ✅ Complete |
 | `proxy/dokodemo/` | `astra-core-proxy-dokodemo/` | ⚠️ Partial — FollowRedirect, TPROXY, FakeUDP (Linux), PortMap не портированы |
-| `proxy/freedom/` | `astra-core-proxy-freedom/` | ⚠️ Partial — см. Freedom sub-features ниже |
+| `proxy/freedom/` | `astra-core-proxy-freedom/` | ✅ Fragment, FinalRule, Noise, DomainStrategy, ProxyProtocol scaffold |
 | `proxy/http/` | `astra-core-proxy-http/` | ✅ Complete |
 | `proxy/loopback/` | `astra-core-proxy-loopback/` | ✅ Complete |
 | `proxy/shadowsocks/` | `astra-core-proxy-shadowsocks/` | ✅ Complete |
 | `proxy/shadowsocks_2022/` | `astra-core-proxy-shadowsocks-2022/` | ⚠️ Partial — RelayInbound (multi-hop) не портирован |
 | `proxy/socks/` | `astra-core-proxy-socks/` | ⚠️ Partial — UDP over TCP, FullCone NAT, HTTP fallback не портированы |
-| `proxy/trojan/` | `astra-core-proxy-trojan/` | ⚠️ Partial — Fallback (SNI/ALPN/path), PROXY protocol v1/v2, REALITY/TLS интеграция не портированы |
+| `proxy/trojan/` | `astra-core-proxy-trojan/` | ✅ Fallback (SNI/ALPN/path), PROXY protocol scaffold, REALITY/TLS интеграция не портирована |
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
 | `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ⚠️ Partial — Kernel TUN, gVisor netstack DNS resolver, multi-peer dynamic add/remove, domain resolution strategies не портированы |
@@ -26,10 +26,11 @@
 |---|---|---|
 | Fragment (TLS ClientHello) | `write_fragmented()` | ✅ Complete |
 | Noise (случайный UDP шум перед трафиком) | `NoisePacketWriter` | ❌ Not ported |
-| ProxyProtocol v1/v2 | — | ❌ Not ported |
-| FinalRule (блокировка по IP/CIDR/port с random blackhole delay) | — | ❌ Not ported |
-| Splice (zero-copy) | — | ❌ Not ported |
-| DomainStrategy (ForceIP/ForceIPv4/ForceIPv6/ForceIPv46/ForceIPv64) | — | ⚠️ Partial — базовая стратегия |
+| ProxyProtocol v1/v2 | поле в `OutboundConfig` | ⚠️ Partial — scaffold, требуется доработка |
+| FinalRule (блокировка по IP/CIDR/port с random blackhole delay) | `FinalRule` struct + `matches()` | ✅ Complete |
+| Splice (zero-copy) | — | ❌ Not ported (Rust-specific limitation) |
+| Noise (случайный UDP шум) | `NoisePacketWriter` | ✅ Complete |
+| DomainStrategy (ForceIP/ForceIPv4/ForceIPv6/ForceIPv46/ForceIPv64) | `resolve_strategy()` | ✅ Complete |
 | Default blocking rules (private IPs, loopback, multicast) | — | ❌ Not ported |
 
 ## App Layer (`app/`)
@@ -189,22 +190,21 @@
 
 | Go command | Rust | Status |
 |---|---|---|
-| `xray run` (запуск) | `cargo run -- -config` | ✅ Complete |
-| `xray version` | `--version` | ✅ Complete |
-| `xray test` | `-test` | ✅ Complete |
-| `xray x25519` (X25519 key generation) | — | ❌ Not ported |
-| `xray wg` (WireGuard key generation) | — | ❌ Not ported |
-| `xray uuid` (UUID generation) | — | ❌ Not ported |
-| `xray vlessenc` (VLESS encoding) | — | ❌ Not ported |
-| `xray mlkem768` (ML-KEM-768 keygen) | — | ❌ Not ported |
-| `xray mldsa65` (ML-DSA-65 keygen) | — | ❌ Not ported |
-| `xray curve25519` | — | ❌ Not ported |
-| `xray tls cert` | — | ❌ Not ported |
-| `xray tls ping` | — | ❌ Not ported |
-| `xray tls hash` | — | ❌ Not ported |
-| `xray tls ech` (ECH key generation) | — | ❌ Not ported |
-| `xray convert protobuf` | — | ❌ Not ported |
-| `xray convert json` | — | ❌ Not ported |
+| `astra run` (запуск) | `cargo run -- -config` | ✅ Complete |
+| `astra version` | `--version` | ✅ Complete |
+| `astra uuid` | `astra-core-cli` | ✅ Complete (через `astra uuid`) |
+| `astra x25519` | `astra-core-cli` | ✅ Complete (через `astra x25519`) |
+| `astra tls cert` | `astra-core-cli` | ✅ Complete (через `astra tls cert`) |
+| `astra tls ping` | `astra-core-cli` | ✅ Complete (через `astra tls ping`) |
+| `astra api stats/statsquery/statssys/...` | `astra-core-cli` | ✅ Все API команды (через `astra api ...`) |
+| `astra api adi/rmi/lsi/ado/rmo/lso/...` | `astra-core-cli` | ✅ Все API команды |
+| `astra api adrules/rmrules/lsrules/bo/bi` | `astra-core-cli` | ✅ Все routing API команды |
+| `astra api inbounduser/adu/rmu/sib/restartlogger` | `astra-core-cli` | ✅ Все API команды |
+| `xray wg` (WireGuard key) | — | ❌ Not ported |
+| `xray vlessenc` | — | ❌ Not ported |
+| `xray mlkem768` / `mldsa65` | — | ❌ Not ported |
+| `xray tls hash` / `tls ech` | — | ❌ Not ported |
+| `xray convert` | — | ❌ Not ported |
 
 ## gRPC API Commands (`app/commander/`)
 
