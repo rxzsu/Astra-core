@@ -50,11 +50,6 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | TCP keepalive + socket options | ✅ |
 | TLS (rustls 0.23, server/client) | ✅ |
 
-### Missing / In Progress
-| Feature | Status |
-|---------|--------|
-| REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
-
 ### Recently Added
 | Feature | Status |
 |---------|--------|
@@ -62,6 +57,25 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | TCP DNS (tcp:// nameserver) | ✅ RFC 1035 TCP DNS queries with 2-byte length prefix |
 | Hysteria protocol | ✅ QUIC-based with Brutal congestion control, password auth, connection pool |
 | H2 transport | ✅ Native HTTP/2 transport (h2 crate), inbound + outbound, TLS required |
+| DoH / DoQ / h2c DNS | ✅ DNS-over-HTTPS (RFC 8484), DNS-over-QUIC (RFC 9250), HTTP/2 cleartext |
+| EDNS0 Client Subnet | ✅ RFC 7871 EDNS0 client subnet option (IPv4 /24, IPv6 /96) |
+| DNS cache + serveStale | ✅ CacheController with configurable stale TTL and background refresh |
+| Parallel DNS queries | ✅ Concurrent query to all nameservers, first success wins |
+| Domain priority routing | ✅ `!` (skipFallback) / `+` (finalQuery) tags, per-domain nameserver selection |
+| StaticHosts proxiedDomain | ✅ Domain replacement chaining (`a → b → c → IP`, max depth 5) |
+| YAML / TOML config | ✅ Multi-format config loading via serde_yaml + toml, auto-detect by extension |
+| JSON5/JSONC comments | ✅ Byte-by-byte state machine stripping `//`, `/* */`, `#` comments |
+| Config override/merge | ✅ Multiple config file merging (replace by tag, prepend/append outbounds) |
+| RoutingService gRPC API | ✅ AddRule, RemoveRule, ListRule, OverrideBalancerTarget, GetBalancerInfo |
+| Extended API services | ✅ AlterInbound (add/remove users), GetInboundUsers, LoggerService, GetOnlineStats |
+
+### Missing / In Progress
+| Feature | Status |
+|---------|--------|
+| REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
+| TUN / gVisor stack | ❌ Not ported |
+| Browser Dialer | ❌ Not ported |
+| FinalMask traffic obfuscation | ❌ Not ported |
 
 ## Architecture
 
@@ -70,10 +84,10 @@ astra-core/
 ├── astra-core-app/         — Builder: wires config → handlers → dispatcher
 ├── astra-core-app-reverse/ — Reverse proxy (bridge/portal)
 ├── astra-core-buf/         — Buffer pool, reader/writer utilities
-├── astra-core-config/      — Config parsing (serde, JSON)
+├── astra-core-config/      — Config parsing (JSON/YAML/TOML, JSON5 comments, merge/override)
 ├── astra-core-crypto/      — AES, ChaCha20, auth, chunk encryption
 ├── astra-core-dispatcher/  — DefaultDispatcher: routing + DNS + FakeDNS
-├── astra-core-dns/         — DNS resolver (UDP, hosts, Fake DNS)
+├── astra-core-dns/         — DNS resolver (UDP, TCP, DoH, DoQ, h2c, EDNS0, cache, FakeDNS, parallel, priority routing)
 ├── astra-core-mux/         — Mux framing, session management
 ├── astra-core-net/         — Address, Destination, Port, Network
 ├── astra-core-policy/      — Session/system policies, timeouts
@@ -104,7 +118,7 @@ astra-core/
 ├── astra-core-transport-splithttp/ — SplitHTTP / XHTTP
 ├── astra-core-transport-ws/        — WebSocket
 ├── astra-core-stats/               — Traffic counters (Counter, Channel, StatsManager)
-├── astra-core-app-grpc/            — gRPC API server (HandlerService + StatsService)
+├── astra-core-app-grpc/            — gRPC API server (HandlerService, StatsService, RoutingService, LoggerService)
 ├── astra-core-observatory/        — Health checks + balancer auto-failover
 ├── astra-core-geodata/            — GeoIP / GeoSite .dat loader (prost protobuf)
 ├── astra-core-metrics/            — Prometheus /metrics endpoint
