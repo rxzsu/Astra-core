@@ -650,6 +650,42 @@ pub fn build_inbound_handler(
 
             Arc::new(astra_core_proxy_shadowsocks::inbound::Handler::new(server_cfg))
         }
+        "shadowsocks-2022" => {
+            let settings = config.settings.as_ref().ok_or("ss2022 inbound requires settings")?;
+
+            // Check for relay config (destinations array)
+            if let Some(dests) = settings.get("destinations").and_then(|v| v.as_array()) {
+                let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("2022-blake3-aes-256-gcm");
+                let cipher = astra_core_proxy_shadowsocks_2022::protocol::CipherType::from_str(method)
+                    .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
+                use base64::Engine;
+                let mut destinations = Vec::new();
+                for d in dests {
+                    let key_b64 = d.get("key").and_then(|v| v.as_str()).unwrap_or("");
+                    let key_raw = base64::engine::general_purpose::STANDARD.decode(key_b64.as_bytes())
+                        .map_err(|e| format!("dest key decode: {}", e))?;
+                    let key = astra_core_proxy_shadowsocks_2022::protocol::derive_master_key(&key_raw, cipher.key_size());
+                    let address = d.get("address").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let port = d.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
+                    destinations.push(astra_core_proxy_shadowsocks_2022::inbound::RelayDestination {
+                        key, address, port,
+                        email: d.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    });
+                }
+                Arc::new(astra_core_proxy_shadowsocks_2022::inbound::RelayInbound::new(cipher, destinations))
+            } else {
+                // Single user inbound
+                let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("2022-blake3-aes-256-gcm");
+                let key_b64 = settings.get("key").and_then(|v| v.as_str()).unwrap_or("");
+                let cipher = astra_core_proxy_shadowsocks_2022::protocol::CipherType::from_str(method)
+                    .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
+                use base64::Engine;
+                let key_raw = base64::engine::general_purpose::STANDARD.decode(key_b64.as_bytes())
+                    .map_err(|e| format!("ss2022 key decode: {}", e))?;
+                let key = astra_core_proxy_shadowsocks_2022::protocol::derive_master_key(&key_raw, cipher.key_size());
+                Arc::new(astra_core_proxy_shadowsocks_2022::inbound::Handler::new(cipher, key))
+            }
+        }
         "trojan" => {
             let cfg: TrojanInboundConfig = config
                 .settings

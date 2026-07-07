@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn test_server_config() {
         let users = vec![Account::new("user1".into()), Account::new("user2".into())];
-        let cfg = ServerConfig { users: users.clone() };
+        let cfg = ServerConfig { users: users.clone(), fallbacks: vec![] };
         assert_eq!(cfg.users.len(), 2);
     }
 }
