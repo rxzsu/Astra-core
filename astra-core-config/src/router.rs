@@ -11,6 +11,10 @@ pub struct RouterConfig {
     pub domain_strategy: String,
     #[serde(default)]
     pub balancers: Vec<BalancingRule>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub geoip_dat_path: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub geosite_dat_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

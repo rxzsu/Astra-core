@@ -34,9 +34,6 @@ impl DomainMatcher {
                 }
             } else if d.starts_with('.') {
                 DomainPattern::Subdomain(d.to_lowercase())
-            } else if d == "geosite:google" || d.starts_with("geosite:") {
-                // Simplified: treat geosite as exact domain match
-                DomainPattern::Keyword(d.to_lowercase())
             } else {
                 DomainPattern::Exact(d.to_lowercase())
             }

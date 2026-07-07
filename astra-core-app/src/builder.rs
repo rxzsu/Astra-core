@@ -19,6 +19,7 @@ use astra_core_proxyman::outbound;
 use astra_core_proxyman::outbound::{MuxConfig, TlsConfig};
 use astra_core_proxyman::transport;
 use astra_core_proxy_vless::Validator as VLessValidator;
+use astra_core_geodata::GeoDataManager;
 use astra_core_routing::{Balancer, BalancerStrategy, DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
     ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher, NetworkMatcher,
     RouteRule, Router};
@@ -702,7 +703,56 @@ pub fn build_inbound_handler(
     Ok(handler)
 }
 
-fn build_router(config: &Config) -> Result<Router, String> {
+fn expand_geoip_entry(code: &str, geo: &GeoDataManager) -> Result<Vec<String>, String> {
+    let uc = code.to_uppercase();
+    if uc == "PRIVATE" {
+        return Ok(vec![
+            "10.0.0.0/8".into(),
+            "172.16.0.0/12".into(),
+            "192.168.0.0/16".into(),
+            "100.64.0.0/10".into(),
+            "fd00::/8".into(),
+        ]);
+    }
+    let entry = geo.geoip.get(&uc).ok_or_else(|| format!("geoip code not found: {}", code))?;
+    let mut cidrs = Vec::with_capacity(entry.cidr.len());
+    for c in &entry.cidr {
+        if c.ip.len() == 4 {
+            cidrs.push(format!("{}.{}.{}.{}/{}", c.ip[0], c.ip[1], c.ip[2], c.ip[3], c.prefix));
+        } else if c.ip.len() == 16 {
+            let ip = std::net::Ipv6Addr::new(
+                ((c.ip[0] as u16) << 8) | c.ip[1] as u16,
+                ((c.ip[2] as u16) << 8) | c.ip[3] as u16,
+                ((c.ip[4] as u16) << 8) | c.ip[5] as u16,
+                ((c.ip[6] as u16) << 8) | c.ip[7] as u16,
+                ((c.ip[8] as u16) << 8) | c.ip[9] as u16,
+                ((c.ip[10] as u16) << 8) | c.ip[11] as u16,
+                ((c.ip[12] as u16) << 8) | c.ip[13] as u16,
+                ((c.ip[14] as u16) << 8) | c.ip[15] as u16,
+            );
+            cidrs.push(format!("{ip}/{pfx}", ip = ip, pfx = c.prefix));
+        }
+    }
+    Ok(cidrs)
+}
+
+fn expand_geosite_entry(code: &str, geo: &GeoDataManager) -> Result<Vec<String>, String> {
+    let uc = code.to_uppercase();
+    let site = geo.geosite.get(&uc).ok_or_else(|| format!("geosite code not found: {}", code))?;
+    let mut patterns = Vec::with_capacity(site.domains.len());
+    for d in &site.domains {
+        let val = &d.value;
+        match d.r#type {
+            0 | 2 => patterns.push(format!(".{}", val.trim_start_matches('.'))),
+            3 => patterns.push(val.clone()),
+            1 => patterns.push(format!("regexp:{}", val)),
+            _ => patterns.push(format!(".{}", val.trim_start_matches('.'))),
+        }
+    }
+    Ok(patterns)
+}
+
+fn build_router(config: &Config, geo: &GeoDataManager) -> Result<Router, String> {
     let routing = config.routing.as_ref();
     let rules_cfg = routing.map(|r| &r.rules).map(Vec::as_slice).unwrap_or(&[]);
     let domain_strategy = routing
@@ -716,11 +766,27 @@ fn build_router(config: &Config) -> Result<Router, String> {
 
         let domain_list = rule_cfg.domain.as_ref().or(rule_cfg.domains.as_ref());
         if let Some(domains) = domain_list {
-            rule.add_condition(Box::new(DomainMatcher::new(&domains.0)));
+            let mut expanded: Vec<String> = Vec::new();
+            for d in &domains.0 {
+                if let Some(code) = d.strip_prefix("geosite:") {
+                    expanded.extend(expand_geosite_entry(code, geo)?);
+                } else {
+                    expanded.push(d.clone());
+                }
+            }
+            rule.add_condition(Box::new(DomainMatcher::new(&expanded)));
         }
 
         if let Some(ips) = &rule_cfg.ip {
-            rule.add_condition(Box::new(IpMatcher::new(&ips.0)?));
+            let mut expanded: Vec<String> = Vec::new();
+            for ip in &ips.0 {
+                if let Some(code) = ip.strip_prefix("geoip:") {
+                    expanded.extend(expand_geoip_entry(code, geo)?);
+                } else {
+                    expanded.push(ip.clone());
+                }
+            }
+            rule.add_condition(Box::new(IpMatcher::new(&expanded)?));
         }
 
         if let Some(ports) = &rule_cfg.port {
@@ -762,7 +828,16 @@ fn build_router(config: &Config) -> Result<Router, String> {
 }
 
 pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
-    let router = Arc::new(build_router(config)?);
+    let mut geo_manager = GeoDataManager::new();
+    if let Some(ref routing) = config.routing {
+        if !routing.geoip_dat_path.is_empty() {
+            geo_manager.load(&routing.geoip_dat_path).map_err(|e| format!("load geoip: {}", e))?;
+        }
+        if !routing.geosite_dat_path.is_empty() {
+            geo_manager.load(&routing.geosite_dat_path).map_err(|e| format!("load geosite: {}", e))?;
+        }
+    }
+    let router = Arc::new(build_router(config, &geo_manager)?);
 
     let dispatcher_cell: astra_core_proxy_loopback::DispatcherCell =
         Arc::new(std::sync::Mutex::new(None));

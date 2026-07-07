@@ -54,6 +54,11 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 |---------|--------|
 | REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
 
+### Recently Added
+| Feature | Status |
+|---------|--------|
+| GeoIP / GeoSite (geoip.dat, geosite.dat) | ✅ Load `.dat` files via prost protobuf; build routing matchers from `geoip:XX` / `geosite:XX` |
+
 ## Architecture
 
 ```
@@ -96,6 +101,7 @@ astra-core/
 ├── astra-core-stats/               — Traffic counters (Counter, Channel, StatsManager)
 ├── astra-core-app-grpc/            — gRPC API server (HandlerService + StatsService)
 ├── astra-core-observatory/        — Health checks + balancer auto-failover
+├── astra-core-geodata/            — GeoIP / GeoSite .dat loader (prost protobuf)
 ├── astra-core-metrics/            — Prometheus /metrics endpoint
 └── astra-core-main/               — Entrypoint
 

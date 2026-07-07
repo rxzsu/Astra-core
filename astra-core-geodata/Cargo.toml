@@ -1,0 +1,9 @@
+[package]
+name = "astra-core-geodata"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+prost = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

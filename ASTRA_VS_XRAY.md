@@ -68,8 +68,8 @@
 | `common/task/` | — (periodic tasks) | ✅ Via `tokio::time::interval` |
 | `common/fragment/` | `write_fragmented()` in freedom | ✅ Complete |
 | `common/platform/` | — (env flags) | ❌ Not ported |
-| `common/geodata/` | — | ❌ Not ported |
-| `common/geodata/geosite/` | — | ❌ Not ported |
+| `common/geodata/` | `astra-core-geodata/` | ✅ Complete (loads geoip.dat / geosite.dat via prost protobuf; `geoip:XX` / `geosite:XX` expansion in routing rules) |
+| `common/geodata/geosite/` | `astra-core-geodata/` | ✅ Complete (DomainType Plain/Regex/Domain/Full mapped to DomainMatcher) |
 
 ## Sockopt / Socket Options
 
@@ -77,8 +77,8 @@
 |---|---|---|
 | `send_through` (bind to interface) | — | ❌ Not ported |
 | `tproxy` (transparent proxy) | — | ❌ Not ported |
-| `tcpFastOpen` | — | ❌ Not ported |
-| `tcpKeepAlive` | — | ❌ Not ported |
+| `tcpFastOpen` | `astra-core-proxy` | ✅ `Handler::with_tcp_fast_open()` |
+| `tcpKeepAlive` | `astra-core-proxy` | ✅ `Handler::with_keepalive()` |
 | `mark` (netfilter mark) | — | ❌ Not ported |
 | `interface` (bind to device) | — | ❌ Not ported |
 | `acceptProxyProtocol` | — (HTTPUpgrade has it) | ❌ Not ported in all transports |
