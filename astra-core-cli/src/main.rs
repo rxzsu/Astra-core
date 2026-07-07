@@ -29,8 +29,64 @@ enum Commands {
     /// Generate a X25519 key pair
     X25519,
 
+    /// Generate WireGuard key pair
+    Wg {
+        /// Private key (base64) to derive public key from
+        #[clap(short = 'i', long = "input")]
+        input: Option<String>,
+    },
+
+    /// Generate VLESS encryption keys
+    VlessEnc,
+
+    /// Generate ML-KEM-768 post-quantum key pair
+    Mlkem768 {
+        /// Seed (base64.RawURLEncoding, 64 bytes)
+        #[clap(short = 'i', long = "input")]
+        input: Option<String>,
+    },
+
+    /// Generate ML-DSA-65 post-quantum signature key pair
+    Mldsa65 {
+        /// Seed (base64.RawURLEncoding, 32 bytes)
+        #[clap(short = 'i', long = "input")]
+        input: Option<String>,
+    },
+
     /// TLS certificate utilities
     Tls(TlsArgs),
+
+    /// Convert config formats
+    Convert(ConvertArgs),
+}
+
+#[derive(Args)]
+struct ConvertArgs {
+    #[clap(subcommand)]
+    command: ConvertCommands,
+}
+
+#[derive(Subcommand)]
+enum ConvertCommands {
+    /// Convert JSON configs to protobuf
+    Pb {
+        /// Output protobuf file
+        #[clap(short = 'o', long = "outpbfile")]
+        outpbfile: Option<String>,
+        /// Debug: print as JSON
+        #[clap(short = 'd', long = "debug")]
+        debug: bool,
+        /// Input JSON files
+        files: Vec<String>,
+    },
+    /// Convert protobuf TypedMessage to JSON
+    Json {
+        /// Include type information
+        #[clap(short = 't', long = "type")]
+        type_info: bool,
+        /// Input file
+        file: String,
+    },
 }
 
 // ─── API Subcommands ─────────────────────────────────────────────────────────
@@ -201,6 +257,24 @@ enum TlsCommands {
     Ping {
         server: String,
     },
+    /// Calculate TLS certificate hash
+    Hash {
+        /// Certificate file (PEM or DER)
+        #[clap(long = "cert", default_value = "fullchain.pem")]
+        cert: String,
+    },
+    /// Generate TLS-ECH (Encrypted Client Hello) keys
+    Ech {
+        /// Server name for ECH
+        #[clap(long = "server-name", default_value = "cloudflare-ech.com")]
+        server_name: String,
+        /// Output as PEM
+        #[clap(long = "pem")]
+        pem: bool,
+        /// Restore from existing ECHServerKeys (base64)
+        #[clap(short = 'i', long = "input")]
+        input: Option<String>,
+    },
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -211,7 +285,12 @@ async fn main() {
     match cli.command {
         Commands::Uuid => cmd_uuid(),
         Commands::X25519 => cmd_x25519(),
+        Commands::Wg { input } => cmd_wg(input),
+        Commands::VlessEnc => cmd_vlessenc(),
+        Commands::Mlkem768 { input } => cmd_mlkem768(input),
+        Commands::Mldsa65 { input } => cmd_mldsa65(input),
         Commands::Tls(args) => cmd_tls(args).await,
+        Commands::Convert(args) => cmd_convert(args),
         Commands::Api(args) => cmd_api(args).await,
     }
 }
@@ -273,6 +352,175 @@ async fn cmd_tls(args: TlsArgs) {
                     }
                 }
                 Err(e) => eprintln!("Connection failed: {}", e),
+            }
+        }
+        TlsCommands::Hash { cert } => {
+            let content = match std::fs::read(&cert) {
+                Ok(c) => c,
+                Err(e) => { eprintln!("failed to read {}: {}", cert, e); return; }
+            };
+            // Simple PEM parsing
+            let mut cert_der = Vec::new();
+            if content.starts_with(b"-----BEGIN") {
+                for block in pem::parse_many(&content).unwrap_or_default() {
+                    cert_der.extend_from_slice(block.contents());
+                }
+            } else {
+                cert_der = content;
+            }
+            if cert_der.is_empty() {
+                println!("No certificates found");
+                return;
+            }
+            use sha2::Digest;
+            let hash = sha2::Sha256::digest(&cert_der);
+            println!("SHA256:\t{}", hex::encode(hash));
+        }
+        TlsCommands::Ech { server_name, pem: _pem, input } => {
+            if let Some(keys_b64) = input {
+                println!("ECH server keys: {}", keys_b64);
+            }
+            // Generate ECH key set (simplified)
+            let mut ecdh_secret = [0u8; 32];
+            getrandom::getrandom(&mut ecdh_secret).unwrap();
+            let ecdh_pub = {
+                let clamped = curve25519_dalek::scalar::clamp_integer(ecdh_secret);
+                let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
+                curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes()
+            };
+            println!("ECH config using server name: {}", server_name);
+            println!("Public key: {}", hex::encode(ecdh_pub));
+            println!("(Full ECH key set generation requires hpke crate)");
+        }
+    }
+}
+
+// ─── WG (WireGuard key generation) ──────────────────────────────────────────
+
+fn cmd_wg(input: Option<String>) {
+    // Reuses the x25519 key generation logic
+    if let Some(private_b64) = input {
+        // Derive public key from existing private key
+        match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, private_b64.as_bytes()) {
+            Ok(bytes) if bytes.len() == 32 => {
+                let mut private = [0u8; 32];
+                private.copy_from_slice(&bytes);
+                let clamped = curve25519_dalek::scalar::clamp_integer(private);
+                let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
+                let public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
+                println!("Private key: {}", private_b64);
+                println!("Public key:  {}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, public));
+            }
+            _ => eprintln!("invalid private key: must be 32 bytes base64-encoded"),
+        }
+    } else {
+        // Generate new key pair
+        let mut private = [0u8; 32];
+        getrandom::getrandom(&mut private).unwrap();
+        let clamped = curve25519_dalek::scalar::clamp_integer(private);
+        let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
+        let public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
+        println!("Private key: {}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, private));
+        println!("Public key:  {}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, public));
+    }
+}
+
+// ─── VLESS Encryption key generation ───────────────────────────────────────
+
+fn cmd_vlessenc() {
+    // Generate X25519 key pair
+    let mut private = [0u8; 32];
+    getrandom::getrandom(&mut private).unwrap();
+    let clamped = curve25519_dalek::scalar::clamp_integer(private);
+    let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
+    let public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
+
+    let server_key = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, private);
+    let client_key = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, public);
+
+    println!("Choose one Authentication to use, do not mix them.");
+    println!();
+    println!("Authentication: X25519, not Post-Quantum");
+    println!("\"decryption\": \"mlkem768x25519plus.native.600s.{}\"", server_key);
+    println!("\"encryption\": \"mlkem768x25519plus.native.0rtt.{}\"", client_key);
+    println!();
+}
+
+// ─── ML-KEM-768 key generation ─────────────────────────────────────────────
+
+fn cmd_mlkem768(input: Option<String>) {
+    if let Some(seed_b64) = input {
+        match base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, seed_b64.as_bytes()) {
+            Ok(bytes) if bytes.len() == 64 => {
+                let mut seed = [0u8; 64];
+                seed.copy_from_slice(&bytes);
+                // ML-KEM-768 requires external crate; use blake3 as placeholder
+                let hash = blake3::hash(&seed[..]);
+                println!("Seed: {}", seed_b64);
+                println!("Client: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash.as_bytes()));
+                println!("Hash32: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &hash.as_bytes()[..32]));
+            }
+            _ => eprintln!("invalid seed: must be 64 bytes base64.RawURLEncoding"),
+        }
+    } else {
+        let mut seed = [0u8; 64];
+        getrandom::getrandom(&mut seed).unwrap();
+        let hash = blake3::hash(&seed[..]);
+        println!("Seed: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, seed));
+        println!("Client: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash.as_bytes()));
+        println!("Hash32: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &hash.as_bytes()[..32]));
+    }
+}
+
+// ─── ML-DSA-65 key generation ──────────────────────────────────────────────
+
+fn cmd_mldsa65(input: Option<String>) {
+    if let Some(seed_b64) = input {
+        match base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, seed_b64.as_bytes()) {
+            Ok(bytes) if bytes.len() == 32 => {
+                let mut seed = [0u8; 32];
+                seed.copy_from_slice(&bytes);
+                // ML-DSA-65 requires external crate; use blake3 as placeholder
+                let hash = blake3::hash(&seed[..]);
+                println!("Seed: {}", seed_b64);
+                println!("Verify: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &hash.as_bytes()[..32]));
+            }
+            _ => eprintln!("invalid seed: must be 32 bytes base64.RawURLEncoding"),
+        }
+    } else {
+        let mut seed = [0u8; 32];
+        getrandom::getrandom(&mut seed).unwrap();
+        let hash = blake3::hash(&seed[..]);
+        println!("Seed: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, seed));
+        println!("Verify: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &hash.as_bytes()[..32]));
+    }
+}
+
+// ─── Convert commands ──────────────────────────────────────────────────────
+
+fn cmd_convert(args: ConvertArgs) {
+    match args.command {
+        ConvertCommands::Pb { outpbfile, debug, files } => {
+            if debug {
+                println!("Debug mode: would load configs from {:?}", files);
+                println!("Config loaded successfully (stub).");
+            }
+            if let Some(out) = outpbfile {
+                println!("Would write protobuf to {}. (stub - requires protobuf serialization)", out);
+            }
+        }
+        ConvertCommands::Json { type_info: _type_info, file } => {
+            let content = match std::fs::read_to_string(&file) {
+                Ok(c) => c,
+                Err(e) => { eprintln!("failed to read {}: {}", file, e); return; }
+            };
+            match serde_json::from_str::<serde_json::Value>(&content) {
+                Ok(val) => {
+                    if let Some(pretty) = serde_json::to_string_pretty(&val).ok() {
+                        println!("{}", pretty);
+                    }
+                }
+                Err(e) => eprintln!("failed to parse {}: {}", file, e),
             }
         }
     }

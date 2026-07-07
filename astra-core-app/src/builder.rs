@@ -138,6 +138,9 @@ pub fn build_outbound_handler(
                         Some(parse_destination(&cfg.redirect)?)
                     },
                     fragment,
+                    noise: None,
+                    final_rules: vec![],
+                    proxy_protocol: 0,
                 },
             ))
         }

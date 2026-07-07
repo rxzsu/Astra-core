@@ -210,19 +210,29 @@ dependencies = [
  "astra-core-app-grpc",
  "astra-core-config",
  "base64",
+ "blake3",
  "clap",
  "curve25519-dalek 4.1.3",
  "getrandom 0.2.17",
  "hex",
+ "pem",
  "rand 0.10.2",
  "rcgen",
  "rustls",
  "serde_json",
+ "sha2 0.11.0",
  "tokio",
  "tokio-rustls",
  "tonic",
  "uuid",
  "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "astra-core-common"
+version = "0.1.0"
+dependencies = [
+ "rand 0.10.2",
 ]
 
 [[package]]

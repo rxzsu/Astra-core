@@ -666,7 +666,7 @@ mod tests {
 // ─── Noise Config (Go: proxy/freedom/freedom.go Noise field) ────────────────
 
 /// Random noise sent before the first UDP packet.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NoiseConfig {
     pub length_min: u64,
     pub length_max: u64,
@@ -732,13 +732,14 @@ impl NoisePacketWriter {
 
 // ─── FinalRule (Go: proxy/freedom/freedom.go FinalRule) ──────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum RuleAction {
+    #[default]
     Allow,
     Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FinalRule {
     pub action: RuleAction,
     pub networks: Vec<String>,   // "tcp", "udp"

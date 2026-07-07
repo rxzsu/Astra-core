@@ -24,3 +24,6 @@ base64 = "0.22"
 tokio-rustls = { workspace = true }
 rustls = { workspace = true, features = ["ring"] }
 webpki-roots = { workspace = true }
+blake3 = "1"
+sha2 = { workspace = true }
+pem = "3"

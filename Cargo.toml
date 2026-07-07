@@ -46,6 +46,7 @@ members = [
 "astra-core-proxy-hysteria",
     "astra-core-transport-h2",
     "astra-core-cli",
+    "astra-core-common",
 ]
 
 [workspace.dependencies]
