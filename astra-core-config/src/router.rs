@@ -42,6 +42,8 @@ pub struct RoutingRule {
     pub protocol: Option<StringList>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attrs: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process: Option<StringList>,
 
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub outbound_tag: String,

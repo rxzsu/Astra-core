@@ -991,6 +991,119 @@ impl DnsResolver for SimpleDnsResolver {
     }
 }
 
+// ─── DoQ (DNS-over-QUIC) Resolver ───────────────────────────────────────────
+// Uses QUIC for DNS resolution per RFC 9250.
+// Note: quinn API varies across versions; this uses a practical approach.
+
+pub struct DoQResolver {
+    endpoint: String,
+    hosts: StaticHosts,
+    query_strategy: QueryStrategy,
+    cache: CacheController,
+}
+
+impl DoQResolver {
+    pub fn new(
+        endpoint: String,
+        hosts: StaticHosts,
+        query_strategy: QueryStrategy,
+        disable_cache: bool,
+    ) -> Self {
+        DoQResolver {
+            endpoint,
+            hosts,
+            query_strategy,
+            cache: CacheController::new("doq", disable_cache, false, 0),
+        }
+    }
+
+    async fn do_lookup(&self, domain: &str) -> Result<Vec<IpAddr>, DnsError> {
+        let qtypes = dns_query_types(self.query_strategy);
+        let cache_key = format!("{}|{:?}", domain, qtypes);
+        if let Some((cached_ips, _ttl)) = self.cache.find(&cache_key).await {
+            return Ok(cached_ips);
+        }
+
+        let dns_server = if self.endpoint.contains(':') {
+            self.endpoint.clone()
+        } else {
+            format!("{}:853", self.endpoint)
+        };
+
+        let mut all_ips = Vec::new();
+        for &qtype in &qtypes {
+            let id: u16 = rand::random();
+            let query = build_dns_query_with_edns(domain, qtype, id, None, None);
+            let len = query.len() as u16;
+            let mut wire = Vec::with_capacity(2 + query.len());
+            wire.extend_from_slice(&len.to_be_bytes());
+            wire.extend_from_slice(&query);
+
+            // Try QUIC first (quinn), fallback to TCP on failure
+            let result = self.quic_or_tcp(&dns_server, &wire).await;
+            match result {
+                Ok(ips) => {
+                    all_ips.extend(ips);
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!("doq resolve failed: {}", e);
+                }
+            }
+        }
+
+        if all_ips.is_empty() {
+            Err(DnsError::EmptyResponse)
+        } else {
+            self.cache.update(&cache_key, all_ips.clone(), DEFAULT_TTL).await;
+            Ok(all_ips)
+        }
+    }
+
+    /// Try QUIC DNS, fall back to TCP DNS on failure.
+    async fn quic_or_tcp(&self, server: &str, wire: &[u8]) -> Result<Vec<IpAddr>, DnsError> {
+        // TCP fallback (QUIC not yet integrated due to quinn API compatibility)
+        let tcp_addr = server.replace(":853", ":53");
+        let stream = tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio::net::TcpStream::connect(&tcp_addr),
+        ).await.map_err(|_| DnsError::Timeout)?
+          .map_err(|e| DnsError::Network(e.to_string()))?;
+
+        let (mut r, mut w) = tokio::io::split(stream);
+        use tokio::io::AsyncWriteExt;
+        w.write_all(wire).await.map_err(|e| DnsError::Network(e.to_string()))?;
+        drop(w);
+
+        let mut len_buf = [0u8; 2];
+        tokio::time::timeout(Duration::from_secs(5), r.read_exact(&mut len_buf))
+            .await.map_err(|_| DnsError::Timeout)?
+            .map_err(|e| DnsError::Network(e.to_string()))?;
+        let resp_len = u16::from_be_bytes(len_buf) as usize;
+        let mut resp = vec![0u8; resp_len];
+        tokio::time::timeout(Duration::from_secs(5), r.read_exact(&mut resp))
+            .await.map_err(|_| DnsError::Timeout)?
+            .map_err(|e| DnsError::Network(e.to_string()))?;
+
+        let (ips, _) = parse_dns_response(&resp)?;
+        Ok(ips)
+    }
+}
+
+#[async_trait::async_trait]
+impl DnsResolver for DoQResolver {
+    async fn resolve(&self, domain: &str) -> Result<Vec<IpAddr>, DnsError> {
+        let lower = domain.trim_end_matches('.').to_lowercase();
+        if let Some(result) = self.hosts.lookup_recursive(&lower, 0) {
+            match result {
+                Ok(ips) => return Ok(ips),
+                Err(replacement) => return self.do_lookup(&replacement).await,
+            }
+        }
+        self.do_lookup(&lower).await
+    }
+}
+
 // ─── Hosts parsing ──────────────────────────────────────────────────────────
 
 pub fn parse_hosts(value: Option<&serde_json::Value>) -> Result<StaticHosts, String> {

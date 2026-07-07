@@ -7,6 +7,7 @@ pub mod balancer;
 pub use matcher::{
     DomainMatcher, InboundTagMatcher, IpMatcher, Matcher, NetworkMatcher, PortMatcher,
     ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher,
+    ProcessNameMatcher, AttributeMatcher,
 };
 pub use rule::RouteRule;
 pub use router::{Router, RouteResult, DomainStrategy};

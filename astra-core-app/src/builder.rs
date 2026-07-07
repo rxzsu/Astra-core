@@ -6,7 +6,7 @@ use astra_core_stats::StatsManager;
 use hex;
 use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
-use astra_core_dns::{DnsResolver, UdpDnsResolver, TcpDnsResolver, SimpleDnsResolver, FakeDnsResolver, DoHResolver, NameServer, QueryStrategy, StaticHosts, parse_hosts};
+use astra_core_dns::{DnsResolver, UdpDnsResolver, TcpDnsResolver, SimpleDnsResolver, FakeDnsResolver, DoHResolver, DoQResolver, NameServer, QueryStrategy, StaticHosts, parse_hosts};
 use astra_core_proxy_shadowsocks_2022 as ss2022;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -22,6 +22,7 @@ use astra_core_proxy_vless::Validator as VLessValidator;
 use astra_core_geodata::GeoDataManager;
 use astra_core_routing::{Balancer, BalancerStrategy, DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
     ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher, NetworkMatcher,
+    ProcessNameMatcher, AttributeMatcher,
     RouteRule, Router};
 
 pub struct AppRuntime {
@@ -919,6 +920,24 @@ fn build_router(config: &Config, geo: &GeoDataManager) -> Result<Router, String>
             rule.add_condition(Box::new(UserMatcher::new(&users.0)));
         }
 
+        // Process name matching (Go: app/router/config.go BuildCondition)
+        if let Some(process_list) = &rule_cfg.process {
+            rule.add_condition(Box::new(ProcessNameMatcher::new(&process_list.0)));
+        }
+
+        // Attribute matching (Go: app/router/condition.go AttributeMatcher)
+        if let Some(attrs) = &rule_cfg.attrs {
+            if let Some(obj) = attrs.as_object() {
+                let mut attr_map = std::collections::HashMap::new();
+                for (k, v) in obj {
+                    if let Some(s) = v.as_str() {
+                        attr_map.insert(k.clone(), s.to_string());
+                    }
+                }
+                rule.add_condition(Box::new(AttributeMatcher::new(&attr_map)));
+            }
+        }
+
         if !rule.conditions.is_empty() {
             rules.push(rule);
         }
@@ -981,6 +1000,7 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
             let mut use_doq = false;
             let mut doh_url = String::new();
             let mut doq_endpoint = String::new();
+            let mut doq_endpoint = String::new();
             for sv in &dns.servers {
                 let mut expected_ips = Vec::new();
                 for s in &sv.expected_ips.0 {
@@ -1002,6 +1022,10 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                     use_doh = true;
                     doh_url = format!("https://{}", rest);
                     ("doh".into(), rest.to_string())
+                } else if let Some(rest) = raw.strip_prefix("quic+local://") {
+                    use_doq = true;
+                    doq_endpoint = rest.to_string();
+                    ("doq".into(), rest.to_string())
                 } else if let Some(rest) = raw.strip_prefix("quic+local://") {
                     use_doq = true;
                     doq_endpoint = rest.to_string();
@@ -1033,7 +1057,11 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                     query_strategy: QueryStrategy::from_str(&sv.query_strategy),
                 });
             }
-            if use_doh {
+            if use_doq {
+                Some(Arc::new(DoQResolver::new(
+                    doq_endpoint, hosts, query_strategy, disable_cache,
+                )) as Arc<dyn DnsResolver>)
+            } else if use_doh {
                 Some(Arc::new(DoHResolver::new(
                     doh_url, nameservers, hosts, query_strategy, disable_cache,
                 )) as Arc<dyn DnsResolver>)

@@ -240,3 +240,100 @@ impl Matcher for UserMatcher {
         }
     }
 }
+
+// ─── ProcessNameMatcher (Go: app/router/condition.go ProcessNameMatcher) ─────
+
+pub struct ProcessNameMatcher {
+    process_names: Vec<String>,
+    abs_paths: Vec<String>,
+    folders: Vec<String>,
+    match_self: bool,
+}
+
+impl ProcessNameMatcher {
+    pub fn new(names: &[String]) -> Self {
+        let mut process_names = Vec::new();
+        let mut abs_paths = Vec::new();
+        let mut folders = Vec::new();
+        let mut match_self = false;
+
+        for name in names {
+            if name == "self/" {
+                match_self = true;
+                continue;
+            }
+            let name = name.replace('\\', "/");
+            if name.ends_with('/') {
+                folders.push(name);
+            } else if name.contains('/') {
+                abs_paths.push(name);
+            } else {
+                process_names.push(name.trim_end_matches(".exe").to_string());
+            }
+        }
+
+        ProcessNameMatcher { process_names, abs_paths, folders, match_self }
+    }
+}
+
+impl Matcher for ProcessNameMatcher {
+    fn matches(&self, ctx: &RoutingContext) -> bool {
+        // In Rust, process lookup is platform-specific and complex.
+        // This is a simplified implementation that checks the attributes hashmap
+        // which can be populated by the dispatcher with process info.
+        let process_name = match ctx.attributes.get("process_name") {
+            Some(n) => n,
+            None => return false,
+        };
+
+        if self.match_self {
+            // No os.Getpid() equivalent readily available in a cross-platform way
+            // Assume "self" doesn't match by default
+        }
+
+        if self.process_names.iter().any(|n| n == process_name) {
+            return true;
+        }
+        if self.abs_paths.iter().any(|p| p == process_name) {
+            return true;
+        }
+        if self.folders.iter().any(|f| process_name.starts_with(f)) {
+            return true;
+        }
+        false
+    }
+}
+
+// ─── AttributeMatcher (Go: app/router/condition.go AttributeMatcher) ────────
+
+pub struct AttributeMatcher {
+    patterns: Vec<(String, regex::Regex)>,
+}
+
+impl AttributeMatcher {
+    pub fn new(attrs: &std::collections::HashMap<String, String>) -> Self {
+        let patterns = attrs.iter()
+            .map(|(key, value)| {
+                let pattern = regex::Regex::new(value).unwrap_or_else(|_| regex::Regex::new("").unwrap());
+                (key.to_lowercase(), pattern)
+            })
+            .collect();
+        AttributeMatcher { patterns }
+    }
+}
+
+impl Matcher for AttributeMatcher {
+    fn matches(&self, ctx: &RoutingContext) -> bool {
+        for (key, regex) in &self.patterns {
+            match ctx.attributes.get(key) {
+                Some(value) => {
+                    if !regex.is_match(value) {
+                        return false;
+                    }
+                }
+                None => return false,
+            }
+        }
+        true
+    }
+}

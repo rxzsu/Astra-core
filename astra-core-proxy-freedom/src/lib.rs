@@ -6,6 +6,56 @@ use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLin
 use astra_core_session::Session;
 use astra_core_transport::{Link, UdpPacket};
 
+/// Default blocking rules matching Go's `defaultBlockPrivateRule` and `defaultBlockAllRule`.
+/// These block RFC1918 private IPs, loopback, multicast, link-local, and special-purpose ranges.
+pub fn default_blocking_rules() -> Vec<FinalRule> {
+    let mut rules = Vec::new();
+
+    // Private IPv4 ranges (RFC1918)
+    let private_cidrs = vec![
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "100.64.0.0/10",    // Carrier-grade NAT (RFC6598)
+        "127.0.0.0/8",      // Loopback
+        "169.254.0.0/16",   // Link-local
+        "224.0.0.0/4",      // Multicast
+        "240.0.0.0/4",      // Reserved
+        "255.255.255.255/32", // Broadcast
+    ];
+
+    let private_rule = FinalRule {
+        action: RuleAction::Block,
+        networks: vec![],
+        ports: vec![],
+        ips: private_cidrs.iter().map(|s| s.to_string()).collect(),
+        block_delay_min: 0,
+        block_delay_max: 0,
+    };
+    rules.push(private_rule);
+
+    // Private IPv6 ranges
+    let ipv6_cidrs = vec![
+        "::1/128",       // Loopback
+        "fe80::/10",     // Link-local
+        "fc00::/7",      // Unique-local
+        "ff00::/8",      // Multicast
+        "2001:db8::/32", // Documentation
+    ];
+
+    let ipv6_rule = FinalRule {
+        action: RuleAction::Block,
+        networks: vec![],
+        ports: vec![],
+        ips: ipv6_cidrs.iter().map(|s| s.to_string()).collect(),
+        block_delay_min: 0,
+        block_delay_max: 0,
+    };
+    rules.push(ipv6_rule);
+
+    rules
+}
+
 /// Configuration for the Freedom outbound handler.
 #[derive(Clone, Default)]
 pub struct OutboundConfig {
@@ -350,7 +400,23 @@ impl OutboundHandler for Handler {
 
         let mut target = self.config.redirect.clone().unwrap_or_else(|| hint.clone());
         self.resolve_strategy(&mut target).await;
-        let mut remote = dialer.dial(session, target).await?;
+        let mut remote = dialer.dial(session.clone(), target.clone()).await?;
+
+        // PROXY protocol v1 (Go: proxy/freedom/freedom.go lines 378-387)
+        if self.config.proxy_protocol > 0 {
+            use tokio::io::AsyncWriteExt;
+            let src_ip = session.inbound.as_ref()
+                .map(|i| format!("{}", i.source.address))
+                .unwrap_or_else(|| "0.0.0.0".to_string());
+            let src_port = session.inbound.as_ref()
+                .map(|i| i.source.port.value())
+                .unwrap_or(0);
+            let dst_ip = format!("{}", target.address.clone());
+            let header = format!("PROXY TCP{} {} {} {} {}\r\n",
+                if self.config.proxy_protocol == 1 { "1" } else { "2" },
+                src_ip, dst_ip, src_port, target.port.value());
+            let _ = remote.write_all(header.as_bytes()).await;
+        }
 
         // Wrap writer in fragmenter if configured
         if self.config.fragment.is_some() {
