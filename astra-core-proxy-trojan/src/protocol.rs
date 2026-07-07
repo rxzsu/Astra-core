@@ -117,6 +117,73 @@ pub struct TrojanHeader {
     pub destination: Destination,
 }
 
+/// Parse a Trojan header from a byte slice (used for fallback detection).
+/// Returns header and total header size in bytes.
+pub fn read_header_from_slice(data: &[u8]) -> Result<(TrojanHeader, usize), String> {
+    if data.len() < 58 {
+        return Err("trojan: header too short".into());
+    }
+    let mut key = [0u8; 56];
+    key.copy_from_slice(&data[..56]);
+
+    if data[56] != b'\r' || data[57] != b'\n' {
+        return Err("trojan: expected crlf after key".into());
+    }
+
+    let cmd = data[58];
+    let atype = data[59];
+    let mut offset = 60;
+
+    let address = match atype {
+        0x01 => {
+            if data.len() < offset + 4 { return Err("short ipv4".into()); }
+            let mut octets = [0u8; 4];
+            octets.copy_from_slice(&data[offset..offset + 4]);
+            offset += 4;
+            Address::Ipv4(octets)
+        }
+        0x04 => {
+            if data.len() < offset + 16 { return Err("short ipv6".into()); }
+            let mut octets = [0u8; 16];
+            octets.copy_from_slice(&data[offset..offset + 16]);
+            offset += 16;
+            Address::Ipv6(octets)
+        }
+        0x03 => {
+            if data.len() < offset + 1 { return Err("short domain len".into()); }
+            let dlen = data[offset] as usize;
+            offset += 1;
+            if data.len() < offset + dlen { return Err("short domain".into()); }
+            let domain = std::str::from_utf8(&data[offset..offset + dlen])
+                .map_err(|_| "invalid domain utf8")?;
+            offset += dlen;
+            Address::Domain(domain.to_owned())
+        }
+        _ => return Err(format!("unknown address type: {}", atype)),
+    };
+
+    if data.len() < offset + 2 { return Err("short port".into()); }
+    let port = u16::from_be_bytes([data[offset], data[offset + 1]]);
+    offset += 2;
+
+    if data.len() < offset + 2 || data[offset] != b'\r' || data[offset + 1] != b'\n' {
+        return Err("trojan: expected trailing crlf".into());
+    }
+    offset += 2;
+
+    let network = match cmd {
+        COMMAND_TCP => Network::Tcp,
+        COMMAND_UDP => Network::Udp,
+        _ => return Err(format!("trojan: unknown command: {}", cmd)),
+    };
+
+    Ok((TrojanHeader {
+        key,
+        command: cmd,
+        destination: Destination { address, port: Port(port), network },
+    }, offset))
+}
+
 pub async fn read_header<R: AsyncReadExt + Unpin>(
     reader: &mut R,
 ) -> Result<TrojanHeader, String> {

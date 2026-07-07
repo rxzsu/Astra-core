@@ -421,6 +421,8 @@ dependencies = [
  "astra-core-routing",
  "astra-core-session",
  "astra-core-transport",
+ "ipnetwork",
+ "rand 0.10.2",
  "tokio",
  "tracing",
 ]

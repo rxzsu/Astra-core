@@ -13,9 +13,19 @@ impl Account {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Fallback {
+    pub name: String,   // SNI match
+    pub alpn: String,   // ALPN match
+    pub path: String,   // HTTP path match (for h2c)
+    pub dest: String,   // destination address (host:port)
+    pub xver: u64,      // PROXY protocol version (0 = disabled)
+}
+
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub users: Vec<Account>,
+    pub fallbacks: Vec<Fallback>,
 }
 
 #[derive(Debug, Clone)]

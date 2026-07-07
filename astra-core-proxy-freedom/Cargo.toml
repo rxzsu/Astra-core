@@ -12,3 +12,5 @@ astra-core-session = { path = "../astra-core-session" }
 astra-core-transport = { path = "../astra-core-transport" }
 tokio = { workspace = true }
 tracing = { workspace = true }
+rand = { workspace = true }
+ipnetwork = { workspace = true }

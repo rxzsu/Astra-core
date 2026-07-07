@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination, Network, Port};
@@ -11,6 +12,9 @@ pub struct OutboundConfig {
     pub domain_strategy: String,
     pub redirect: Option<Destination>,
     pub fragment: Option<FragmentConfig>,
+    pub noise: Option<NoiseConfig>,
+    pub final_rules: Vec<FinalRule>,
+    pub proxy_protocol: u8, // 0=disabled, 1=v1, 2=v2
 }
 
 impl std::fmt::Debug for OutboundConfig {
@@ -590,5 +594,152 @@ mod tests {
         let mut buf = vec![0u8; 1024];
         let n = client.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n], test_data);
+    }
+}
+
+// ─── Noise Config (Go: proxy/freedom/freedom.go Noise field) ────────────────
+
+/// Random noise sent before the first UDP packet.
+#[derive(Debug, Clone)]
+pub struct NoiseConfig {
+    pub length_min: u64,
+    pub length_max: u64,
+    pub delay_min: u64,
+    pub delay_max: u64,
+    pub apply_to: String, // "ipv4", "ipv6", or "" (all)
+}
+
+/// NoisePacketWriter wraps a UDP socket and sends random noise before the first write.
+pub struct NoisePacketWriter {
+    config: NoiseConfig,
+    target_ip: std::net::IpAddr,
+    has_sent_noise: std::sync::atomic::AtomicBool,
+}
+
+impl NoisePacketWriter {
+    pub fn new(config: NoiseConfig, target_ip: std::net::IpAddr) -> Self {
+        NoisePacketWriter {
+            config,
+            target_ip,
+            has_sent_noise: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    fn should_apply(&self) -> bool {
+        if self.config.apply_to.is_empty() {
+            return true;
+        }
+        match self.target_ip {
+            std::net::IpAddr::V4(_) => self.config.apply_to == "ipv4" || self.config.apply_to == "ip",
+            std::net::IpAddr::V6(_) => self.config.apply_to == "ipv6" || self.config.apply_to == "ip",
+        }
+    }
+
+    pub async fn send_noise(&self, socket: &tokio::net::UdpSocket, remote: std::net::SocketAddr) {
+        if self.has_sent_noise.load(std::sync::atomic::Ordering::Relaxed) || !self.should_apply() {
+            return;
+        }
+        self.has_sent_noise.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let len = if self.config.length_min >= self.config.length_max {
+            self.config.length_min
+        } else {
+            let range = self.config.length_max - self.config.length_min;
+            self.config.length_min + (rand::random::<u64>() % (range + 1))
+        } as usize;
+
+        let delay = if self.config.delay_min >= self.config.delay_max {
+            self.config.delay_min
+        } else {
+            let range = self.config.delay_max - self.config.delay_min;
+            self.config.delay_min + (rand::random::<u64>() % (range + 1))
+        };
+
+        if delay > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
+
+        let noise = vec![0u8; len];
+        let _ = socket.send_to(&noise, remote).await;
+    }
+}
+
+// ─── FinalRule (Go: proxy/freedom/freedom.go FinalRule) ──────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RuleAction {
+    Allow,
+    Block,
+}
+
+#[derive(Debug, Clone)]
+pub struct FinalRule {
+    pub action: RuleAction,
+    pub networks: Vec<String>,   // "tcp", "udp"
+    pub ports: Vec<(u16, u16)>,  // port ranges
+    pub ips: Vec<String>,        // CIDRs or IPs
+    pub block_delay_min: u64,    // seconds
+    pub block_delay_max: u64,
+}
+
+impl FinalRule {
+    pub fn matches(&self, target: &Destination) -> bool {
+        // Check network
+        if !self.networks.is_empty() {
+            let net_match = match target.network {
+                Network::Tcp => self.networks.iter().any(|n| n == "tcp"),
+                Network::Udp => self.networks.iter().any(|n| n == "udp"),
+                _ => false,
+            };
+            if !net_match {
+                return false;
+            }
+        }
+
+        // Check port
+        if !self.ports.is_empty() {
+            let port_val = target.port.value();
+            let port_match = self.ports.iter().any(|(from, to)| port_val >= *from && port_val <= *to);
+            if !port_match {
+                return false;
+            }
+        }
+
+        // Check IP/CIDR
+        if !self.ips.is_empty() {
+            let target_str = target.address.to_string();
+            let ip_match = self.ips.iter().any(|cidr| {
+                if let Ok(ip) = std::net::IpAddr::from_str(&target_str) { // DNS not resolved yet
+                    false
+                } else if cidr.contains('/') {
+                    if let Ok(net) = ipnetwork::IpNetwork::from_str(cidr) {
+                        // Can't match without resolved IP
+                        false
+                    } else { false }
+                } else {
+                    &target_str == cidr
+                }
+            });
+            if !ip_match {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn block_delay(&self) -> Option<std::time::Duration> {
+        if self.action == RuleAction::Block {
+            let delay = if self.block_delay_min >= self.block_delay_max {
+                self.block_delay_min
+            } else {
+                let range = self.block_delay_max - self.block_delay_min;
+                self.block_delay_min + (rand::random::<u64>() % (range + 1))
+            };
+            if delay > 0 {
+                return Some(std::time::Duration::from_secs(delay));
+            }
+        }
+        None
     }
 }

@@ -665,7 +665,19 @@ pub fn build_inbound_handler(
                 .map(|c| astra_core_proxy_trojan::config::Account::new(c.password.clone()))
                 .collect();
 
-            let server_cfg = astra_core_proxy_trojan::config::ServerConfig { users: accounts };
+            let fallbacks: Vec<astra_core_proxy_trojan::config::Fallback> = cfg
+                .fallbacks
+                .iter()
+                .map(|f| astra_core_proxy_trojan::config::Fallback {
+                    name: f.name.clone(),
+                    alpn: f.alpn.clone(),
+                    path: f.path.clone(),
+                    dest: f.dest.as_ref().and_then(|d| d.as_str()).map(|s| s.to_string()).unwrap_or_default(),
+                    xver: f.xver,
+                })
+                .collect();
+
+            let server_cfg = astra_core_proxy_trojan::config::ServerConfig { users: accounts, fallbacks };
 
             Arc::new(astra_core_proxy_trojan::inbound::Handler::new(server_cfg))
         }
