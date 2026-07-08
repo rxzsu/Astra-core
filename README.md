@@ -73,9 +73,9 @@ All core protocols and transports from Xray-core are ported. The following is 1:
 | Feature | Status |
 |---------|--------|
 | REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
-| TUN / gVisor stack | ❌ Not ported |
-| Browser Dialer | ❌ Not ported |
-| FinalMask traffic obfuscation | ❌ Not ported |
+| TUN / gVisor stack | ⚠️ Partial — Linux TUN + smoltcp stack, FullCone NAT, ICMP |
+| Browser Dialer | ✅ Complete (WebSocket bridge + HTML/JS) |
+| FinalMask traffic obfuscation | ✅ Complete (Salamander XOR, TCP + UDP) |
 
 ## Architecture
 
