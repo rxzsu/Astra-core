@@ -248,6 +248,7 @@ name = "astra-core-common"
 version = "0.1.0"
 dependencies = [
  "lazy_static",
+ "regex-lite",
  "serde",
  "serde_json",
  "tokio",

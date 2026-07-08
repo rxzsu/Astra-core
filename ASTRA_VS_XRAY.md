@@ -121,7 +121,7 @@
 | `transport/internet/tls/` | `rustls` 0.23 | ⚠️ Partial — нет uTLS fingerprinting, ECH, certificate pinning, key log writer |
 | `transport/internet/hysteria/` | (встроено в `astra-core-proxy-hysteria/`) | ⚠️ Partial — нет обфускации, padding per protocol stage |
 | `transport/internet/udp/` | Built-in tokio UDP | ✅ Complete |
-| `transport/internet/stat/` | — | ❌ Not ported (CounterConnection wrapper) |
+| `transport/internet/stat/` | `CounterConnection` в `astra_core_transport` | ✅ Complete |
 | `transport/internet/browser_dialer/` | `astra-core-browser-dialer` | ✅ Complete (HTTP+WS server, HTML/JS) |
 | `transport/internet/tagged/` | — | ❌ Not ported |
 | `transport/internet/finalmask/` | — | ❌ Not ported (Udpmask/Tcpmask система маскировки) |
@@ -174,8 +174,8 @@
 
 | Go (Xray-core) | Rust (astra-core) | Status |
 |---|---|---|
-| `send_through` (bind to interface) | — | ❌ Not ported |
-| `tproxy` (transparent proxy) | — | ❌ Not ported |
+| `send_through` (bind to interface) | — | ❌ Not ported (требуется до connect) |
+| `tproxy` (transparent proxy) | `apply_tproxy()` | ✅ Linux: IP_TRANSPARENT |
 | `tcpFastOpen` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_FASTOPEN_CONNECT |
 | `tcpKeepAlive` | `astra-core-proxyman::sockopt` | ✅ Cross-platform (socket2) |
 | `mark` (netfilter mark) | `astra-core-proxyman::sockopt` | ✅ Linux: SO_MARK |
@@ -220,7 +220,7 @@
 | StatsService (GetStats, QueryStats, GetSysStats) | `StatsSvc` | ✅ Complete |
 | StatsService (GetStatsOnline, GetStatsOnlineIpList) | `StatsSvc` | ✅ Complete |
 | StatsService (GetUsersStats, GetAllOnlineUsers) | `StatsSvc` | ✅ Complete |
-| gRPC reflection | — | ❌ Not ported |
+| gRPC reflection | — | ⚠️ Requires protobuf file descriptor set |
 | CLI команды (`astra api ...`) | `astra-core-cli` | ✅ Все API субкоманды |
 
 ## Config Parsing (`infra/conf/`)
@@ -234,17 +234,17 @@
 | JSON5/JSONC (Java/Python comments) | `JsonCommentReader` | ✅ Complete |
 | Config override/merge (multiple files) | `Config::override_with()` + `merge_configs()` | ✅ Complete |
 | Auto-detect format | `detect_format()` по расширению | ✅ Complete |
-| Strict JSON mode (`XRAY_JSON_STRICT`) | — | ❌ Not ported |
+| Strict JSON mode (`XRAY_JSON_STRICT`) | проверка env в `from_json()` | ✅ Complete |
 | Protocol-specific config builders (all proxies) | serde Deserialize | ✅ Complete |
 
 ## Other Missing Features
 
 | Feature | Go | Rust | Status |
 |---|---|---|---|
-| Cone NAT | `XRAY_USE_CONE` env | — | ❌ Not ported |
-| IP address masking в логах | half/quarter/full/CIDR | — | ❌ Not ported |
+| Cone NAT | `XRAY_USE_CONE` env | `platform::is_cone_nat_enabled()` | ✅ Complete |
+| IP address masking в логах | half/quarter/full/CIDR | `astra-core-common::log::mask_ip()` | ✅ Complete |
 | Dependency injection | `RequireFeatures`/`OptionalFeatures` | — | ❌ Not ported |
-| Splice (zero-copy) везде | `CanSpliceCopy` в сессии | поле `use_splice` | ✅ tokio использует splice() на Linux |
+| Splice (zero-copy) везде | `CanSpliceCopy` в сессии | `use_splice` | ✅ tokio использует splice() на Linux |
 | FullCone NAT | в TUN + UDP | — | ❌ Not ported |
 
 ## Legend

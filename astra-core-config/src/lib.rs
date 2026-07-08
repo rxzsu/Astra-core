@@ -220,10 +220,23 @@ pub fn merge_configs(configs: Vec<(Config, String)>) -> Config {
 
 // ─── Helper: parse from JSON string ──────────────────────────────────────────
 
+fn use_strict_json() -> bool {
+    std::env::var("XRAY_JSON_STRICT").unwrap_or_default() == "true"
+}
+
 impl Config {
     /// Parse Xray config from a JSON string.
+    /// If XRAY_JSON_STRICT=true, parsing is strict (no comments).
     pub fn from_json(json: &str) -> Result<Self, String> {
-        serde_json::from_str(json).map_err(|e| format!("config parse error: {}", e))
+        if use_strict_json() {
+            serde_json::from_str(json).map_err(|e| format!("config parse error: {}", e))
+        } else {
+            let mut stripped = String::new();
+            json_reader::JsonCommentReader::new(json.as_bytes())
+                .read_to_string(&mut stripped)
+                .map_err(|e| format!("read config: {}", e))?;
+            serde_json::from_str(&stripped).map_err(|e| format!("config parse error: {}", e))
+        }
     }
 
     /// Parse Xray config from JSON bytes.
@@ -239,6 +252,8 @@ impl Config {
             .map_err(|e| format!("read config: {}", e))?;
         serde_json::from_str(&stripped).map_err(|e| format!("config parse error: {}", e))
     }
+
+    /// Parse Xray config from a YAML string.
 
     /// Parse Xray config from a YAML string.
     pub fn from_yaml(yaml: &str) -> Result<Self, String> {

@@ -64,7 +64,7 @@ pub fn apply_sockopt_linux(stream: &tokio::net::TcpStream, config: &SocketConfig
 }
 
 /// Apply TCP keepalive settings (cross-platform via socket2).
-pub fn apply_keepalive(_stream: &tokio::net::TcpStream, _idle: i32, _interval: i32) {
+pub fn apply_keepalive(stream: &tokio::net::TcpStream, idle: i32, interval: i32) {
     #[cfg(unix)]
     {
         use std::os::unix::io::AsRawFd;
@@ -80,3 +80,23 @@ pub fn apply_keepalive(_stream: &tokio::net::TcpStream, _idle: i32, _interval: i
         let _ = sock.set_tcp_keepalive(&ka);
     }
 }
+
+/// Enable tproxy (transparent proxy) on a socket (Linux only).
+#[cfg(target_os = "linux")]
+pub fn apply_tproxy(stream: &tokio::net::TcpStream, enable: bool) {
+    if !enable { return; }
+    use std::os::unix::io::AsRawFd;
+    let fd = stream.as_raw_fd();
+    let val: i32 = 1;
+    unsafe {
+        libc::setsockopt(
+            fd, libc::IPPROTO_IP, 19, // IP_TRANSPARENT
+            &val as *const _ as *const libc::c_void,
+            std::mem::size_of::<i32>() as libc::socklen_t,
+        );
+    }
+}
+
+/// Non-Linux stub for tproxy.
+#[cfg(not(target_os = "linux"))]
+pub fn apply_tproxy(_stream: &tokio::net::TcpStream, _enable: bool) {}

@@ -1,9 +1,65 @@
 use std::pin::Pin;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use astra_core_net::Destination;
+
+/// CounterConnection — wraps a connection with byte counters.
+/// Go equivalent: `transport/internet/stat.CounterConnection`
+pub struct CounterConnection<T: AsyncRead + AsyncWrite + Unpin> {
+    inner: T,
+    pub read_counter: Arc<AtomicI64>,
+    pub write_counter: Arc<AtomicI64>,
+}
+
+impl<T: AsyncRead + AsyncWrite + Unpin> CounterConnection<T> {
+    pub fn new(inner: T) -> Self {
+        CounterConnection {
+            inner,
+            read_counter: Arc::new(AtomicI64::new(0)),
+            write_counter: Arc::new(AtomicI64::new(0)),
+        }
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for CounterConnection<T> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let result = Pin::new(&mut self.inner).poll_read(cx, buf);
+        let after = buf.filled().len();
+        self.read_counter.fetch_add((after - before) as i64, Ordering::Relaxed);
+        result
+    }
+}
+
+impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for CounterConnection<T> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let result = Pin::new(&mut self.inner).poll_write(cx, buf);
+        if let Poll::Ready(Ok(n)) = &result {
+            self.write_counter.fetch_add(*n as i64, Ordering::Relaxed);
+        }
+        result
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
 
 pub struct Link {
     pub reader: tokio::io::DuplexStream,

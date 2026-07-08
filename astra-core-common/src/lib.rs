@@ -14,3 +14,4 @@ pub mod peer;
 pub mod singbridge;
 pub mod xudp;
 pub mod platform;
+pub mod log;

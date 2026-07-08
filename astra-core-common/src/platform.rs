@@ -59,6 +59,14 @@ pub fn get_flag(name: &str) -> Option<String> {
 pub const CONFIG_LOCATION: &str = "xray.location.config";
 pub const CONFDIR_LOCATION: &str = "xray.location.confdir";
 pub const ASSET_LOCATION: &str = "xray.location.asset";
+pub const BROWSER_DIALER_ADDR: &str = "xray.browser.dialer";
+pub const USE_CONE: &str = "xray.cone.disabled";
+
+/// Check if CONE NAT is enabled (Go: XRAY_USE_CONE env).
+pub fn is_cone_nat_enabled() -> bool {
+    let flag = EnvFlag::new(USE_CONE);
+    flag.get("") != "true"
+}
 
 /// Get the config file search paths.
 pub fn config_paths() -> Vec<String> {
