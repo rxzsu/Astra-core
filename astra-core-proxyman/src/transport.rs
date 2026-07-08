@@ -130,9 +130,11 @@ impl Transport {
 }
 
 /// Dial a connection using the configured transport.
+/// `bind_address` — optional source IP for send_through support.
 pub async fn dial_transport(
     transport: &Transport,
     dest: &Destination,
+    bind_address: Option<&str>,
 ) -> ProxyResult<Conn> {
     let addr_str = format!("{}:{}", dest.address, dest.port.value());
 
@@ -229,9 +231,28 @@ pub async fn dial_transport(
             astra_core_transport_h2::dialer::dial_h2(dest, host, path).await
         }
         Transport::RawTcp => {
-            let tcp = tokio::net::TcpStream::connect(&addr_str)
+            // support send_through (bind to specific source IP)
+            let is_ipv6 = addr_str.contains("]:") || addr_str.matches(':').count() > 1;
+            let socket = if is_ipv6 {
+                tokio::net::TcpSocket::new_v6()
+                    .map_err(|e| format!("create socket: {}", e))?
+            } else {
+                tokio::net::TcpSocket::new_v4()
+                    .map_err(|e| format!("create socket: {}", e))?
+            };
+
+            // send_through: bind to specific source IP before connect
+            if let Some(bind_ip) = bind_address {
+                let bind_addr: std::net::SocketAddr = format!("{}:0", bind_ip)
+                    .parse()
+                    .map_err(|e| format!("invalid bind address {}: {}", bind_ip, e))?;
+                socket.bind(bind_addr)
+                    .map_err(|e| format!("bind {}: {}", bind_ip, e))?;
+            }
+            let tcp = socket.connect(addr_str.parse::<std::net::SocketAddr>()
+                .map_err(|e| format!("parse addr {}: {}", addr_str, e))?)
                 .await
-                .map_err(|e| format!("dial tcp {}: {}", addr_str, e))?;
+                .map_err(|e| format!("connect {}: {}", addr_str, e))?;
             Ok(Box::new(tcp))
         }
     }
@@ -345,6 +366,8 @@ where
                     .accept()
                     .await
                     .map_err(|e| format!("accept: {}", e))?;
+                // Accept PROXY protocol if configured
+                // The PROXY header parsing happens in the inbound handler
                 on_conn(Box::new(conn));
             }
         }

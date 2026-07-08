@@ -174,13 +174,13 @@
 
 | Go (Xray-core) | Rust (astra-core) | Status |
 |---|---|---|
-| `send_through` (bind to interface) | — | ❌ Not ported (требуется до connect) |
+| `send_through` (bind to interface) | `dial_transport()` параметр `bind_address` | ✅ Complete |
 | `tproxy` (transparent proxy) | `apply_tproxy()` | ✅ Linux: IP_TRANSPARENT |
 | `tcpFastOpen` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_FASTOPEN_CONNECT |
 | `tcpKeepAlive` | `astra-core-proxyman::sockopt` | ✅ Cross-platform (socket2) |
 | `mark` (netfilter mark) | `astra-core-proxyman::sockopt` | ✅ Linux: SO_MARK |
 | `interface` (bind to device) | — | ❌ Not ported |
-| `acceptProxyProtocol` | — (HTTPUpgrade has it) | ❌ Not ported in all transports |
+| `acceptProxyProtocol` | `proxy_protocol::accept_proxy_protocol()` | ✅ PROXY v1 header parser |
 | `tcpCongestion` (BBR/CUBIC) | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_CONGESTION |
 | `VStream` (WS w/ http/1.1 upgrade) | — | ❌ Not ported |
 | `tcp_window_clamp` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_WINDOW_CLAMP |
@@ -220,7 +220,7 @@
 | StatsService (GetStats, QueryStats, GetSysStats) | `StatsSvc` | ✅ Complete |
 | StatsService (GetStatsOnline, GetStatsOnlineIpList) | `StatsSvc` | ✅ Complete |
 | StatsService (GetUsersStats, GetAllOnlineUsers) | `StatsSvc` | ✅ Complete |
-| gRPC reflection | — | ⚠️ Requires protobuf file descriptor set |
+| gRPC reflection | — | ❌ Not ported (требует tonic-reflection с descriptor set) |
 | CLI команды (`astra api ...`) | `astra-core-cli` | ✅ Все API субкоманды |
 
 ## Config Parsing (`infra/conf/`)

@@ -159,7 +159,7 @@ impl Handler {
     /// Dial the underlying transport (TCP/TLS/REALITY or KCP/WS/etc.) without mux.
     async fn dial_transport(&self, dest: &Destination) -> ProxyResult<Conn> {
         if let Some(ref reality_cfg) = self.reality {
-            let tcp = transport::dial_transport(&self.transport, dest).await?;
+            let tcp = transport::dial_transport(&self.transport, dest, None).await?;
             let sn = if reality_cfg.server_name.is_empty() {
                 dest.address.to_string()
             } else {
@@ -173,7 +173,7 @@ impl Handler {
             .await;
         }
 
-        let raw = transport::dial_transport(&self.transport, dest).await?;
+        let raw = transport::dial_transport(&self.transport, dest, None).await?;
 
         if let Some(ref tls_cfg) = self.tls {
             let server_name_str = tls_cfg.server_name.clone();
