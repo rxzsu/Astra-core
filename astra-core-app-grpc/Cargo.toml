@@ -13,6 +13,7 @@ astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-proxy-loopback = { path = "../astra-core-proxy-loopback" }
 tokio = { workspace = true, features = ["full", "signal"] }
 tonic = { workspace = true }
+tonic-reflection = "0.14"
 prost = { workspace = true }
 tonic-prost = "0.14"
 tracing = { workspace = true }

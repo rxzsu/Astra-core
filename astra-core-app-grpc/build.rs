@@ -5,9 +5,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parent()
         .unwrap()
         .join("protobuf");
+    let out_dir_str = std::env::var("OUT_DIR").unwrap();
+    let out_dir = std::path::Path::new(&out_dir_str);
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(true)
+        .file_descriptor_set_path(out_dir.join("api_descriptor.bin"))
         .compile_protos(
             &[proto_dir.join("api.proto")],
             &[proto_dir.clone()],

@@ -220,7 +220,7 @@
 | StatsService (GetStats, QueryStats, GetSysStats) | `StatsSvc` | ✅ Complete |
 | StatsService (GetStatsOnline, GetStatsOnlineIpList) | `StatsSvc` | ✅ Complete |
 | StatsService (GetUsersStats, GetAllOnlineUsers) | `StatsSvc` | ✅ Complete |
-| gRPC reflection | — | ❌ Not ported (требует tonic-reflection с descriptor set) |
+| gRPC reflection | `ReflectionBuilder` + `FILE_DESCRIPTOR_SET` | ✅ Complete |
 | CLI команды (`astra api ...`) | `astra-core-cli` | ✅ Все API субкоманды |
 
 ## Config Parsing (`infra/conf/`)

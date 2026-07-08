@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use tonic::{Request, Response, Status};
+use tonic_reflection::server::Builder as ReflectionBuilder;
 
 use astra_core_proxyman::outbound;
 use astra_core_proxy_loopback::DispatcherCell;
@@ -9,6 +10,10 @@ use astra_core_stats::StatsManager;
 pub mod proto {
     tonic::include_proto!("astra.app.grpc.api");
 }
+
+/// Generated file descriptor set for gRPC reflection.
+const FILE_DESCRIPTOR_SET: &[u8] =
+    tonic::include_file_descriptor_set!("api_descriptor");
 
 use proto::{
     handler_service_server::{HandlerService, HandlerServiceServer},
@@ -45,7 +50,13 @@ pub async fn serve_grpc_api(config: GrpcApiConfig) -> Result<(), Box<dyn std::er
 
     tracing::info!("gRPC API server starting on {}", config.listen_addr);
 
+    let reflection_svc = ReflectionBuilder::configure()
+        .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
+        .build_v1()
+        .map_err(|e| format!("reflection build: {}", e))?;
+
     tonic::transport::Server::builder()
+        .add_service(reflection_svc)
         .add_service(HandlerServiceServer::new(handler_svc))
         .add_service(StatsServiceServer::new(stats_svc))
         .add_service(RoutingServiceServer::new(routing_svc))
