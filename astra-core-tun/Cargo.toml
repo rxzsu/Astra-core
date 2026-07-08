@@ -15,6 +15,6 @@ tun-freebsd = []
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 rand = { workspace = true }
-getrandom = "0.2"
-tun = "0.7"
+getrandom = "0.4"
+tun = "0.8"
 async-trait = "0.1"

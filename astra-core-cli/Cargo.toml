@@ -14,9 +14,9 @@ tokio = { workspace = true, features = ["full"] }
 tonic = { workspace = true }
 serde_json = "1"
 clap = { version = "4", features = ["derive"] }
-rcgen = "0.13"
-curve25519-dalek = { version = "4", default-features = false, features = ["digest", "group"] }
-getrandom = "0.2"
+rcgen = "0.14"
+curve25519-dalek = { version = "5", default-features = false, features = ["digest", "group"] }
+getrandom = "0.4"
 rand = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }

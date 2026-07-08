@@ -301,7 +301,7 @@ fn cmd_uuid() {
 
 fn cmd_x25519() {
     let mut private = [0u8; 32];
-    getrandom::getrandom(&mut private).unwrap();
+    getrandom::fill(&mut private).unwrap();
     // Clamp per RFC 7748
     let clamped = curve25519_dalek::scalar::clamp_integer(private);
     let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
@@ -381,7 +381,7 @@ async fn cmd_tls(args: TlsArgs) {
             }
             // Generate ECH key set (simplified)
             let mut ecdh_secret = [0u8; 32];
-            getrandom::getrandom(&mut ecdh_secret).unwrap();
+            getrandom::fill(&mut ecdh_secret).unwrap();
             let ecdh_pub = {
                 let clamped = curve25519_dalek::scalar::clamp_integer(ecdh_secret);
                 let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
@@ -415,7 +415,7 @@ fn cmd_wg(input: Option<String>) {
     } else {
         // Generate new key pair
         let mut private = [0u8; 32];
-        getrandom::getrandom(&mut private).unwrap();
+        getrandom::fill(&mut private).unwrap();
         let clamped = curve25519_dalek::scalar::clamp_integer(private);
         let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
         let public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
@@ -429,7 +429,7 @@ fn cmd_wg(input: Option<String>) {
 fn cmd_vlessenc() {
     // Generate X25519 key pair (classical)
     let mut x25519_private = [0u8; 32];
-    getrandom::getrandom(&mut x25519_private).unwrap();
+    getrandom::fill(&mut x25519_private).unwrap();
     let clamped = curve25519_dalek::scalar::clamp_integer(x25519_private);
     let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
     let x25519_public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
@@ -439,7 +439,7 @@ fn cmd_vlessenc() {
 
     // Generate ML-KEM-768 key pair (post-quantum)
     let mut mlkem_seed = [0u8; 64];
-    getrandom::getrandom(&mut mlkem_seed).unwrap();
+    getrandom::fill(&mut mlkem_seed).unwrap();
     let mlkem_hash = blake3::hash(&mlkem_seed);
     let server_key_pq = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, mlkem_seed);
     let client_key_pq = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, mlkem_hash.as_bytes());
@@ -473,7 +473,7 @@ fn cmd_mlkem768(input: Option<String>) {
         }
     } else {
         let mut seed = [0u8; 64];
-        getrandom::getrandom(&mut seed).unwrap();
+        getrandom::fill(&mut seed).unwrap();
         let hash = blake3::hash(&seed[..]);
         println!("Seed: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, seed));
         println!("Client: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash.as_bytes()));
@@ -498,7 +498,7 @@ fn cmd_mldsa65(input: Option<String>) {
         }
     } else {
         let mut seed = [0u8; 32];
-        getrandom::getrandom(&mut seed).unwrap();
+        getrandom::fill(&mut seed).unwrap();
         let hash = blake3::hash(&seed[..]);
         println!("Seed: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, seed));
         println!("Verify: {}", base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &hash.as_bytes()[..32]));
