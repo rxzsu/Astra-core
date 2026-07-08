@@ -157,7 +157,7 @@
 | `common/dice/` | `astra-core-crypto::rand` | ✅ Complete |
 | `common/drain/` | `astra-core-common::drain` | ✅ Complete |
 | `common/errors/` | `astra-core-common::errors` | ✅ Complete (XrayError with severity + chaining) |
-| `common/log/` | tracing | ⚠️ Partial — нет access log, severity levels |
+| `common/log/` | `astra-core-common::log` + tracing | ✅ Complete (AccessMessage, Severity, LogHandler, mask IP) |
 | `common/ocsp/` | `astra-core-common::ocsp` | ✅ Complete |
 | `common/peer/` | `astra-core-common::peer` | ✅ Complete |
 | `common/reflect/` | `astra-core-common::reflect` | ✅ Complete (JSON marshal with type injection) |
@@ -230,7 +230,7 @@
 | JSON | serde (serde_json) | ✅ Complete |
 | YAML | serde_yaml (`Config::from_yaml`) | ✅ Complete |
 | TOML | toml crate (`Config::from_toml`) | ✅ Complete |
-| Protobuf | `astra-core-config::protobuf` | ⚠️ Partial — JSON fallback, binary proto TBD |
+| Protobuf | `astra-core-config::protobuf` | ✅ Complete (JSON + binary via prost-reflect) |
 | JSON5/JSONC (Java/Python comments) | `JsonCommentReader` | ✅ Complete |
 | Config override/merge (multiple files) | `Config::override_with()` + `merge_configs()` | ✅ Complete |
 | Auto-detect format | `detect_format()` по расширению | ✅ Complete |
@@ -245,7 +245,7 @@
 | IP address masking в логах | half/quarter/full/CIDR | `astra-core-common::log::mask_ip()` | ✅ Complete |
 | Dependency injection | `RequireFeatures`/`OptionalFeatures` | `astra-core-common::inject` | ✅ Complete |
 | Splice (zero-copy) везде | `CanSpliceCopy` в сессии | `use_splice` | ✅ tokio использует splice() на Linux |
-| FullCone NAT | в TUN + UDP | — | ❌ Not ported |
+| FullCone NAT | в TUN + UDP | `astra-core-tun::fullcone::FullCone` | ✅ Complete |
 
 ## Legend
 
