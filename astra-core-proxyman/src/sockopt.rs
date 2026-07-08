@@ -100,3 +100,25 @@ pub fn apply_tproxy(stream: &tokio::net::TcpStream, enable: bool) {
 /// Non-Linux stub for tproxy.
 #[cfg(not(target_os = "linux"))]
 pub fn apply_tproxy(_stream: &tokio::net::TcpStream, _enable: bool) {}
+
+/// Bind a socket to a specific network interface by name (SO_BINDTODEVICE).
+/// Go equivalent: `transport/internet/tcp/sockopt_linux.go` interface binding.
+#[cfg(target_os = "linux")]
+pub fn bind_to_interface(stream: &tokio::net::TcpStream, iface_name: &str) {
+    use std::os::unix::io::AsRawFd;
+    if iface_name.is_empty() { return; }
+    let fd = stream.as_raw_fd();
+    let name_bytes = iface_name.as_bytes();
+    unsafe {
+        libc::setsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_BINDTODEVICE,
+            name_bytes.as_ptr() as *const libc::c_void,
+            name_bytes.len() as libc::socklen_t,
+        );
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn bind_to_interface(_stream: &tokio::net::TcpStream, _iface_name: &str) {}

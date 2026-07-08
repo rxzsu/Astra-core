@@ -158,6 +158,9 @@ impl UdpLink {
     }
 }
 
+pub mod tagged;
+pub mod vstream;
+
 pub fn new_udp_link_pair() -> (UdpLink, UdpLink) {
     let (tx1, rx1) = tokio::sync::mpsc::unbounded_channel();
     let (tx2, rx2) = tokio::sync::mpsc::unbounded_channel();

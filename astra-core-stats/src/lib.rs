@@ -112,6 +112,8 @@ impl StatsManager {
     }
 }
 
+pub mod online_map;
+
 /// Naming helpers matching Xray conventions.
 pub mod naming {
     /// Inbound traffic counter name: `inbound>>>{tag}>>>traffic>>>downlink`

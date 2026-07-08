@@ -1,5 +1,6 @@
 pub mod dns;
 pub mod json_reader;
+pub mod protobuf;
 pub mod log;
 pub mod policy;
 pub mod proxy;

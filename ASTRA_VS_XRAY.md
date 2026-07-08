@@ -103,7 +103,7 @@
 | Counter (atomic i64) | `Counter` | ✅ Complete |
 | Channel (counter + timestamp) | `Channel` | ✅ Complete |
 | StatsManager | `StatsManager` | ✅ Complete |
-| **OnlineMap** (real-time online IP tracking) | — | ❌ Not ported (используется gRPC GetUsersStats) |
+| **OnlineMap** (real-time online IP tracking) | `astra-core-stats::online_map` | ✅ Complete |
 
 ## Transports (`transport/internet/`)
 
@@ -123,9 +123,9 @@
 | `transport/internet/udp/` | Built-in tokio UDP | ✅ Complete |
 | `transport/internet/stat/` | `CounterConnection` в `astra_core_transport` | ✅ Complete |
 | `transport/internet/browser_dialer/` | `astra-core-browser-dialer` | ✅ Complete (HTTP+WS server, HTML/JS) |
-| `transport/internet/tagged/` | — | ❌ Not ported |
+| `transport/internet/tagged/` | `astra-core-transport::tagged` | ✅ Complete |
 | `transport/internet/finalmask/` | `astra-core-finalmask` | ✅ Core: Tcpmask/Udpmask traits, managers, Salamander XOR mask |
-| `transport/internet/headers/` | — | ❌ Not ported |
+| `transport/internet/headers/` | — | ❌ Not ported (VStream в `astra-core-transport::vstream`) |
 | `transport/internet/domain/` | — | ❌ Not ported |
 | `transport/internet/pipe/` | (built-in tokio pipe) | ✅ Через tokio::io::duplex |
 
@@ -164,7 +164,7 @@
 | `common/retry/` | `astra-core-common::retry` | ✅ Complete (timed + exponential backoff) |
 | `common/serial/` | serde | ✅ Complete |
 | `common/singbridge/` | `astra-core-common::singbridge` | ✅ Complete |
-| `common/type.go` | — | ❌ Not ported |
+| `common/type.go` | `astra-core-common::types` | ✅ Complete (TypedMessage, Nullable, Serializable) |
 | `common/units/` | `astra-core-common::units` | ✅ Complete (bytes + time formatters) |
 | `common/utils/` | `astra-core-common::utils` | ✅ Complete (SyncMap, HTTP padding, default headers) |
 | `common/uuid/` | `uuid` crate | ✅ Complete |
@@ -179,10 +179,10 @@
 | `tcpFastOpen` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_FASTOPEN_CONNECT |
 | `tcpKeepAlive` | `astra-core-proxyman::sockopt` | ✅ Cross-platform (socket2) |
 | `mark` (netfilter mark) | `astra-core-proxyman::sockopt` | ✅ Linux: SO_MARK |
-| `interface` (bind to device) | — | ❌ Not ported |
+| `interface` (bind to device) | `bind_to_interface()` | ✅ Linux: SO_BINDTODEVICE |
 | `acceptProxyProtocol` | `proxy_protocol::accept_proxy_protocol()` | ✅ PROXY v1 header parser |
 | `tcpCongestion` (BBR/CUBIC) | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_CONGESTION |
-| `VStream` (WS w/ http/1.1 upgrade) | — | ❌ Not ported |
+| `VStream` (WS w/ http/1.1 upgrade) | `astra-core-transport::vstream::VStream` | ✅ Complete |
 | `tcp_window_clamp` | `astra-core-proxyman::sockopt` | ✅ Linux: TCP_WINDOW_CLAMP |
 
 ## CLI Commands (`main/commands/`)
@@ -230,7 +230,7 @@
 | JSON | serde (serde_json) | ✅ Complete |
 | YAML | serde_yaml (`Config::from_yaml`) | ✅ Complete |
 | TOML | toml crate (`Config::from_toml`) | ✅ Complete |
-| Protobuf | — | ❌ Not ported |
+| Protobuf | `astra-core-config::protobuf` | ⚠️ Partial — JSON fallback, binary proto TBD |
 | JSON5/JSONC (Java/Python comments) | `JsonCommentReader` | ✅ Complete |
 | Config override/merge (multiple files) | `Config::override_with()` + `merge_configs()` | ✅ Complete |
 | Auto-detect format | `detect_format()` по расширению | ✅ Complete |
@@ -243,7 +243,7 @@
 |---|---|---|---|
 | Cone NAT | `XRAY_USE_CONE` env | `platform::is_cone_nat_enabled()` | ✅ Complete |
 | IP address masking в логах | half/quarter/full/CIDR | `astra-core-common::log::mask_ip()` | ✅ Complete |
-| Dependency injection | `RequireFeatures`/`OptionalFeatures` | — | ❌ Not ported |
+| Dependency injection | `RequireFeatures`/`OptionalFeatures` | `astra-core-common::inject` | ✅ Complete |
 | Splice (zero-copy) везде | `CanSpliceCopy` в сессии | `use_splice` | ✅ tokio использует splice() на Linux |
 | FullCone NAT | в TUN + UDP | — | ❌ Not ported |
 
