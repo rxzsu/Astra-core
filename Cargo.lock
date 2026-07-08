@@ -320,6 +320,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-finalmask"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "blake2",
+ "hex",
+ "rand 0.10.2",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "astra-core-geodata"
 version = "0.1.0"
 dependencies = [

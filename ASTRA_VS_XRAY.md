@@ -124,7 +124,7 @@
 | `transport/internet/stat/` | `CounterConnection` в `astra_core_transport` | ✅ Complete |
 | `transport/internet/browser_dialer/` | `astra-core-browser-dialer` | ✅ Complete (HTTP+WS server, HTML/JS) |
 | `transport/internet/tagged/` | — | ❌ Not ported |
-| `transport/internet/finalmask/` | — | ❌ Not ported (Udpmask/Tcpmask система маскировки) |
+| `transport/internet/finalmask/` | `astra-core-finalmask` | ✅ Core: Tcpmask/Udpmask traits, managers, Salamander XOR mask |
 | `transport/internet/headers/` | — | ❌ Not ported |
 | `transport/internet/domain/` | — | ❌ Not ported |
 | `transport/internet/pipe/` | (built-in tokio pipe) | ✅ Через tokio::io::duplex |

@@ -1,0 +1,13 @@
+[package]
+name = "astra-core-finalmask"
+version = "0.1.0"
+edition = "2024"
+description = "FinalMask: traffic masking / obfuscation system for TCP and UDP"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+rand = { workspace = true }
+tracing = { workspace = true }
+blake2 = "0.10"
+aes-gcm = { workspace = true }
+hex = { workspace = true }
