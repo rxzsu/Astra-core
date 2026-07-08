@@ -454,11 +454,6 @@ impl OutboundHandler for Handler {
 
         let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
 
-        let use_splice = self.use_splice();
-        if use_splice {
-            tracing::debug!("freedom: using splice zero-copy");
-        }
-
         let to_remote = tokio::io::copy(&mut link.reader, &mut remote_writer);
         let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);
 
@@ -782,11 +777,10 @@ impl FinalRule {
         if !self.ips.is_empty() {
             let target_str = target.address.to_string();
             let ip_match = self.ips.iter().any(|cidr| {
-                if let Ok(ip) = std::net::IpAddr::from_str(&target_str) { // DNS not resolved yet
+                if std::net::IpAddr::from_str(&target_str).is_ok() {
                     false
                 } else if cidr.contains('/') {
-                    if let Ok(net) = ipnetwork::IpNetwork::from_str(cidr) {
-                        // Can't match without resolved IP
+                    if ipnetwork::IpNetwork::from_str(cidr).is_ok() {
                         false
                     } else { false }
                 } else {
