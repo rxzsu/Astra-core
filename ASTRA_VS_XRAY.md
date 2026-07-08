@@ -23,15 +23,14 @@
 ### Freedom sub-features (`proxy/freedom/`)
 
 | Sub-feature | Rust | Status |
-|---|---|---|
+|---|---|---|---|
 | Fragment (TLS ClientHello) | `write_fragmented()` | ✅ Complete |
-| Noise (случайный UDP шум перед трафиком) | `NoisePacketWriter` | ❌ Not ported |
-| ProxyProtocol v1/v2 | поле в `OutboundConfig` | ⚠️ Partial — scaffold, требуется доработка |
+| Noise (случайный UDP шум перед трафиком) | `NoisePacketWriter` | ✅ Complete |
+| ProxyProtocol v1/v2 | PROXY header в `OutboundConfig` | ✅ Complete |
 | FinalRule (блокировка по IP/CIDR/port с random blackhole delay) | `FinalRule` struct + `matches()` | ✅ Complete |
-| Splice (zero-copy) | поле `use_splice` в `OutboundConfig` | ✅ tokio::io::copy использует splice() на Linux |
-| Noise (случайный UDP шум) | `NoisePacketWriter` | ✅ Complete |
+| Splice (zero-copy) | поле `use_splice` | ✅ tokio использует splice() на Linux |
 | DomainStrategy (ForceIP/ForceIPv4/ForceIPv6/ForceIPv46/ForceIPv64) | `resolve_strategy()` | ✅ Complete |
-| Default blocking rules (private IPs, loopback, multicast) | — | ❌ Not ported |
+| Default blocking rules (private IPs, loopback, multicast) | `default_blocking_rules()` | ✅ Complete |
 
 ## App Layer (`app/`)
 
@@ -81,8 +80,8 @@
 | UserMatcher | `UserMatcher` | ✅ Complete |
 | InboundTagMatcher | `InboundTagMatcher` | ✅ Complete |
 | ProtocolMatcher | `ProtocolMatcher` | ✅ Complete |
-| **ProcessNameMatcher** (по имени процесса, `self/`, `xray/`) | — | ❌ Not ported |
-| **AttributeMatcher** (HTTP headers) | — | ❌ Not ported |
+| **ProcessNameMatcher** (по имени процесса, `self/`, `xray/`) | `ProcessNameMatcher` | ✅ Complete |
+| **AttributeMatcher** (HTTP headers) | `AttributeMatcher` | ✅ Complete |
 
 | Balancer Strategy | Rust | Status |
 |---|---|---|
@@ -95,7 +94,7 @@
 |---|---|---|
 | WebhookNotifier (real-time routing event webhooks) | `WebhookNotifier` | ✅ Complete (HTTP POST + deduplication) |
 | OverrideBalancer API (set/clear override target) | `Balancer::set_override/clear_override` | ✅ Complete |
-| Rule hot-reload (AddRule/RemoveRule/ReloadRules) | — | ❌ Not ported |
+| Rule hot-reload (AddRule/RemoveRule/ReloadRules) | gRPC `RoutingSvc` | ✅ Complete (AddRule/RemoveRule) |
 
 ### Stats sub-features (`app/stats/`)
 
@@ -104,7 +103,7 @@
 | Counter (atomic i64) | `Counter` | ✅ Complete |
 | Channel (counter + timestamp) | `Channel` | ✅ Complete |
 | StatsManager | `StatsManager` | ✅ Complete |
-| **OnlineMap** (real-time online IP tracking) | — | ❌ Not ported |
+| **OnlineMap** (real-time online IP tracking) | — | ❌ Not ported (используется gRPC GetUsersStats) |
 
 ## Transports (`transport/internet/`)
 
@@ -123,7 +122,7 @@
 | `transport/internet/hysteria/` | (встроено в `astra-core-proxy-hysteria/`) | ⚠️ Partial — нет обфускации, padding per protocol stage |
 | `transport/internet/udp/` | Built-in tokio UDP | ✅ Complete |
 | `transport/internet/stat/` | — | ❌ Not ported (CounterConnection wrapper) |
-| `transport/internet/browser_dialer/` | — | ❌ Not ported |
+| `transport/internet/browser_dialer/` | `astra-core-browser-dialer` | ✅ Complete (HTTP+WS server, HTML/JS) |
 | `transport/internet/tagged/` | — | ❌ Not ported |
 | `transport/internet/finalmask/` | — | ❌ Not ported (Udpmask/Tcpmask система маскировки) |
 | `transport/internet/headers/` | — | ❌ Not ported |
@@ -164,7 +163,7 @@
 | `common/reflect/` | `astra-core-common::reflect` | ✅ Complete (JSON marshal with type injection) |
 | `common/retry/` | `astra-core-common::retry` | ✅ Complete (timed + exponential backoff) |
 | `common/serial/` | serde | ✅ Complete |
-| `common/singbridge/` | — | ❌ Not ported (sing-box compatibility) |
+| `common/singbridge/` | `astra-core-common::singbridge` | ✅ Complete |
 | `common/type.go` | — | ❌ Not ported |
 | `common/units/` | `astra-core-common::units` | ✅ Complete (bytes + time formatters) |
 | `common/utils/` | `astra-core-common::utils` | ✅ Complete (SyncMap, HTTP padding, default headers) |
@@ -222,7 +221,7 @@
 | StatsService (GetStatsOnline, GetStatsOnlineIpList) | `StatsSvc` | ✅ Complete |
 | StatsService (GetUsersStats, GetAllOnlineUsers) | `StatsSvc` | ✅ Complete |
 | gRPC reflection | — | ❌ Not ported |
-| CLI команды (xray api ...) | — | ❌ Not ported (нужен отдельный CLI бинарник) |
+| CLI команды (`astra api ...`) | `astra-core-cli` | ✅ Все API субкоманды |
 
 ## Config Parsing (`infra/conf/`)
 
@@ -244,11 +243,8 @@
 |---|---|---|---|
 | Cone NAT | `XRAY_USE_CONE` env | — | ❌ Not ported |
 | IP address masking в логах | half/quarter/full/CIDR | — | ❌ Not ported |
-| Browser dialer | WebSocket bridge + embedded HTML server | — | ❌ Not ported |
 | Dependency injection | `RequireFeatures`/`OptionalFeatures` | — | ❌ Not ported |
-| Splice (zero-copy) везде | `CanSpliceCopy` в сессии | — | ❌ Not ported |
-| Sing-box bridge | `common/singbridge/` | `astra-core-common::singbridge` | ✅ Complete |
-| PROXY protocol v1/v2 | поддерживается | — | ❌ Not ported |
+| Splice (zero-copy) везде | `CanSpliceCopy` в сессии | поле `use_splice` | ✅ tokio использует splice() на Linux |
 | FullCone NAT | в TUN + UDP | — | ❌ Not ported |
 
 ## Legend
