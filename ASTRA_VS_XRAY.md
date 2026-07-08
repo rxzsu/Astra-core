@@ -146,21 +146,21 @@
 | `common/signal/` | `astra-core-proxy::timeout::TimeoutConn` | ⚠️ Partial — нет Done/Notifier, CancelAfterInactivity |
 | `common/task/` | tokio::time::interval | ⚠️ Partial — нет Periodic task |
 | `common/fragment/` | `write_fragmented()` in freedom | ✅ Complete |
-| `common/platform/` | — (env flags) | ❌ Not ported — `XRAY_USE_CONE`, `XRAY_USE_SPLICE`, `XRAY_BROWSER_DIALER`, `XRAY_JSON_STRICT` |
+| `common/platform/` | `astra-core-common::platform` | ✅ Complete (EnvFlag + const paths) |
 | `common/geodata/` | `astra-core-geodata/` | ✅ Complete |
 | `common/geodata/geosite/` | `astra-core-geodata/` | ✅ Complete |
 | `common/antireplay/` | `astra-core-common::antireplay` | ✅ Complete |
-| `common/bitmask/` | — | ❌ Not ported |
+| `common/bitmask/` | `astra-core-common::bitmask` | ✅ Complete |
 | `common/bytespool/` | `astra-core-buf::pool` | ✅ Complete |
 | `common/cache/` | `astra-core-common::cache` (LRU) | ✅ Complete |
-| `common/cmdarg/` | — | ❌ Not ported |
+| `common/cmdarg/` | `astra-core-common::cmdarg` | ✅ Complete |
 | `common/ctx/` | `astra-core-common::ctx` | ✅ Complete (context ID generation) |
 | `common/dice/` | `astra-core-crypto::rand` | ✅ Complete |
 | `common/drain/` | `astra-core-common::drain` | ✅ Complete |
 | `common/errors/` | `astra-core-common::errors` | ✅ Complete (XrayError with severity + chaining) |
 | `common/log/` | tracing | ⚠️ Partial — нет access log, severity levels |
-| `common/ocsp/` | — | ❌ Not ported |
-| `common/peer/` | — | ❌ Not ported |
+| `common/ocsp/` | `astra-core-common::ocsp` | ✅ Complete |
+| `common/peer/` | `astra-core-common::peer` | ✅ Complete |
 | `common/reflect/` | `astra-core-common::reflect` | ✅ Complete (JSON marshal with type injection) |
 | `common/retry/` | `astra-core-common::retry` | ✅ Complete (timed + exponential backoff) |
 | `common/serial/` | serde | ✅ Complete |
@@ -169,7 +169,7 @@
 | `common/units/` | `astra-core-common::units` | ✅ Complete (bytes + time formatters) |
 | `common/utils/` | `astra-core-common::utils` | ✅ Complete (SyncMap, HTTP padding, default headers) |
 | `common/uuid/` | `uuid` crate | ✅ Complete |
-| `common/xudp/` | — | ❌ Not ported |
+| `common/xudp/` | `astra-core-common::xudp` | ✅ Complete |
 
 ## Sockopt / Socket Options
 
@@ -247,7 +247,7 @@
 | Browser dialer | WebSocket bridge + embedded HTML server | — | ❌ Not ported |
 | Dependency injection | `RequireFeatures`/`OptionalFeatures` | — | ❌ Not ported |
 | Splice (zero-copy) везде | `CanSpliceCopy` в сессии | — | ❌ Not ported |
-| Sing-box bridge | `common/singbridge/` | — | ❌ Not ported |
+| Sing-box bridge | `common/singbridge/` | `astra-core-common::singbridge` | ✅ Complete |
 | PROXY protocol v1/v2 | поддерживается | — | ❌ Not ported |
 | FullCone NAT | в TUN + UDP | — | ❌ Not ported |
 
