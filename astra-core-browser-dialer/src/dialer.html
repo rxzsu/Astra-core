@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html><head><title>Browser Dialer</title><link rel="icon" href="data:"></head><body><script>
+"use strict";
+let url = "ws://"+window.location.host+"/websocket?token=TOKEN";
+let ws = null;
+function connect(){
+	ws = new WebSocket(url);
+	ws.binaryType = "arraybuffer";
+	ws.onmessage = function(event){
+		let task = JSON.parse(event.data);
+		if(task.method == "WS"){
+			const wss = new WebSocket(task.url, task.extra.protocol);
+			wss.binaryType = "arraybuffer";
+			let opened = false;
+			ws.onmessage = function(e){ wss.send(e.data) };
+			wss.onopen = function(){ opened=true; ws.send("ok") };
+			wss.onmessage = function(e){ ws.send(e.data) };
+			wss.onclose = function(){ ws.close() };
+			wss.onerror = function(){ !opened && ws.send("fail"); wss.close() };
+			ws.onclose = function(){ wss.close() };
+		} else if(task.method == "GET" && task.streamResponse){
+			(async()=>{
+				ws.send("ok");
+				let r = await fetch(task.url, {headers: task.extra.headers});
+				let reader = r.body.getReader();
+				ws.onclose = function(){ reader.cancel() };
+				while(true){
+					let {done,value} = await reader.read();
+					if(value) ws.send(value);
+					if(done) break;
+				}
+				ws.close();
+			})();
+		} else if(!task.streamResponse){
+			ws.send("ok");
+			ws.onmessage = async function(event){
+				let opts = {method: task.method, headers: task.extra.headers};
+				if(event.data.byteLength > 0) opts.body = event.data;
+				let r = await fetch(task.url, opts);
+				ws.send(r.ok ? "ok" : "fail");
+				ws.close();
+			};
+		}
+		connect();
+	};
+	ws.onclose = function(){ setTimeout(connect, 1000) };
+}
+connect();
+</script></body></html>

@@ -47,6 +47,7 @@ members = [
     "astra-core-transport-h2",
     "astra-core-cli",
     "astra-core-common",
+    "astra-core-browser-dialer",
 ]
 
 [workspace.dependencies]

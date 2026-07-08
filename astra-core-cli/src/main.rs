@@ -427,22 +427,32 @@ fn cmd_wg(input: Option<String>) {
 // ─── VLESS Encryption key generation ───────────────────────────────────────
 
 fn cmd_vlessenc() {
-    // Generate X25519 key pair
-    let mut private = [0u8; 32];
-    getrandom::getrandom(&mut private).unwrap();
-    let clamped = curve25519_dalek::scalar::clamp_integer(private);
+    // Generate X25519 key pair (classical)
+    let mut x25519_private = [0u8; 32];
+    getrandom::getrandom(&mut x25519_private).unwrap();
+    let clamped = curve25519_dalek::scalar::clamp_integer(x25519_private);
     let scalar = curve25519_dalek::Scalar::from_bytes_mod_order(clamped);
-    let public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
+    let x25519_public = curve25519_dalek::EdwardsPoint::mul_base(&scalar).to_montgomery().to_bytes();
 
-    let server_key = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, private);
-    let client_key = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, public);
+    let server_key_x = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, x25519_private);
+    let client_key_x = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, x25519_public);
 
-    println!("Choose one Authentication to use, do not mix them.");
+    // Generate ML-KEM-768 key pair (post-quantum)
+    let mut mlkem_seed = [0u8; 64];
+    getrandom::getrandom(&mut mlkem_seed).unwrap();
+    let mlkem_hash = blake3::hash(&mlkem_seed);
+    let server_key_pq = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, mlkem_seed);
+    let client_key_pq = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, mlkem_hash.as_bytes());
+
+    println!("Choose one Authentication to use, do not mix them. Ephemeral key exchange is Post-Quantum safe anyway.");
     println!();
     println!("Authentication: X25519, not Post-Quantum");
-    println!("\"decryption\": \"mlkem768x25519plus.native.600s.{}\"", server_key);
-    println!("\"encryption\": \"mlkem768x25519plus.native.0rtt.{}\"", client_key);
+    println!("\"decryption\": \"mlkem768x25519plus.native.600s.{}\"", server_key_x);
+    println!("\"encryption\": \"mlkem768x25519plus.native.0rtt.{}\"", client_key_x);
     println!();
+    println!("Authentication: ML-KEM-768, Post-Quantum");
+    println!("\"decryption\": \"mlkem768x25519plus.native.600s.{}\"", server_key_pq);
+    println!("\"encryption\": \"mlkem768x25519plus.native.0rtt.{}\"", client_key_pq);
 }
 
 // ─── ML-KEM-768 key generation ─────────────────────────────────────────────
