@@ -49,6 +49,7 @@ members = [
     "astra-core-common",
     "astra-core-browser-dialer",
     "astra-core-finalmask",
+    "astra-core-tun",
 ]
 
 [workspace.dependencies]

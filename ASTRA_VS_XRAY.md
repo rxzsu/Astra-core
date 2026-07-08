@@ -17,7 +17,7 @@
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
 | `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ⚠️ Partial — Kernel TUN, gVisor netstack DNS resolver, multi-peer dynamic add/remove, domain resolution strategies не портированы |
-| `proxy/tun/` | — | ❌ Not ported — gVisor TCP/IP stack, FullCone NAT, ICMP forwarder, auto-routing, platform-specific TUN |
+| `proxy/tun/` | `astra-core-tun` | ⚠️ Partial — Linux TUN, smoltcp stack, FullCone NAT, ICMP echo. Windows/macOS TBD |
 | `proxy/hysteria/` | `astra-core-proxy-hysteria/` | ⚠️ Partial — Go использует кастомную обфускацию (apernet/quic-go); Rust использует стандартный QUIC (quinn) |
 
 ### Freedom sub-features (`proxy/freedom/`)

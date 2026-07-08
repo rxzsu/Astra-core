@@ -1,0 +1,20 @@
+[package]
+name = "astra-core-tun"
+version = "0.1.0"
+edition = "2024"
+description = "TUN device + userspace TCP/IP stack"
+
+[features]
+default = ["tun-linux"]
+tun-linux = []
+tun-windows = []
+tun-macos = []
+tun-freebsd = []
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+rand = { workspace = true }
+getrandom = "0.2"
+tun = "0.7"
+async-trait = "0.1"
