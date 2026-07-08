@@ -627,7 +627,7 @@ mod tests {
         };
         let handler = Handler::new(cfg);
 
-        let client_handle = tokio::spawn(async move {
+        let _client_handle = tokio::spawn(async move {
             let (conn, _) = client_listener.accept().await.unwrap();
             let (mut inbound_link, mut outbound_link) = astra_core_transport::new_link_pair();
 

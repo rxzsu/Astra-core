@@ -67,6 +67,12 @@ pub struct StatsManager {
     channels: RwLock<HashMap<String, Arc<Channel>>>,
 }
 
+impl Default for StatsManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatsManager {
     pub fn new() -> Self {
         StatsManager {

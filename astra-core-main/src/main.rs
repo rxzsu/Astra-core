@@ -68,8 +68,8 @@ async fn main() {
     }
 
     // gRPC API server
-    if let Some(ref api_cfg) = config.api {
-        if !api_cfg.listen.is_empty() {
+    if let Some(ref api_cfg) = config.api
+        && !api_cfg.listen.is_empty() {
             let dispatcher: Arc<dyn astra_core_proxy::Dispatcher> = runtime.dispatcher.clone();
             let cell: DispatcherCell = Arc::new(Mutex::new(Some(dispatcher)));
 
@@ -89,7 +89,6 @@ async fn main() {
             let services: Vec<&str> = api_cfg.services.iter().map(|s| s.as_str()).collect();
             tracing::info!("gRPC API server listening on {} with services: {:?}", api_cfg.listen, services);
         }
-    }
 
     // Prometheus metrics server
     if let Some(ref metrics_addr) = runtime.metrics_addr {

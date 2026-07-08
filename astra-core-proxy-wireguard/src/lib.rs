@@ -160,9 +160,8 @@ impl OutboundHandler for Handler {
                     Ok(n) if n > 0 => n,
                     _ => break,
                 };
-                if let Ok(dec) = tunnel.decapsulate(&buf[..n]).await {
-                    if link.writer.write_all(&dec).await.is_err() { break; }
-                }
+                if let Ok(dec) = tunnel.decapsulate(&buf[..n]).await
+                    && link.writer.write_all(&dec).await.is_err() { break; }
             }
             Ok::<_, String>(())
         };

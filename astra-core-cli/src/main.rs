@@ -1,4 +1,3 @@
-use std::time::Duration;
 
 use clap::{Parser, Subcommand, Args};
 
@@ -516,7 +515,7 @@ fn cmd_convert(args: ConvertArgs) {
             };
             match serde_json::from_str::<serde_json::Value>(&content) {
                 Ok(val) => {
-                    if let Some(pretty) = serde_json::to_string_pretty(&val).ok() {
+                    if let Ok(pretty) = serde_json::to_string_pretty(&val) {
                         println!("{}", pretty);
                     }
                 }

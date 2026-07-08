@@ -4,22 +4,24 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Strategy for load balancing.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum BalancerStrategy {
+    #[default]
     Random,
     RoundRobin,
     LeastPing,
     LeastLoad,
 }
 
-impl BalancerStrategy {
-    pub fn from_str(s: &str) -> Self {
-        match s {
+impl std::str::FromStr for BalancerStrategy {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
             "roundRobin" => BalancerStrategy::RoundRobin,
             "leastPing" => BalancerStrategy::LeastPing,
             "leastLoad" => BalancerStrategy::LeastLoad,
             _ => BalancerStrategy::Random,
-        }
+        })
     }
 }
 

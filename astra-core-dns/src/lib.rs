@@ -178,11 +178,10 @@ pub fn build_dns_query_with_edns(
     if let Some(subnet) = build_edns0_subnet_option(client_ip) {
         opt_data.extend_from_slice(&subnet);
     }
-    if let Some(pad_len) = padding {
-        if pad_len > 0 {
+    if let Some(pad_len) = padding
+        && pad_len > 0 {
             opt_data.extend_from_slice(&build_edns0_padding_option(pad_len));
         }
-    }
     buf.extend_from_slice(&(opt_data.len() as u16).to_be_bytes());
     buf.extend_from_slice(&opt_data);
     buf
@@ -402,11 +401,10 @@ impl StaticHosts {
                 serde_json::Value::Array(arr) => {
                     let mut ips = Vec::new();
                     for v in arr {
-                        if let Some(s) = v.as_str() {
-                            if let Ok(ip) = s.parse::<IpAddr>() {
+                        if let Some(s) = v.as_str()
+                            && let Ok(ip) = s.parse::<IpAddr>() {
                                 ips.push(ip);
                             }
-                        }
                     }
                     if !ips.is_empty() {
                         hosts.entries.insert(key, HostEntry::Ips(ips));
@@ -436,7 +434,7 @@ impl StaticHosts {
             Some(Err(HostEntry::Domain(replacement))) => {
                 tracing::debug!("domain replaced: {} -> {}", domain, replacement);
                 self.lookup_recursive(&replacement, depth + 1)
-                    .or_else(|| Some(Err(replacement)))
+                    .or(Some(Err(replacement)))
             }
             Some(Err(HostEntry::Ips(_))) => None,
             None => None,
@@ -642,11 +640,10 @@ impl UdpDnsResolver {
         }).collect();
         let results = futures::future::join_all(futures).await;
         for r in results {
-            if let Ok(ips) = r {
-                if !ips.is_empty() {
+            if let Ok(ips) = r
+                && !ips.is_empty() {
                     return Ok(ips);
                 }
-            }
         }
         Err(DnsError::EmptyResponse)
     }
@@ -771,12 +768,9 @@ impl TcpDnsResolver {
             async move {
                 let mut all_ips = Vec::new();
                 for &qtype in qtypes {
-                    match resolve_tcp(ns, domain, qtype, &ns_addr).await {
-                        Ok(ips) => {
-                            let filtered = filter_expected(ips, &expected);
-                            if !filtered.is_empty() { all_ips.extend(filtered); break; }
-                        }
-                        Err(_) => {}
+                    if let Ok(ips) = resolve_tcp(ns, domain, qtype, &ns_addr).await {
+                        let filtered = filter_expected(ips, &expected);
+                        if !filtered.is_empty() { all_ips.extend(filtered); break; }
                     }
                 }
                 if all_ips.is_empty() { Err(DnsError::EmptyResponse) } else { Ok(all_ips) }
@@ -784,11 +778,10 @@ impl TcpDnsResolver {
         }).collect();
         let results = futures::future::join_all(futures).await;
         for r in results {
-            if let Ok(ips) = r {
-                if !ips.is_empty() {
+            if let Ok(ips) = r
+                && !ips.is_empty() {
                     return Ok(ips);
                 }
-            }
         }
         Err(DnsError::EmptyResponse)
     }

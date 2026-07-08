@@ -41,12 +41,11 @@ impl<K: Eq + Hash + Clone, V: Clone> LruCache<K, V> {
     /// Get key from value by linear scan. O(n). Moves to front. Returns None if not found.
     pub fn get_key_from_value(&mut self, value: &V) -> Option<K> where V: PartialEq {
         let found_key = self.map.iter().find(|(_, v)| *v == value).map(|(k, _)| k.clone());
-        if let Some(ref key) = found_key {
-            if let Some(pos) = self.order.iter().position(|k| *k == *key) {
+        if let Some(ref key) = found_key
+            && let Some(pos) = self.order.iter().position(|k| *k == *key) {
                 let k = self.order.remove(pos);
                 self.order.push(k);
             }
-        }
         found_key
     }
 

@@ -34,7 +34,7 @@ impl HunkConn {
 
         tokio::spawn(async move {
             while let Some(data) = write_rx.recv().await {
-                if grpc_tx.send(proto::Hunk { data: data }).await.is_err() {
+                if grpc_tx.send(proto::Hunk { data }).await.is_err() {
                     break;
                 }
             }

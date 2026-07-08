@@ -137,11 +137,10 @@ impl WebhookNotifier {
         }
         let mut seen = self.seen.lock().unwrap();
         let now = Instant::now();
-        if let Some(last) = seen.get(email) {
-            if now.duration_since(*last) < Duration::from_secs(self.deduplication_secs as u64) {
+        if let Some(last) = seen.get(email)
+            && now.duration_since(*last) < Duration::from_secs(self.deduplication_secs as u64) {
                 return true;
             }
-        }
         seen.insert(email.to_string(), now);
         false
     }

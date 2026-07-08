@@ -297,13 +297,12 @@ impl Manager {
 
     pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
         let removed = self.handlers.write().unwrap().remove(tag);
-        if removed.is_some() {
-            if self.default_handler.read().unwrap().as_ref().map(|h| std::ptr::addr_eq(Arc::as_ptr(h), Arc::as_ptr(removed.as_ref().unwrap()))).unwrap_or(false) {
+        if removed.is_some()
+            && self.default_handler.read().unwrap().as_ref().map(|h| std::ptr::addr_eq(Arc::as_ptr(h), Arc::as_ptr(removed.as_ref().unwrap()))).unwrap_or(false) {
                 // If we removed the default handler, pick a new default
                 let mut dh = self.default_handler.write().unwrap();
                 *dh = self.handlers.read().unwrap().values().next().cloned();
             }
-        }
         removed
     }
 

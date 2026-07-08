@@ -3,7 +3,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use astra_core_transport::new_link_stream;
 
-use astra_core_net::{Address, Destination, Network, Port, ParseAddress};
+use astra_core_net::Network;
 use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Content, Inbound, Outbound, Session};
 
@@ -69,7 +69,7 @@ impl Handler {
 impl InboundHandler for Handler {
     async fn process(
         &self,
-        session: Session,
+        _session: Session,
         mut conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
@@ -229,17 +229,16 @@ fn extract_sni_from_client_hello(data: &[u8]) -> String {
         pos += 4;
         if ext_type == 0x0000 && pos + 2 <= ext_end {
             // SNI extension
-            let sni_list_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
+            let _sni_list_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
             pos += 2;
             if pos + 3 <= ext_end {
                 let _sni_type = data[pos]; // 0x00 for host_name
                 let name_len = u16::from_be_bytes([data[pos + 1], data[pos + 2]]) as usize;
                 pos += 3;
-                if pos + name_len <= data.len() {
-                    if let Ok(name) = std::str::from_utf8(&data[pos..pos + name_len]) {
+                if pos + name_len <= data.len()
+                    && let Ok(name) = std::str::from_utf8(&data[pos..pos + name_len]) {
                         return name.to_string();
                     }
-                }
             }
         }
         pos += ext_data_len;
@@ -259,13 +258,12 @@ fn extract_http_path(data: &[u8]) -> String {
         }
     }
     // Extract path from GET/POST line
-    if let Some(line) = s.lines().next() {
-        if (line.starts_with("GET ") || line.starts_with("POST ")) && line.len() > 5 {
+    if let Some(line) = s.lines().next()
+        && (line.starts_with("GET ") || line.starts_with("POST ")) && line.len() > 5 {
             let parts: Vec<&str> = line.splitn(3, ' ').collect();
             if parts.len() >= 2 {
                 return parts[1].to_string();
             }
         }
-    }
     String::new()
 }

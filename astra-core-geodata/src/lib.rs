@@ -95,7 +95,7 @@ impl GeoDataManager {
             for entry in std::fs::read_dir(path).map_err(|e| e.to_string())? {
                 let entry = entry.map_err(|e| e.to_string())?;
                 let p = entry.path();
-                if p.extension().map_or(false, |ext| ext == "dat") {
+                if p.extension().is_some_and(|ext| ext == "dat") {
                     self.load_file(&p)?;
                 }
             }

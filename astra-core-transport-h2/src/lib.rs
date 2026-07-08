@@ -49,7 +49,7 @@ impl AsyncRead for H2Stream {
                     self.recv_buf.extend_from_slice(&data);
                 }
                 Poll::Ready(Some(Err(e))) => {
-                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)));
+                    return Poll::Ready(Err(std::io::Error::other(e)));
                 }
                 Poll::Ready(None) => {
                     self.closed = true;
@@ -75,12 +75,12 @@ impl AsyncWrite for H2Stream {
                 let len = buf.len().min(capacity);
                 let data = Bytes::copy_from_slice(&buf[..len]);
                 if let Err(e) = self.send.send_data(data, false) {
-                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)));
+                    return Poll::Ready(Err(std::io::Error::other(e)));
                 }
                 Poll::Ready(Ok(len))
             }
             Poll::Ready(Some(Err(e))) => {
-                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)))
+                Poll::Ready(Err(std::io::Error::other(e)))
             }
             Poll::Ready(None) => {
                 self.send_closed = true;

@@ -37,12 +37,11 @@ impl RouteRule {
     /// Check match and fire webhook if applicable.
     pub fn matches_and_notify(&self, ctx: &RoutingContext) -> bool {
         let matched = self.matches(ctx);
-        if matched {
-            if let Some(ref webhook) = self.webhook {
+        if matched
+            && let Some(ref webhook) = self.webhook {
                 let tag = if !self.outbound_tag.is_empty() { &self.outbound_tag } else { &self.balancer_tag };
                 webhook.fire(ctx, tag);
             }
-        }
         matched
     }
 }

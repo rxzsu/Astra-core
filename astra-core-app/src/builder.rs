@@ -930,8 +930,8 @@ fn build_router(config: &Config, geo: &GeoDataManager) -> Result<Router, String>
         }
 
         // Attribute matching (Go: app/router/condition.go AttributeMatcher)
-        if let Some(attrs) = &rule_cfg.attrs {
-            if let Some(obj) = attrs.as_object() {
+        if let Some(attrs) = &rule_cfg.attrs
+            && let Some(obj) = attrs.as_object() {
                 let mut attr_map = std::collections::HashMap::new();
                 for (k, v) in obj {
                     if let Some(s) = v.as_str() {
@@ -940,7 +940,6 @@ fn build_router(config: &Config, geo: &GeoDataManager) -> Result<Router, String>
                 }
                 rule.add_condition(Box::new(AttributeMatcher::new(&attr_map)));
             }
-        }
 
         if !rule.conditions.is_empty() {
             rules.push(rule);
@@ -1003,7 +1002,7 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
             let mut use_doh = false;
             let mut use_doq = false;
             let mut doh_url = String::new();
-            let mut doq_endpoint = String::new();
+            let _doq_endpoint = String::new();
             let mut doq_endpoint = String::new();
             for sv in &dns.servers {
                 let mut expected_ips = Vec::new();
@@ -1091,7 +1090,7 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let mut balancers = std::collections::HashMap::new();
     if let Some(ref routing) = config.routing {
         for br in &routing.balancers {
-            let strategy = BalancerStrategy::from_str(&br.strategy.r#type);
+            let strategy = br.strategy.r#type.parse::<BalancerStrategy>().unwrap_or_default();
             let balancer = Balancer::new(
                 br.tag.clone(),
                 br.selector.0.clone(),
@@ -1103,8 +1102,8 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     }
 
     // Start observatory if configured — injects alive tracking into each balancer
-    if let Some(ref obs_cfg) = config.observatory {
-        if obs_cfg.enable && !obs_cfg.selector.is_empty() {
+    if let Some(ref obs_cfg) = config.observatory
+        && obs_cfg.enable && !obs_cfg.selector.is_empty() {
             let alive_tags: Arc<RwLock<HashSet<String>>> = Arc::new(RwLock::new(HashSet::new()));
             for tag in &obs_cfg.selector {
                 alive_tags.write().unwrap().insert(tag.clone());
@@ -1137,7 +1136,6 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
 
             observatory.start();
         }
-    }
 
     let mut dispatcher = DefaultDispatcher::new(router, handler_provider);
     if let Some(resolver) = dns_resolver {

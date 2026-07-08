@@ -1,4 +1,3 @@
-use astra_core_config::transport::SocketConfig;
 
 /// Applies socket options from Xray's SocketConfig to a TCP stream.
 /// Mirrors Go's `transport/internet/tcp/sockopt_*.go` implementations.
@@ -65,7 +64,7 @@ pub fn apply_sockopt_linux(stream: &tokio::net::TcpStream, config: &SocketConfig
 }
 
 /// Apply TCP keepalive settings (cross-platform via socket2).
-pub fn apply_keepalive(stream: &tokio::net::TcpStream, idle: i32, interval: i32) {
+pub fn apply_keepalive(_stream: &tokio::net::TcpStream, _idle: i32, _interval: i32) {
     #[cfg(unix)]
     {
         use std::os::unix::io::AsRawFd;

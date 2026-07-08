@@ -5,7 +5,7 @@ use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResul
 use astra_core_session::{Outbound, Session};
 use astra_core_transport::new_link_stream;
 
-use crate::protocol::{CipherType, read_chunk, write_chunk};
+use crate::protocol::{CipherType, read_chunk};
 
 pub struct Handler {
     pub cipher: CipherType,
@@ -127,7 +127,7 @@ impl InboundHandler for RelayInbound {
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
         let mut nonce = vec![0u8; self.cipher.nonce_size()];
-        let first_chunk = read_chunk(&mut conn, self.cipher, &self.key(), &mut nonce)
+        let first_chunk = read_chunk(&mut conn, self.cipher, self.key(), &mut nonce)
             .await
             .map_err(|e| format!("ss2022 relay: read chunk: {}", e))?
             .ok_or_else(|| "ss2022 relay: connection closed".to_string())?;
@@ -163,7 +163,7 @@ impl InboundHandler for RelayInbound {
             let mut read_nonce = nonce.clone();
             use tokio::io::AsyncWriteExt;
             loop {
-                match read_chunk(&mut cr, self.cipher, &self.key(), &mut read_nonce).await {
+                match read_chunk(&mut cr, self.cipher, self.key(), &mut read_nonce).await {
                     Ok(Some(data)) => {
                         if lw.write_all(&data).await.is_err() { break; }
                     }

@@ -151,11 +151,10 @@ impl QuicPool {
 
     async fn get_or_create(&self) -> Result<quinn::Connection, String> {
         let mut guard = self.conn.lock().await;
-        if let Some(ref conn) = *guard {
-            if conn.close_reason().is_none() {
+        if let Some(ref conn) = *guard
+            && conn.close_reason().is_none() {
                 return Ok(conn.clone());
             }
-        }
         let conn = Self::dial_quic(&self.config).await?;
         *guard = Some(conn.clone());
         Ok(conn)
@@ -186,7 +185,7 @@ impl QuicPool {
 
         client_cfg.transport_config(Arc::new(transport));
 
-        let connecting = endpoint.connect_with(client_cfg, remote, &server_name)
+        let connecting = endpoint.connect_with(client_cfg, remote, server_name)
             .map_err(|e| format!("connect: {}", e))?;
         let conn = connecting.await.map_err(|e| format!("handshake: {}", e))?;
 
