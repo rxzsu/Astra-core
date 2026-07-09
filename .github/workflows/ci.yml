@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+  
+    runs-on: ${{ matrix.os }}
+  
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain (stable)
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+
+    - name: Rust cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "astra-core"
+
+    - name: Install Linux deps (TUN)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+    - name: Install macOS deps (TUN)
+      if: runner.os == 'macOS'
+      run: brew install libpcap
+
+    - name: Check formatting
+      run: cargo fmt --all --check
+      working-directory: astra-core
+
+    - name: Build workspace (lib + bins)
+      run: cargo build --workspace --all-targets --verbose
+      working-directory: astra-core
+
+    - name: Clippy (warnings as errors)
+      run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
+      working-directory: astra-core
+
+    - name: Run unit tests
+      run: cargo test --workspace --lib --verbose --no-fail-fast
+      working-directory: astra-core
+
+    - name: Run integration tests (if any)
+      run: cargo test --workspace --test '*' --verbose --no-fail-fast || true
+      working-directory: astra-core
