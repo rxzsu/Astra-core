@@ -13,6 +13,7 @@ use astra_core_proxy::{async_trait, Dialer, Dispatcher, OutboundHandler, ProxyRe
 use astra_core_session::Session;
 use astra_core_transport::{new_link_pair, Link};
 
+#[allow(dead_code)]
 const INTERNAL_DOMAIN: &str = "reverse";
 
 // ─── Control protocol (Go: `Control` proto) ────────────────────────────────
@@ -57,6 +58,7 @@ impl Control {
     }
 }
 
+#[allow(dead_code)]
 fn is_internal_domain(dest: &Destination) -> bool {
     dest.address.as_domain().map(|d| d == INTERNAL_DOMAIN).unwrap_or(false)
 }
@@ -69,7 +71,9 @@ pub struct BridgeWorker {
     mux: Arc<MuxServer<tokio::io::DuplexStream, tokio::io::DuplexStream>>,
     new_session_rx: tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<u16>>,
     dispatcher: Arc<dyn Dispatcher>,
+    #[allow(dead_code)]
     tag: String,
+    #[allow(dead_code)]
     closed: Arc<AtomicBool>,
 }
 

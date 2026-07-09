@@ -111,6 +111,7 @@ impl RelayInbound {
         RelayInbound { cipher, destinations }
     }
 
+    #[allow(dead_code)]
     fn find_destination(&self, key: &[u8]) -> Option<&RelayDestination> {
         // In Go: the relay service uses sing AEAD which requires authentication first.
         // Here we do a simple key lookup.

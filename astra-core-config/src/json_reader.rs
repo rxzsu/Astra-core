@@ -37,12 +37,10 @@ impl<R: Read> Read for JsonCommentReader<R> {
         let mut pending: Option<u8> = None;
 
         while written < buf.len() {
-            // If we have a pending byte from a previous iteration, write it first
             if let Some(b) = pending.take() {
                 buf[written] = b;
                 written += 1;
                 if written >= buf.len() {
-                    pending = Some(b);
                     break;
                 }
             }

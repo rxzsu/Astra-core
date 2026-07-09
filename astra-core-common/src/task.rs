@@ -133,7 +133,7 @@ where
         std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4)
     });
     let num_workers = max_workers.min(n);
-    let chunk = (n + num_workers - 1) / num_workers;
+    let chunk = n.div_ceil(num_workers);
 
     let err: Arc<std::sync::Mutex<Option<String>>> = Arc::new(std::sync::Mutex::new(None));
     let mut handles = Vec::with_capacity(num_workers);

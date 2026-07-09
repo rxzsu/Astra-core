@@ -226,6 +226,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "astra-core-app-log"
+version = "0.1.0"
+dependencies = [
+ "astra-core-common",
+ "chrono",
+ "lazy_static",
+ "regex-lite",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "astra-core-app-reverse"
 version = "0.1.0"
 dependencies = [

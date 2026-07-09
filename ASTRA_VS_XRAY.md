@@ -36,10 +36,10 @@
 
 | Go (Xray-core) | Rust (astra-core) | Status |
 |---|---|---|
-| `app/commander/` | `astra-core-app-grpc/` | ✅ HandlerService, StatsService, RoutingService, LoggerService (gRPC reflection не портирована) |
+| `app/commander/` | `astra-core-app-grpc/` + `astra-core-app-log` | ✅ HandlerService, StatsService, RoutingService, LoggerService (gRPC reflection ✅ Complete) |
 | `app/dispatcher/` | `astra-core-dispatcher/` | ✅ Complete |
 | `app/dns/` | `astra-core-dns/` | ✅ UDP, TCP, DoH, FakeDNS, cache, EDNS0, parallel, priority routing, static hosts |
-| `app/log/` | — | ❌ Not ported (использует tracing) — нет dual access/error лога, file/console/syslog handler'ов |
+| `app/log/` | `astra-core-app-log` | ✅ Complete — access/error log, file/console/none handlers, IP masking (half/quarter/full/CIDR), gRPC restart logger |
 | `app/metrics/` | `astra-core-metrics/` | ✅ Prometheus labels kind/tag/direction (inbound/outbound/user) |
 | `app/observatory/` | `astra-core-observatory/` | ✅ TCP + HTTP(S) probe (`probeType`/`probeUrl`, delay tracking) |
 | `app/observatory/burst/` | — | ❌ Not ported — burst health pinging (healthping.go, burstobserver.go) |
@@ -152,8 +152,8 @@
 | `common/protocol/bittorrent/` | `astra-core-sniffing::bittorrent` | ✅ Complete |
 | `common/protocol/dns/io.go` | `astra-core-sniffing::dns` | ✅ Complete |
 | `common/session/` | `astra-core-session/` | ✅ Complete — но нет CanSpliceCopy, Sockopt в сессии |
-| `common/signal/` | `astra-core-proxy::timeout::TimeoutConn` | ⚠️ Partial — нет Done, Notifier, CancelAfterInactivity |
-| `common/task/` | `astra-core-common::task` | ✅ Complete (OnSuccess, Run, Periodic, ParallelForN) |
+| `common/signal/` | `astra-core-common::signal` | ✅ Complete — Done, Notifier, Semaphore, PubSub, ActivityTimer, CancelAfterInactivity |
+| `common/task/` | `astra-core-common::task` | ✅ Complete — OnSuccess, Run (parallel), Periodic, ParallelForN |
 | `common/fragment/` | `write_fragmented()` in freedom | ✅ Complete |
 | `common/platform/` | `astra-core-common::platform` | ✅ Complete (EnvFlag + const paths) |
 | `common/geodata/` | `astra-core-geodata/` | ✅ Complete |

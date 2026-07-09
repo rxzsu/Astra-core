@@ -29,6 +29,7 @@ pub async fn copy_conn(
 
 /// Wrapper for packet connections that tracks errors in sing-box style.
 pub struct PacketConnWrapper {
+    #[allow(dead_code)]
     inner: Box<dyn tokio::io::AsyncRead + Unpin + Send>,
 }
 

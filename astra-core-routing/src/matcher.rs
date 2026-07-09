@@ -53,7 +53,7 @@ impl Matcher for DomainMatcher {
         for p in &self.patterns {
             match p {
                 DomainPattern::Exact(d) => {
-                    if &domain == d || format!("{}.", &domain) == *d || domain == d.trim_end_matches('.') {
+                    if &domain == d || format!("{}.", domain) == *d || domain == d.trim_end_matches('.') {
                         return true;
                     }
                 }

@@ -2,8 +2,8 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-/// Simple dependency injection container.
-/// Go equivalent: `core.Xray` with `RequireFeatures`/`OptionalFeatures`.
+// Simple dependency injection container.
+// Go equivalent: `core.Xray` with `RequireFeatures`/`OptionalFeatures`.
 
 lazy_static::lazy_static! {
     static ref FEATURES: RwLock<HashMap<String, Arc<dyn Any + Send + Sync>>> = RwLock::new(HashMap::new());

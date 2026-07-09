@@ -103,9 +103,9 @@ mod tests {
     #[test]
     fn test_checksum() {
         let data = [0x45, 0x00, 0x00, 0x54, 0x00, 0x00, 0x40, 0x00, 0x40, 0x01];
-        let cksum = compute_checksum(&data, data.len());
+        let _cksum = compute_checksum(&data, data.len());
         // Just verify it runs without panicking
-        assert!(true);
+        assert!(_cksum > 0);
     }
 
     #[test]

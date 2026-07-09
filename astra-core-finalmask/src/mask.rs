@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::task::Poll;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -97,7 +96,7 @@ impl SalamanderConn {
         let salt: [u8; 16] = rand::random();
         let mut hasher = blake2::Blake2b512::new();
         hasher.update(&self.psk);
-        hasher.update(&salt);
+        hasher.update(salt);
         let key = hasher.finalize();
         let mut out = Vec::with_capacity(16 + data.len());
         out.extend_from_slice(&salt);
@@ -193,7 +192,7 @@ impl SalamanderUdpConn {
         let salt: [u8; 16] = rand::random();
         let mut hasher = blake2::Blake2b512::new();
         hasher.update(&self.psk);
-        hasher.update(&salt);
+        hasher.update(salt);
         let key = hasher.finalize();
         let mut out = Vec::with_capacity(16 + data.len());
         out.extend_from_slice(&salt);

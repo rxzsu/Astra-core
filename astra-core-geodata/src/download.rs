@@ -151,13 +151,12 @@ async fn http_get_bytes(url: &str, timeout: Duration, redirect_depth: u8) -> Res
 }
 
 fn parse_host_port(host_port: &str, scheme: &str) -> (String, u16) {
-    if let Some((h, p)) = host_port.rsplit_once(':') {
-        if !h.contains(':') || host_port.starts_with('[') {
+    if let Some((h, p)) = host_port.rsplit_once(':')
+        && (!h.contains(':') || host_port.starts_with('[')) {
             let host = h.trim_matches(|c| c == '[' || c == ']').to_string();
             let port = p.parse().unwrap_or(if scheme == "https" { 443 } else { 80 });
             return (host, port);
         }
-    }
     (
         host_port.to_string(),
         if scheme == "https" { 443 } else { 80 },

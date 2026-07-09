@@ -1,4 +1,4 @@
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 
 /// Parse a PROXY protocol v1 header from a connection.
 /// Returns the source address if successful.

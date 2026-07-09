@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 /// Xray-style severity levels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Severity {
+    #[default]
     Debug,
     Info,
     Warning,

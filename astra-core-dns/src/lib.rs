@@ -306,6 +306,7 @@ struct CacheRecord {
 }
 
 pub struct CacheController {
+    #[allow(dead_code)]
     name: String,
     disable_cache: bool,
     serve_stale: bool,
@@ -680,7 +681,9 @@ pub struct TcpDnsResolver {
     query_strategy: QueryStrategy,
     cache: CacheController,
     enable_parallel: bool,
+    #[allow(dead_code)]
     disable_fallback: bool,
+    #[allow(dead_code)]
     disable_fallback_if_match: bool,
 }
 
@@ -791,6 +794,7 @@ impl TcpDnsResolver {
 
 pub struct DoHResolver {
     url: String,
+    #[allow(dead_code)]
     nameservers: Vec<NameServer>,
     hosts: StaticHosts,
     query_strategy: QueryStrategy,

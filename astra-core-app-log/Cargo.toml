@@ -1,0 +1,14 @@
+[package]
+name = "astra-core-app-log"
+version = "0.1.0"
+edition = "2024"
+description = "Xray-core app/log — access/error logging with file/console/syslog handlers, IP masking, gRPC restart"
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+regex-lite = "0.1"
+chrono = "0.4"
+lazy_static = "1.4"
+astra-core-common = { path = "../astra-core-common" }

@@ -167,7 +167,7 @@ async fn handle_connection(
             match msg {
                 Ok(Message::Binary(data)) => {
                     // Received response data from browser
-                    let mut guard = conns.lock().unwrap();
+                    let guard = conns.lock().unwrap();
                     if let Some(tx) = guard.first() {
                         let _ = tx.send(data.to_vec());
                     }

@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_descriptor_set_path(out_dir.join("api_descriptor.bin"))
         .compile_protos(
             &[proto_dir.join("api.proto")],
-            &[proto_dir.clone()],
+            std::slice::from_ref(&proto_dir),
         )?;
     Ok(())
 }

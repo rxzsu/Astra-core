@@ -40,10 +40,10 @@ impl FullCone {
     /// Get or create a session.
     pub fn get_or_create(&self, src: SocketAddr, dst: SocketAddr) {
         let mut sessions = self.sessions.lock().unwrap();
-        if !sessions.contains_key(&src) {
+        sessions.entry(src).or_insert_with(|| {
             let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-            sessions.insert(src, Session { dst, tx });
-        }
+            Session { dst, tx }
+        });
     }
 
     pub fn has_session(&self, src: &SocketAddr) -> bool {
@@ -72,7 +72,6 @@ impl Default for FullCone {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[test]
     fn test_fullcone_create_forward() {

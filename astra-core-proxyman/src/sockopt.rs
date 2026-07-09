@@ -64,18 +64,18 @@ pub fn apply_sockopt_linux(stream: &tokio::net::TcpStream, config: &SocketConfig
 }
 
 /// Apply TCP keepalive settings (cross-platform via socket2).
-pub fn apply_keepalive(stream: &tokio::net::TcpStream, idle: i32, interval: i32) {
+pub fn apply_keepalive(_stream: &tokio::net::TcpStream, _idle: i32, _interval: i32) {
     #[cfg(unix)]
     {
         use std::os::unix::io::AsRawFd;
-        let fd = stream.as_raw_fd();
+        let fd = _stream.as_raw_fd();
         let sock = unsafe { std::mem::ManuallyDrop::new(socket2::Socket::from_raw_fd(fd)) };
         let mut ka = socket2::TcpKeepalive::new();
-        if idle > 0 {
-            ka = ka.with_time(std::time::Duration::from_secs(idle as u64));
+        if _idle > 0 {
+            ka = ka.with_time(std::time::Duration::from_secs(_idle as u64));
         }
-        if interval > 0 {
-            ka = ka.with_interval(std::time::Duration::from_secs(interval as u64));
+        if _interval > 0 {
+            ka = ka.with_interval(std::time::Duration::from_secs(_interval as u64));
         }
         let _ = sock.set_tcp_keepalive(&ka);
     }

@@ -10,7 +10,6 @@ use astra_core_session::{Content, Inbound, Outbound, Session};
 use crate::config::{Fallback, ServerConfig};
 use crate::protocol;
 
-const MAX_CHUNK_SIZE: usize = 0x3FFF;
 const FALLBACK_BUF_SIZE: usize = 2048;
 
 pub struct Handler {
