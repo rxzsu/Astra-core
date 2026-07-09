@@ -42,7 +42,7 @@
 | `app/log/` | `astra-core-app-log` | ✅ Complete — access/error log, file/console/none handlers, IP masking (half/quarter/full/CIDR), gRPC restart logger |
 | `app/metrics/` | `astra-core-metrics/` | ✅ Prometheus labels kind/tag/direction (inbound/outbound/user) |
 | `app/observatory/` | `astra-core-observatory/` | ✅ TCP + HTTP(S) probe (`probeType`/`probeUrl`, delay tracking) |
-| `app/observatory/burst/` | — | ❌ Not ported — burst health pinging (healthping.go, burstobserver.go) |
+| `app/observatory/burst/` | `astra-core-observatory::burst` | ✅ Complete — BurstObserver, HealthPing, HealthPingRTTS (ring buffer + stats) |
 | `app/policy/` | `astra-core-policy/` | ✅ Complete |
 | `app/proxyman/` | `astra-core-proxyman/` | ✅ Complete |
 | `app/reverse/` | `astra-core-app-reverse/` | ✅ Complete — bridge/portal, auto-scaling workers, heartbeat |

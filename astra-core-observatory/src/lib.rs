@@ -6,6 +6,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::sleep;
 
+pub mod burst;
+
 /// Result of a health probe.
 #[derive(Debug, Clone)]
 pub struct OutboundStatus {
