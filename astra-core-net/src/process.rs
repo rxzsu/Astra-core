@@ -11,8 +11,8 @@ pub fn find_process(
     network: &str,
     src_ip: &str,
     src_port: u16,
-    dest_ip: &str,
-    dest_port: u16,
+    _dest_ip: &str,
+    _dest_port: u16,
 ) -> Result<ProcessInfo, String> {
     // Platform-specific implementations
     #[cfg(target_os = "linux")]
@@ -86,8 +86,11 @@ fn find_process_linux(network: &str, src_ip: &str, src_port: u16) -> Result<Proc
     let proc_dir = Path::new("/proc");
     let entries = fs::read_dir(proc_dir).map_err(|e| format!("read /proc: {}", e))?;
 
-    for entry in entries {
-        let entry = entry.map_err(|_| continue)?;
+    for entry_res in entries {
+        let entry = match entry_res {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
         let pid_str = entry.file_name().to_string_lossy().to_string();
         if !pid_str.chars().all(|c| c.is_ascii_digit()) {
             continue;
@@ -99,8 +102,11 @@ fn find_process_linux(network: &str, src_ip: &str, src_port: u16) -> Result<Proc
             Err(_) => continue,
         };
 
-        for fd_entry in fd_dir {
-            let fd_entry = fd_entry.map_err(|_| continue)?;
+        for fd_res in fd_dir {
+            let fd_entry = match fd_res {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
             let link_path = fd_entry.path();
             let link_target = match fs::read_link(&link_path) {
                 Ok(t) => t,

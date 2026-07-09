@@ -2,9 +2,10 @@
 name = "astra-core-cli"
 version = "0.1.0"
 edition = "2024"
+description = "Astra CLI — command-line utilities (uuid, x25519, tls, api, etc.)"
 
 [[bin]]
-name = "astra"
+name = "astra-cli"
 path = "src/main.rs"
 
 [dependencies]
