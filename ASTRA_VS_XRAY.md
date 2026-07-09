@@ -42,6 +42,7 @@
 | `app/log/` | — | ❌ Not ported (использует tracing) — нет dual access/error лога, file/console/syslog handler'ов |
 | `app/metrics/` | `astra-core-metrics/` | ✅ Prometheus labels kind/tag/direction (inbound/outbound/user) |
 | `app/observatory/` | `astra-core-observatory/` | ✅ TCP + HTTP(S) probe (`probeType`/`probeUrl`, delay tracking) |
+| `app/observatory/burst/` | — | ❌ Not ported — burst health pinging (healthping.go, burstobserver.go) |
 | `app/policy/` | `astra-core-policy/` | ✅ Complete |
 | `app/proxyman/` | `astra-core-proxyman/` | ✅ Complete |
 | `app/reverse/` | `astra-core-app-reverse/` | ⚠️ Partial — heartbeat, auto-scaling workers не портированы |
@@ -82,6 +83,8 @@
 | ProtocolMatcher | `ProtocolMatcher` | ✅ Complete |
 | **ProcessNameMatcher** (по имени процесса, `self/`, `xray/`) | `ProcessNameMatcher` | ✅ Complete |
 | **AttributeMatcher** (HTTP headers) | `AttributeMatcher` | ✅ Complete |
+| **Sniffing** (TLS SNI, HTTP Host, DNS, BitTorrent) | `astra-core-sniffing/` | ✅ Complete — SniffedStream, 4 sniffers |
+| **ProtocolMatcher** (по результатам сниффинга) | `ProtocolMatcher` + `SniffResult` | ✅ Complete |
 
 | Balancer Strategy | Rust | Status |
 |---|---|---|
@@ -125,7 +128,9 @@
 | `transport/internet/browser_dialer/` | `astra-core-browser-dialer` | ✅ Complete (HTTP+WS server, HTML/JS) |
 | `transport/internet/tagged/` | `astra-core-transport::tagged` | ✅ Complete |
 | `transport/internet/finalmask/` | `astra-core-finalmask` | ✅ Core: Tcpmask/Udpmask traits, managers, Salamander XOR mask |
-| `transport/internet/headers/` | — | ❌ Not ported (VStream в `astra-core-transport::vstream`) |
+| `transport/internet/headers/http/` | `astra-core-transport::headers::http` | ✅ Complete (HeaderReader, HeaderWriter, HttpConn, Authenticator) |
+| `transport/internet/headers/noop/` | — | ❌ Not ported (тривиально — NoOpReader/NoOpWriter) |
+| `transport/internet/domain/` | — | ❌ Not ported |
 | `transport/internet/domain/` | — | ❌ Not ported |
 | `transport/internet/pipe/` | (built-in tokio pipe) | ✅ Через tokio::io::duplex |
 
@@ -141,9 +146,14 @@
 | `common/buf/` | `astra-core-buf/` | ⚠️ Partial — нет ReadV (scatter/gather), splice-enabled copying, SNI buffering |
 | `common/net/` | `astra-core-net/` | ⚠️ Partial — нет process finding (Linux/Android/Windows), system DNS |
 | `common/protocol/` | `astra-core-proto/` | ✅ Complete |
+| `common/protocol/tls/sniff.go` | `astra-core-sniffing::tls` | ✅ Complete |
+| `common/protocol/http/sniff.go` | `astra-core-sniffing::http` | ✅ Complete |
+| `common/protocol/quic/sniff.go` | `astra-core-sniffing::quic` | ✅ Complete |
+| `common/protocol/bittorrent/` | `astra-core-sniffing::bittorrent` | ✅ Complete |
+| `common/protocol/dns/io.go` | `astra-core-sniffing::dns` | ✅ Complete |
 | `common/session/` | `astra-core-session/` | ✅ Complete — но нет CanSpliceCopy, Sockopt в сессии |
-| `common/signal/` | `astra-core-proxy::timeout::TimeoutConn` | ⚠️ Partial — нет Done/Notifier, CancelAfterInactivity |
-| `common/task/` | tokio::time::interval | ⚠️ Partial — нет Periodic task |
+| `common/signal/` | `astra-core-proxy::timeout::TimeoutConn` | ⚠️ Partial — нет Done, Notifier, CancelAfterInactivity |
+| `common/task/` | `astra-core-common::task` | ✅ Complete (OnSuccess, Run, Periodic, ParallelForN) |
 | `common/fragment/` | `write_fragmented()` in freedom | ✅ Complete |
 | `common/platform/` | `astra-core-common::platform` | ✅ Complete (EnvFlag + const paths) |
 | `common/geodata/` | `astra-core-geodata/` | ✅ Complete |
