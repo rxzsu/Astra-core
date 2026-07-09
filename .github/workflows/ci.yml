@@ -31,7 +31,6 @@ jobs:
     - name: Rust cache
       uses: Swatinem/rust-cache@v2
       with:
-        workspaces: "astra-core"
         cache-on-failure: true
 
     - name: Install Linux deps (TUN)
@@ -44,20 +43,15 @@ jobs:
 
     - name: Check formatting
       run: cargo fmt --all --check
-      working-directory: astra-core
 
     - name: Build workspace
       run: cargo build --workspace --all-targets --verbose
-      working-directory: astra-core
 
     - name: Clippy
       run: cargo clippy --workspace --all-targets --no-deps
-      working-directory: astra-core
 
     - name: Run tests
       run: cargo test --workspace --lib --verbose --no-fail-fast
-      working-directory: astra-core
 
     - name: Run integration tests
       run: cargo test --workspace --test '*' --verbose --no-fail-fast || true
-      working-directory: astra-core
