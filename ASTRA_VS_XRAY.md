@@ -23,7 +23,7 @@
 ### Freedom sub-features (`proxy/freedom/`)
 
 | Sub-feature | Rust | Status |
-|---|---|---|---|
+|---|---|---|
 | Fragment (TLS ClientHello) | `write_fragmented()` | ✅ Complete |
 | Noise (случайный UDP шум перед трафиком) | `NoisePacketWriter` | ✅ Complete |
 | ProxyProtocol v1/v2 | PROXY header в `OutboundConfig` | ✅ Complete |
