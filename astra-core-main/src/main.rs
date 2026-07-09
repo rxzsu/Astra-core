@@ -57,14 +57,17 @@ async fn main() {
     };
 
     let dispatcher = runtime.dispatcher.clone();
+    let inbound_manager = runtime.inbound_manager.clone();
 
     for handler in runtime.inbound_handlers.into_iter() {
         let dispatcher = dispatcher.clone();
-        tokio::spawn(async move {
+        let tag = handler.tag().to_string();
+        let join = tokio::spawn(async move {
             if let Err(e) = handler.start(dispatcher).await {
                 tracing::error!("inbound handler error: {}", e);
             }
         });
+        inbound_manager.add(tag, join.abort_handle());
     }
 
     // gRPC API server
@@ -77,6 +80,7 @@ async fn main() {
                 listen_addr: api_cfg.listen.clone(),
                 stats_manager: runtime.stats_manager.clone(),
                 outbound_manager: runtime.outbound_manager.clone(),
+                inbound_manager: runtime.inbound_manager.clone(),
                 dispatcher_cell: cell,
             };
 

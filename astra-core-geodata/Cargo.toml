@@ -7,3 +7,7 @@ edition = "2024"
 prost = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+webpki-roots = { workspace = true }

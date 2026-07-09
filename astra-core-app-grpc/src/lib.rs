@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use tonic_reflection::server::Builder as ReflectionBuilder;
 
-use astra_core_proxyman::outbound;
+use astra_core_proxyman::{inbound, outbound};
 use astra_core_proxy_loopback::DispatcherCell;
 use astra_core_stats::StatsManager;
 
@@ -28,6 +28,7 @@ pub struct GrpcApiConfig {
     pub listen_addr: String,
     pub stats_manager: Arc<StatsManager>,
     pub outbound_manager: Arc<outbound::Manager>,
+    pub inbound_manager: Arc<inbound::Manager>,
     pub dispatcher_cell: DispatcherCell,
 }
 
@@ -37,6 +38,7 @@ pub async fn serve_grpc_api(config: GrpcApiConfig) -> Result<(), Box<dyn std::er
 
     let handler_svc = HandlerSvc {
         outbound_manager: config.outbound_manager.clone(),
+        inbound_manager: config.inbound_manager.clone(),
         dispatcher_cell: config.dispatcher_cell.clone(),
     };
 
@@ -73,6 +75,7 @@ pub async fn serve_grpc_api(config: GrpcApiConfig) -> Result<(), Box<dyn std::er
 
 struct HandlerSvc {
     outbound_manager: Arc<outbound::Manager>,
+    inbound_manager: Arc<inbound::Manager>,
     dispatcher_cell: DispatcherCell,
 }
 
@@ -86,18 +89,39 @@ impl HandlerService for HandlerSvc {
         let tag = inbound_config.tag.clone();
         if tag.is_empty() { return Err(Status::invalid_argument("inbound config missing tag")); }
 
+        if self.inbound_manager.contains(&tag) {
+            return Err(Status::already_exists(format!("inbound {} already exists", tag)));
+        }
+
         let handler = astra_core_app::build_inbound_handler(&inbound_config)
             .map_err(|e| Status::internal(format!("build inbound: {}", e)))?;
 
-        // Store handler reference - in a full implementation we'd track these
-        let _ = handler;
+        let dispatcher = {
+            let guard = self.dispatcher_cell.lock().map_err(|e| Status::internal(format!("dispatcher lock: {}", e)))?;
+            guard.as_ref().cloned().ok_or_else(|| Status::failed_precondition("dispatcher not ready"))?
+        };
+
+        let join = tokio::spawn(async move {
+            if let Err(e) = handler.start(dispatcher).await {
+                tracing::error!("inbound {} error: {}", tag, e);
+            }
+        });
+        // tag moved into spawn for logging — re-read from config
+        let tag = inbound_config.tag.clone();
+        self.inbound_manager.add(tag.clone(), join.abort_handle());
+        tracing::info!("added inbound {}", tag);
 
         Ok(Response::new(AddInboundResponse {}))
     }
 
     async fn remove_inbound(&self, req: Request<RemoveInboundRequest>) -> Result<Response<RemoveInboundResponse>, Status> {
-        let _tag = req.into_inner().tag;
-        Err(Status::unimplemented("remove inbound not fully implemented"))
+        let tag = req.into_inner().tag;
+        if self.inbound_manager.remove(&tag) {
+            tracing::info!("removed inbound {}", tag);
+            Ok(Response::new(RemoveInboundResponse {}))
+        } else {
+            Err(Status::not_found(format!("inbound {} not found", tag)))
+        }
     }
 
     async fn add_outbound(&self, req: Request<AddOutboundRequest>) -> Result<Response<AddOutboundResponse>, Status> {
@@ -122,7 +146,8 @@ impl HandlerService for HandlerSvc {
     }
 
     async fn get_inbounds(&self, _req: Request<GetInboundsRequest>) -> Result<Response<GetInboundsResponse>, Status> {
-        Ok(Response::new(GetInboundsResponse { tags: vec![] }))
+        let tags = self.inbound_manager.list();
+        Ok(Response::new(GetInboundsResponse { tags }))
     }
 
     async fn get_outbounds(&self, _req: Request<GetOutboundsRequest>) -> Result<Response<GetOutboundsResponse>, Status> {

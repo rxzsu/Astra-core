@@ -48,8 +48,8 @@ All core protocols and transports from Xray-core are ported ~90%. The following 
 | Sniffing (TLS SNI, HTTP Host, DNS, BitTorrent) | ✅ |
 | Policy system (timeouts, buffer sizes, per-user levels) | ✅ |
 | Mux (client/server, framing, session management) | ✅ |
-| Observatory (health checks + auto-failover) | ✅ |
-| Prometheus metrics (/metrics endpoint) | ✅ |
+| Observatory (health checks + auto-failover) | ✅ TCP + HTTP(S) probe, delay |
+| Prometheus metrics (/metrics endpoint) | ✅ Labels kind/tag/direction |
 | Activity timers (idle timeout on connections) | ✅ |
 | Sockopt (mark, tcpCongestion, tcpFastOpen, keepalive, tproxy) | ✅ Linux |
 | TLS (rustls 0.23, server/client) | ✅ |
@@ -57,7 +57,7 @@ All core protocols and transports from Xray-core are ported ~90%. The following 
 ### Recently Added
 | Feature | Status |
 |---------|--------|
-| GeoIP / GeoSite (geoip.dat, geosite.dat) | ✅ Load `.dat` files via prost protobuf |
+| GeoIP / GeoSite (geoip.dat, geosite.dat) | ✅ Load `.dat` + auto-download helper |
 | DoH / DoQ / h2c DNS | ✅ RFC 8484 / RFC 9250 / h2c |
 | EDNS0 Client Subnet | ✅ RFC 7871 (IPv4 /24, IPv6 /96) |
 | DNS cache + serveStale | ✅ CacheController with stale TTL |
@@ -84,7 +84,10 @@ All core protocols and transports from Xray-core are ported ~90%. The following 
 |---------|--------|
 | REALITY uTLS ClientHello | Blocked — no uTLS in Rust ecosystem |
 | Windows/macOS TUN | ❌ Not ported (Linux only) |
-| Traditional access/error log system | ❌ Not ported (uses tracing) |
+| Traditional access/error log system | ❌ Not ported (uses tracing; AccessMessage helpers exist) |
+| gRPC tun_multi server | Partial — single stream OK |
+| SplitHTTP xpadding / upload queue parity | Partial |
+| Dokodemo FollowRedirect / FakeUDP | Partial |
 
 ## Architecture
 

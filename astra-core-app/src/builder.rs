@@ -29,6 +29,7 @@ pub struct AppRuntime {
     pub dispatcher: Arc<DefaultDispatcher>,
     pub inbound_handlers: Vec<AlwaysOnInboundHandler>,
     pub outbound_manager: Arc<outbound::Manager>,
+    pub inbound_manager: Arc<inbound::Manager>,
     pub stats_manager: Arc<StatsManager>,
     pub metrics_addr: Option<String>,
 }
@@ -1109,15 +1110,11 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                 alive_tags.write().unwrap().insert(tag.clone());
             }
 
-            let probe_host = obs_cfg.probe_url.as_deref()
-                .and_then(|u| u.split(':').next())
-                .unwrap_or("1.1.1.1")
-                .to_string();
-            let probe_port = obs_cfg.probe_url.as_deref()
-                .and_then(|u| u.split(':').nth(1))
-                .and_then(|p| p.parse::<u16>().ok())
-                .unwrap_or(80);
             let interval = if obs_cfg.probe_interval > 0 { obs_cfg.probe_interval as u64 } else { 10 };
+            let probe = astra_core_observatory::ProbeMethod::from_config(
+                &obs_cfg.probe_type,
+                obs_cfg.probe_url.as_deref(),
+            );
 
             // Attach alive set to each balancer whose selector overlaps
             for b in balancers.values_mut() {
@@ -1126,11 +1123,10 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                 }
             }
 
-            let observatory = astra_core_observatory::Observatory::new(
+            let observatory = astra_core_observatory::Observatory::with_probe(
                 obs_cfg.selector.clone(),
                 alive_tags,
-                probe_host,
-                probe_port,
+                probe,
                 interval,
             );
 
@@ -1191,6 +1187,7 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
         dispatcher,
         inbound_handlers,
         outbound_manager: ob_manager,
+        inbound_manager: Arc::new(inbound::Manager::new()),
         stats_manager,
         metrics_addr,
     })

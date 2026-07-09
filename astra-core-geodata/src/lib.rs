@@ -3,6 +3,11 @@ use std::path::Path;
 
 use prost::Message;
 
+pub mod download;
+pub use download::{
+    download_file, ensure_geo_files, DownloadOptions, DEFAULT_GEOIP_URL, DEFAULT_GEOSITE_URL,
+};
+
 /// GeoIP protobuf definitions
 
 #[derive(Clone, PartialEq, Message)]

@@ -377,8 +377,12 @@ name = "astra-core-geodata"
 version = "0.1.0"
 dependencies = [
  "prost 0.14.4",
+ "rustls",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -425,8 +429,12 @@ version = "0.1.0"
 name = "astra-core-observatory"
 version = "0.1.0"
 dependencies = [
+ "rustls",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

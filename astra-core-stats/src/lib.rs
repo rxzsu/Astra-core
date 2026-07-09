@@ -110,6 +110,54 @@ impl StatsManager {
     pub fn all_channels(&self) -> Vec<Arc<Channel>> {
         self.channels.read().unwrap().values().cloned().collect()
     }
+
+    pub fn remove_counter(&self, name: &str) -> bool {
+        self.counters.write().unwrap().remove(name).is_some()
+    }
+
+    pub fn remove_channel(&self, name: &str) -> bool {
+        self.channels.write().unwrap().remove(name).is_some()
+    }
+}
+
+/// No-op stats manager: register always returns a live counter that is never stored.
+/// Useful when stats feature is disabled (Xray NoopManager parity).
+pub struct NoopManager;
+
+impl NoopManager {
+    pub fn new() -> Self {
+        NoopManager
+    }
+
+    pub fn register_counter(&self, name: &str) -> Arc<Counter> {
+        Arc::new(Counter::new(name))
+    }
+
+    pub fn get_counter(&self, _name: &str) -> Option<Arc<Counter>> {
+        None
+    }
+
+    pub fn register_channel(&self, name: &str) -> Arc<Channel> {
+        Arc::new(Channel::new(name))
+    }
+
+    pub fn get_channel(&self, _name: &str) -> Option<Arc<Channel>> {
+        None
+    }
+
+    pub fn all_counters(&self) -> Vec<Arc<Counter>> {
+        Vec::new()
+    }
+
+    pub fn all_channels(&self) -> Vec<Arc<Channel>> {
+        Vec::new()
+    }
+}
+
+impl Default for NoopManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub mod online_map;
@@ -156,6 +204,15 @@ mod tests {
         assert_eq!(c.get(), 32);
         c.reset();
         assert_eq!(c.get(), 0);
+    }
+
+    #[test]
+    fn test_noop_manager() {
+        let mgr = NoopManager::new();
+        let c = mgr.register_counter("x");
+        c.add(1);
+        assert!(mgr.get_counter("x").is_none());
+        assert!(mgr.all_counters().is_empty());
     }
 
     #[test]

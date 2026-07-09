@@ -40,15 +40,15 @@
 | `app/dispatcher/` | `astra-core-dispatcher/` | ✅ Complete |
 | `app/dns/` | `astra-core-dns/` | ✅ UDP, TCP, DoH, FakeDNS, cache, EDNS0, parallel, priority routing, static hosts |
 | `app/log/` | — | ❌ Not ported (использует tracing) — нет dual access/error лога, file/console/syslog handler'ов |
-| `app/metrics/` | `astra-core-metrics/` | ⚠️ Partial — нет per-outbound metrics |
-| `app/observatory/` | `astra-core-observatory/` | ⚠️ Partial — Go: HTTP(S) probe (configurable URL, generate_204); Rust: только TCP port probe |
+| `app/metrics/` | `astra-core-metrics/` | ✅ Prometheus labels kind/tag/direction (inbound/outbound/user) |
+| `app/observatory/` | `astra-core-observatory/` | ✅ TCP + HTTP(S) probe (`probeType`/`probeUrl`, delay tracking) |
 | `app/policy/` | `astra-core-policy/` | ✅ Complete |
 | `app/proxyman/` | `astra-core-proxyman/` | ✅ Complete |
 | `app/reverse/` | `astra-core-app-reverse/` | ⚠️ Partial — heartbeat, auto-scaling workers не портированы |
 | `app/router/` | `astra-core-routing/` | ⚠️ Partial — см. Router sub-features |
 | `app/stats/` | `astra-core-stats/` | ⚠️ Partial — см. Stats sub-features |
 | `app/version/` | built-in | ✅ `--version` flag + platform info |
-| `app/geodata/` | `astra-core-geodata/` | ⚠️ Partial — нет auto-download/update geoip/geosite .dat файлов |
+| `app/geodata/` | `astra-core-geodata/` | ✅ Load + auto-download (`ensure_geo_files` / `download_file`, redirect-aware) |
 
 ### DNS sub-features (`app/dns/`)
 
@@ -136,7 +136,7 @@
 | `features/routing/` | `astra-core-routing/` | ✅ Complete |
 | `features/policy/` | `astra-core-policy/` | ✅ Complete |
 | `features/outbound/` | `astra-core-proxyman/outbound.rs` | ✅ Complete |
-| `features/stats/` | `astra-core-stats/` | ⚠️ Partial — нет NoopManager |
+| `features/stats/` | `astra-core-stats/` | ✅ StatsManager + NoopManager |
 | `common/mux/` | `astra-core-mux/` | ✅ Complete |
 | `common/buf/` | `astra-core-buf/` | ⚠️ Partial — нет ReadV (scatter/gather), splice-enabled copying, SNI buffering |
 | `common/net/` | `astra-core-net/` | ⚠️ Partial — нет process finding (Linux/Android/Windows), system DNS |

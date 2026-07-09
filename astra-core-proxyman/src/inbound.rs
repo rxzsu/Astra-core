@@ -1,9 +1,11 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_proxy::{Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Inbound, Session};
 use tokio::net::TcpListener;
+use tokio::task::AbortHandle;
 use tracing::info;
 
 use crate::transport;
@@ -68,6 +70,14 @@ impl AlwaysOnInboundHandler {
             hysteria_password: None,
             hysteria_obfs: None,
         }
+    }
+
+    pub fn tag(&self) -> &str {
+        &self.tag
+    }
+
+    pub fn listen_addr(&self) -> &str {
+        &self.listen_addr
     }
 
     pub fn with_transport(mut self, t: transport::Transport) -> Self {
@@ -563,5 +573,58 @@ impl AlwaysOnInboundHandler {
                 Ok(())
             }
         }
+    }
+}
+
+/// Registry of running inbound listeners with abort handles for hot add/remove.
+pub struct Manager {
+    running: RwLock<HashMap<String, AbortHandle>>,
+}
+
+impl Default for Manager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Manager {
+    pub fn new() -> Self {
+        Manager {
+            running: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Register a running inbound task. Replaces and aborts any previous handle for the same tag.
+    pub fn add(&self, tag: String, handle: AbortHandle) {
+        let mut map = self.running.write().unwrap();
+        if let Some(prev) = map.insert(tag, handle) {
+            prev.abort();
+        }
+    }
+
+    /// Abort and remove an inbound. Returns true if it was present.
+    pub fn remove(&self, tag: &str) -> bool {
+        if let Some(handle) = self.running.write().unwrap().remove(tag) {
+            handle.abort();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn contains(&self, tag: &str) -> bool {
+        self.running.read().unwrap().contains_key(tag)
+    }
+
+    pub fn list(&self) -> Vec<String> {
+        self.running.read().unwrap().keys().cloned().collect()
+    }
+
+    pub fn len(&self) -> usize {
+        self.running.read().unwrap().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.running.read().unwrap().is_empty()
     }
 }

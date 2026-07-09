@@ -35,7 +35,7 @@ impl MetricsServer {
                 if request.starts_with("GET /metrics ") || request.starts_with("GET / HTTP") {
                     let body = render_metrics(&stats);
                     let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                         body.len(), body
                     );
                     let _ = stream.write_all(response.as_bytes()).await;
@@ -50,24 +50,68 @@ impl MetricsServer {
 
 fn render_metrics(stats: &StatsManager) -> String {
     let mut output = String::new();
-    output.push_str("# HELP astra_traffic Traffic counters\n");
-    output.push_str("# TYPE astra_traffic counter\n");
+    output.push_str("# HELP astra_traffic_bytes Traffic counters in bytes\n");
+    output.push_str("# TYPE astra_traffic_bytes counter\n");
 
     for counter in stats.all_counters() {
-        let name = sanitize_name(counter.name());
-        output.push_str(&format!("astra_traffic{{{}}} {}\n", name, counter.get()));
+        output.push_str(&format_metric_line(counter.name(), counter.get()));
     }
-
     for ch in stats.all_channels() {
-        let name = sanitize_name(ch.name());
-        output.push_str(&format!("astra_traffic{{{}}} {}\n", name, ch.get()));
+        output.push_str(&format_metric_line(ch.name(), ch.get()));
     }
 
     output
 }
 
-fn sanitize_name(name: &str) -> String {
-    // Prometheus label format: replace special chars with underscores
-    let sanitized: String = name.chars().map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' }).collect();
-    format!("name=\"{}\"", sanitized)
+/// Parse Xray-style names `outbound>>>tag>>>traffic>>>uplink` into Prometheus labels.
+fn format_metric_line(name: &str, value: i64) -> String {
+    let labels = parse_traffic_name(name);
+    format!("astra_traffic_bytes{{{}}} {}\n", labels, value)
+}
+
+fn parse_traffic_name(name: &str) -> String {
+    // Expected: {inbound|outbound|user}>>>{tag}>>>traffic>>>{uplink|downlink}
+    let parts: Vec<&str> = name.split(">>>").collect();
+    if parts.len() >= 4 && parts[2] == "traffic" {
+        let kind = sanitize_label_value(parts[0]);
+        let tag = sanitize_label_value(parts[1]);
+        let direction = sanitize_label_value(parts[3]);
+        return format!(
+            "kind=\"{}\",tag=\"{}\",direction=\"{}\",name=\"{}\"",
+            kind,
+            tag,
+            direction,
+            sanitize_label_value(name)
+        );
+    }
+    format!("name=\"{}\"", sanitize_label_value(name))
+}
+
+fn sanitize_label_value(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '"' | '\\' | '\n' => '_',
+            c => c,
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_outbound_name() {
+        let line = format_metric_line("outbound>>>proxy>>>traffic>>>uplink", 42);
+        assert!(line.contains("kind=\"outbound\""));
+        assert!(line.contains("tag=\"proxy\""));
+        assert!(line.contains("direction=\"uplink\""));
+        assert!(line.contains(" 42"));
+    }
+
+    #[test]
+    fn parse_fallback_name() {
+        let line = format_metric_line("custom.stat", 1);
+        assert!(line.contains("name=\"custom.stat\""));
+    }
 }
