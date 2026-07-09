@@ -383,12 +383,13 @@ pub fn build_outbound_handler(
                     } else { None };
 
                     let (ep_addr, ep_port) = parse_endpoint(ep)?;
+                    let endpoint = format!("{}:{}", ep_addr, ep_port);
                     peers.push(astra_core_proxy_wireguard::PeerConfig {
-                        endpoint_address: ep_addr,
-                        endpoint_port: ep_port,
+                        endpoint,
                         public_key,
                         pre_shared_key,
                         persistent_keepalive: 0,
+                        allowed_ips: vec!["0.0.0.0/0".into()],
                     });
                 }
             }

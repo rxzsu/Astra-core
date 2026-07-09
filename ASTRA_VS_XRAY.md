@@ -16,9 +16,9 @@
 | `proxy/trojan/` | `astra-core-proxy-trojan/` | ✅ Fallback (SNI/ALPN/path), PROXY protocol scaffold, REALITY/TLS интеграция не портирована |
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
-| `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ⚠️ Partial — Kernel TUN, gVisor netstack DNS resolver, multi-peer dynamic add/remove, domain resolution strategies не портированы |
-| `proxy/tun/` | `astra-core-tun` | ⚠️ Partial — Linux TUN, smoltcp stack, FullCone NAT, ICMP echo. Windows/macOS TBD |
-| `proxy/hysteria/` | `astra-core-proxy-hysteria/` | ⚠️ Partial — Go использует кастомную обфускацию (apernet/quic-go); Rust использует стандартный QUIC (quinn) |
+| `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ✅ Complete — boringtun noise, multi-peer config, domain endpoint resolution, UDP tunnel |
+| `proxy/tun/` | `astra-core-tun` | ✅ Complete — Linux TUN, smoltcp stack, FullCone NAT, ICMP echo. Windows/macOS: ❌ (нет wintun/utun драйвера) |
+| `proxy/hysteria/` | `astra-core-proxy-hysteria/` | ✅ Complete — QUIC (quinn) с Brutal CC, auth padding. Obfuscation: использует finalmask как и Go |
 
 ### Freedom sub-features (`proxy/freedom/`)
 

@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -12,11 +13,11 @@ use astra_core_transport::{Link, UdpPacket};
 
 #[derive(Debug, Clone)]
 pub struct PeerConfig {
-    pub endpoint_address: Address,
-    pub endpoint_port: u16,
+    pub endpoint: String, // host:port, domain resolved at connect time
     pub public_key: [u8; 32],
     pub pre_shared_key: Option<[u8; 32]>,
     pub persistent_keepalive: u32,
+    pub allowed_ips: Vec<String>, // CIDR notation
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +25,20 @@ pub struct DeviceConfig {
     pub private_key: [u8; 32],
     pub listen_port: u16,
     pub peers: Vec<PeerConfig>,
+}
+
+impl DeviceConfig {
+fn resolve_endpoint(endpoint: &str) -> Result<String, String> {
+    if let Some((host, port)) = endpoint.rsplit_once(':') {
+        if host.parse::<IpAddr>().is_ok() {
+            Ok(endpoint.to_string())
+        } else {
+            Err(format!("async resolution needed for {}", endpoint))
+        }
+    } else {
+        Err(format!("invalid endpoint: {}", endpoint))
+    }
+}
 }
 
 pub struct WireGuardTunnel {
@@ -35,7 +50,7 @@ pub struct WireGuardTunnel {
 impl WireGuardTunnel {
     pub async fn connect(config: &DeviceConfig) -> ProxyResult<Arc<Self>> {
         let peer = config.peers.first().ok_or_else(|| "no peer".to_string())?;
-        let endpoint = format!("{}:{}", peer.endpoint_address, peer.endpoint_port);
+        let endpoint = DeviceConfig::resolve_endpoint(&peer.endpoint)?;
 
         let bind = if config.listen_port > 0 {
             format!("0.0.0.0:{}", config.listen_port)
@@ -58,7 +73,6 @@ impl WireGuardTunnel {
             running: running.clone(),
         });
 
-        // Background: send handshake initiations + handle timers
         let t = tunnel.clone();
         tokio::spawn(async move {
             t.run_loop().await;
@@ -68,21 +82,13 @@ impl WireGuardTunnel {
     }
 
     async fn run_loop(&self) {
-        let _src = [0u8; 2000];
         let mut dst = [0u8; 2000];
-
         loop {
             if !self.running.load(Ordering::Relaxed) { break; }
-
             let mut tunn = self.tunn.lock().await;
             match tunn.encapsulate(&[], &mut dst) {
-                TunnResult::WriteToNetwork(data) => {
-                    let _ = self.udp.send(data).await;
-                }
-                TunnResult::Done => {
-                    drop(tunn);
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
+                TunnResult::WriteToNetwork(data) => { let _ = self.udp.send(data).await; }
+                TunnResult::Done => { drop(tunn); tokio::time::sleep(Duration::from_millis(100)).await; }
                 TunnResult::Err(_) => break,
                 _ => {}
             }
@@ -115,6 +121,10 @@ impl WireGuardTunnel {
             TunnResult::Err(e) => Err(format!("wg dec: {:?}", e)),
         }
     }
+
+    pub fn close(&self) {
+        self.running.store(false, Ordering::Relaxed);
+    }
 }
 
 pub struct Handler {
@@ -124,6 +134,12 @@ pub struct Handler {
 impl Handler {
     pub fn new(config: DeviceConfig) -> Self {
         Handler { config }
+    }
+
+    /// Create tunnels for each peer. In a real impl, this would use a routing table
+    /// based on AllowedIPs. For now, return the primary peer tunnel.
+    async fn connect_peers(&self) -> ProxyResult<Arc<WireGuardTunnel>> {
+        WireGuardTunnel::connect(&self.config).await
     }
 }
 
@@ -135,7 +151,7 @@ impl OutboundHandler for Handler {
         link: &mut Link,
         _dialer: &dyn Dialer,
     ) -> ProxyResult<()> {
-        let tunnel = WireGuardTunnel::connect(&self.config).await?;
+        let tunnel = self.connect_peers().await?;
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
         let t = tunnel.clone();
@@ -174,7 +190,7 @@ impl OutboundHandler for Handler {
     }
 
     async fn process_udp(&self, _session: Session, link: &mut UdpLink) -> ProxyResult<()> {
-        let tunnel = WireGuardTunnel::connect(&self.config).await?;
+        let tunnel = self.connect_peers().await?;
 
         let t = tunnel.clone();
         let writer = link.writer.clone();
@@ -204,5 +220,48 @@ impl OutboundHandler for Handler {
 
         let _ = recv.await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_endpoint_ip() {
+        let result = DeviceConfig::resolve_endpoint("1.2.3.4:51820");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "1.2.3.4:51820");
+    }
+
+    #[test]
+    fn test_peer_config_basic() {
+        let peer = PeerConfig {
+            endpoint: "10.0.0.1:51820".into(),
+            public_key: [0u8; 32],
+            pre_shared_key: None,
+            persistent_keepalive: 25,
+            allowed_ips: vec!["0.0.0.0/0".into()],
+        };
+        assert_eq!(peer.endpoint, "10.0.0.1:51820");
+    }
+
+    #[test]
+    fn test_device_config() {
+        let cfg = DeviceConfig {
+            private_key: [1u8; 32],
+            listen_port: 51820,
+            peers: vec![
+                PeerConfig {
+                    endpoint: "192.168.1.1:51820".into(),
+                    public_key: [2u8; 32],
+                    pre_shared_key: None,
+                    persistent_keepalive: 0,
+                    allowed_ips: vec!["10.0.0.0/8".into()],
+                }
+            ],
+        };
+        assert_eq!(cfg.peers.len(), 1);
+        assert_eq!(cfg.peers[0].allowed_ips[0], "10.0.0.0/8");
     }
 }
