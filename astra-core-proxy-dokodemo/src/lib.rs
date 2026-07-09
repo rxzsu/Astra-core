@@ -39,12 +39,11 @@ impl Handler {
             }
         }
 
-        // Derive destination from local address if no explicit address configured
+        // If address is explicitly configured, use it
         let dest_addr = if let Some(ref addr) = self.config.address {
             addr.clone()
         } else {
             let (host, _port) = split_host_port(local_addr);
-
             if host.contains(':') {
                 Address::Ipv6([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
             } else if !host.is_empty() && host != "0.0.0.0" && host != "::" {
@@ -53,10 +52,8 @@ impl Handler {
                 } else if let Ok(ip) = host.parse::<std::net::Ipv6Addr>() {
                     Address::Ipv6(ip.octets())
                 } else {
-                    return Err("dokodemo: cannot resolve local address".into());
+                    Address::Domain(host.to_string())
                 }
-            } else if self.config.follow_redirect {
-                return Err("follow_redirect: no outbound target".into());
             } else {
                 return Err("dokodemo: no address configured".into());
             }
@@ -68,9 +65,10 @@ impl Handler {
             let (_host, port_str) = split_host_port(local_addr);
             let p: u16 = port_str.parse().unwrap_or(0);
             if p == 0 {
-                return Err("dokodemo: no port".into());
+                Port(0) // Accept port 0 and let the caller handle it
+            } else {
+                Port(p)
             }
-            Port(p)
         };
 
         let mut dest = Destination {
