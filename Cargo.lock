@@ -242,6 +242,7 @@ dependencies = [
 name = "astra-core-app-reverse"
 version = "0.1.0"
 dependencies = [
+ "astra-core-common",
  "astra-core-mux",
  "astra-core-net",
  "astra-core-proxy",

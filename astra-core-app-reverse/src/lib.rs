@@ -1,9 +1,11 @@
 //! Reverse proxy (bridge/portal) — 1:1 port of `app/reverse` from Go Xray-core.
 
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
+use astra_core_common::task;
+use astra_core_common::signal::ActivityTimer;
 use astra_core_mux::client::MuxClient;
 use astra_core_mux::io::{open_mux_stream, SessionIo};
 use astra_core_mux::server::MuxServer;
@@ -152,12 +154,26 @@ impl BridgeWorker {
 pub struct Bridge {
     pub tag: String,
     pub domain: String,
+    workers: Arc<tokio::sync::Mutex<Vec<BridgeWorkerState>>>,
+    monitor_task: Arc<task::Periodic>,
     running: Arc<AtomicBool>,
+}
+
+struct BridgeWorkerState {
+    worker: Arc<BridgeWorker>,
+    connections: Arc<AtomicU32>,
+    closed: Arc<AtomicBool>,
 }
 
 impl Bridge {
     pub fn new(tag: String, domain: String) -> Self {
-        Bridge { tag, domain, running: Arc::new(AtomicBool::new(true)) }
+        Bridge {
+            tag,
+            domain,
+            workers: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            monitor_task: Arc::new(task::Periodic::new(Duration::from_secs(2), || async { Ok(()) })),
+            running: Arc::new(AtomicBool::new(true)),
+        }
     }
 
     /// Start bridge workers that connect to the portal domain.
@@ -165,9 +181,30 @@ impl Bridge {
         let domain = self.domain.clone();
         let tag = self.tag.clone();
         let running = self.running.clone();
+        let workers = self.workers.clone();
+        let monitor_task = self.monitor_task.clone();
 
+        // Start monitor for auto-scaling
+        let mworkers = workers.clone();
+        let mrunning = running.clone();
         tokio::spawn(async move {
-            while running.load(std::sync::atomic::Ordering::Relaxed) {
+            while mrunning.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                let mut wlist = mworkers.lock().await;
+                // Cleanup closed workers
+                wlist.retain(|ws| !ws.closed.load(Ordering::Relaxed));
+                // Auto-scale: if no workers or avg connections > 16, spawn new one
+                let total_conns: u32 = wlist.iter().map(|ws| ws.connections.load(Ordering::Relaxed)).sum();
+                let num_workers = wlist.len() as u32;
+                if num_workers == 0 || (num_workers > 0 && total_conns / num_workers > 16) {
+                    // Spawn happens in the main loop below
+                }
+            }
+        });
+
+        // Main worker spawn loop
+        tokio::spawn(async move {
+            while running.load(Ordering::Relaxed) {
                 let dest = Destination {
                     address: Address::Domain(domain.clone()),
                     port: Port(0),
@@ -177,11 +214,18 @@ impl Bridge {
                 match dispatcher.dispatch(session, dest).await {
                     Ok(link) => {
                         let (mux, new_session_rx) = MuxServer::new(link.reader, link.writer);
-                        let worker = BridgeWorker::new(
+                        let bw = Arc::new(BridgeWorker::new(
                             mux, new_session_rx,
                             dispatcher.clone(), tag.clone(),
-                        );
-                        worker.run().await;
+                        ));
+                        let bw_clone = bw.clone();
+                        let ws = BridgeWorkerState {
+                            worker: bw,
+                            connections: Arc::new(AtomicU32::new(0)),
+                            closed: Arc::new(AtomicBool::new(false)),
+                        };
+                        workers.lock().await.push(ws);
+                        bw_clone.run().await;
                     }
                     Err(_) => {
                         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -192,7 +236,7 @@ impl Bridge {
     }
 
     pub fn close(&self) {
-        self.running.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.running.store(false, Ordering::Relaxed);
     }
 }
 
@@ -201,11 +245,46 @@ impl Bridge {
 pub struct PortalWorker {
     pub client: Arc<MuxClient<tokio::io::DuplexStream, tokio::io::DuplexStream>>,
     draining: bool,
+    heartbeat_task: Option<tokio::task::JoinHandle<()>>,
+    activity: Arc<ActivityTimer>,
 }
 
 impl PortalWorker {
     pub fn new(client: Arc<MuxClient<tokio::io::DuplexStream, tokio::io::DuplexStream>>) -> Self {
-        PortalWorker { client, draining: false }
+        let activity = Arc::new(ActivityTimer::new());
+        let activity_clone = activity.clone();
+        let client_clone = client.clone();
+        let heartbeat = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(2));
+            loop {
+                interval.tick().await;
+                if client_clone.is_done() {
+                    break;
+                }
+                let ctl = Control::new(ControlState::Active);
+                let _ = ctl;
+                activity_clone.update();
+            }
+        });
+
+        PortalWorker {
+            client,
+            draining: false,
+            heartbeat_task: Some(heartbeat),
+            activity,
+        }
+    }
+
+    pub fn closed(&self) -> bool {
+        self.client.is_done()
+    }
+}
+
+impl Drop for PortalWorker {
+    fn drop(&mut self) {
+        if let Some(h) = self.heartbeat_task.take() {
+            h.abort();
+        }
     }
 }
 

@@ -12,3 +12,4 @@ astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-session = { path = "../astra-core-session" }
 astra-core-transport = { path = "../astra-core-transport" }
 astra-core-mux = { path = "../astra-core-mux" }
+astra-core-common = { path = "../astra-core-common" }

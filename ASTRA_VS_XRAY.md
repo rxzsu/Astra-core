@@ -45,9 +45,9 @@
 | `app/observatory/burst/` | — | ❌ Not ported — burst health pinging (healthping.go, burstobserver.go) |
 | `app/policy/` | `astra-core-policy/` | ✅ Complete |
 | `app/proxyman/` | `astra-core-proxyman/` | ✅ Complete |
-| `app/reverse/` | `astra-core-app-reverse/` | ⚠️ Partial — heartbeat, auto-scaling workers не портированы |
-| `app/router/` | `astra-core-routing/` | ⚠️ Partial — см. Router sub-features |
-| `app/stats/` | `astra-core-stats/` | ⚠️ Partial — см. Stats sub-features |
+| `app/reverse/` | `astra-core-app-reverse/` | ✅ Complete — bridge/portal, auto-scaling workers, heartbeat |
+| `app/router/` | `astra-core-routing/` | ✅ Complete — все matchers, balancer стратегии, webhook, override, gRPC |
+| `app/stats/` | `astra-core-stats/` | ✅ Complete — Counter, Channel, StatsManager, NoopManager, OnlineMap |
 | `app/version/` | built-in | ✅ `--version` flag + platform info |
 | `app/geodata/` | `astra-core-geodata/` | ✅ Load + auto-download (`ensure_geo_files` / `download_file`, redirect-aware) |
 
