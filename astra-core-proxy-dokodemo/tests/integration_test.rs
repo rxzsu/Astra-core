@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination};
-use astra_core_proxy::{async_trait, AsyncConn, Dialer, Dispatcher, InboundHandler, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{
+    AsyncConn, Dialer, Dispatcher, InboundHandler, OutboundHandler, ProxyResult, UdpLink,
+    async_trait,
+};
 use astra_core_session::{Outbound, Session};
 use astra_core_transport::Link;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -23,8 +26,15 @@ impl Dialer for TestFreedom {
 
 #[async_trait]
 impl OutboundHandler for TestFreedom {
-    async fn process(&self, session: Session, link: &mut Link, _dialer: &dyn Dialer) -> ProxyResult<()> {
-        let dialer = TestFreedom { echo_addr: self.echo_addr };
+    async fn process(
+        &self,
+        session: Session,
+        link: &mut Link,
+        _dialer: &dyn Dialer,
+    ) -> ProxyResult<()> {
+        let dialer = TestFreedom {
+            echo_addr: self.echo_addr,
+        };
         let target = session.outbound.as_ref().map(|o| o.target.clone()).unwrap();
         let mut remote = dialer.dial(session, target).await?;
         let (mut r_reader, mut r_writer) = tokio::io::split(&mut remote);
@@ -53,7 +63,9 @@ impl Dispatcher for TestDispatcher {
             route_target: None,
             tag: String::new(),
         });
-        let handler = TestFreedom { echo_addr: self.handler.echo_addr };
+        let handler = TestFreedom {
+            echo_addr: self.handler.echo_addr,
+        };
         tokio::spawn(async move {
             let _ = handler.process(session, &mut outbound_link, &handler).await;
         });
@@ -64,14 +76,21 @@ impl Dispatcher for TestDispatcher {
         Err("UDP not supported in test".into())
     }
 
-    async fn dispatch_link(&self, mut session: Session, dest: Destination, link: &mut Link) -> ProxyResult<()> {
+    async fn dispatch_link(
+        &self,
+        mut session: Session,
+        dest: Destination,
+        link: &mut Link,
+    ) -> ProxyResult<()> {
         session.outbound = Some(Outbound {
             target: dest.clone(),
             original_target: dest,
             route_target: None,
             tag: String::new(),
         });
-        let handler = TestFreedom { echo_addr: self.handler.echo_addr };
+        let handler = TestFreedom {
+            echo_addr: self.handler.echo_addr,
+        };
         handler.process(session, link, &handler).await
     }
 }
@@ -87,7 +106,9 @@ async fn test_dokodemo_to_freedom_echo() {
         let mut buf = [0u8; 4096];
         loop {
             let n = s.read(&mut buf).await.unwrap();
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             s.write_all(&buf[..n]).await.unwrap();
         }
     });
@@ -101,13 +122,12 @@ async fn test_dokodemo_to_freedom_echo() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = listener.local_addr().unwrap();
 
-    let dokodemo = astra_core_proxy_dokodemo::Handler::new(
-        astra_core_proxy_dokodemo::InboundConfig {
+    let dokodemo =
+        astra_core_proxy_dokodemo::Handler::new(astra_core_proxy_dokodemo::InboundConfig {
             address: Some(Address::Ipv4([127, 0, 0, 1])),
             port: 0,
             ..Default::default()
-        },
-    );
+        });
 
     tokio::spawn(async move {
         let (conn, _) = listener.accept().await.unwrap();
@@ -116,7 +136,10 @@ async fn test_dokodemo_to_freedom_echo() {
             outbound: None,
             content: None,
         };
-        dokodemo.process(session, Box::new(conn), dispatcher).await.unwrap();
+        dokodemo
+            .process(session, Box::new(conn), dispatcher)
+            .await
+            .unwrap();
     });
 
     // 4. Client connects and does echo test

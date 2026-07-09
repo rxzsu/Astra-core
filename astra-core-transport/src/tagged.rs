@@ -9,7 +9,9 @@ pub struct TaggedDialer {
 
 impl TaggedDialer {
     pub fn new(tag: &str) -> Self {
-        TaggedDialer { tag: tag.to_string() }
+        TaggedDialer {
+            tag: tag.to_string(),
+        }
     }
 
     pub fn tag(&self) -> &str {
@@ -22,9 +24,6 @@ pub trait IoConn: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> IoConn for T {}
 
 /// Dial function for tagged outbound.
-pub async fn dial_tagged(
-    _tag: &str,
-    _addr: &str,
-) -> Result<Box<dyn IoConn>, String> {
+pub async fn dial_tagged(_tag: &str, _addr: &str) -> Result<Box<dyn IoConn>, String> {
     Err("tagged dialer: not yet integrated with dispatcher".into())
 }

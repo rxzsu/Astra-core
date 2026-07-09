@@ -68,7 +68,10 @@ impl AsyncWrite for H2Stream {
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         if self.send_closed {
-            return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "send closed")));
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "send closed",
+            )));
         }
         match self.send.poll_capacity(cx) {
             Poll::Ready(Some(Ok(capacity))) => {
@@ -79,12 +82,13 @@ impl AsyncWrite for H2Stream {
                 }
                 Poll::Ready(Ok(len))
             }
-            Poll::Ready(Some(Err(e))) => {
-                Poll::Ready(Err(std::io::Error::other(e)))
-            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Err(std::io::Error::other(e))),
             Poll::Ready(None) => {
                 self.send_closed = true;
-                Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "stream closed")))
+                Poll::Ready(Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "stream closed",
+                )))
             }
             Poll::Pending => Poll::Pending,
         }

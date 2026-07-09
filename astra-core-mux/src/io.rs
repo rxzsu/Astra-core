@@ -4,19 +4,21 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 
 use crate::client::MuxClient;
 use crate::frame::{FrameMetadata, FrameOption, SessionStatus};
 use crate::server::MuxServer;
 use crate::session::SessionChannels;
 
-type MuxWriteFn =
-    Arc<dyn Fn(u16, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
+type MuxWriteFn = Arc<
+    dyn Fn(u16, Vec<u8>) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync,
+>;
 
-type MuxCloseFn =
-    Arc<dyn Fn(u16, bool) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>;
+type MuxCloseFn = Arc<
+    dyn Fn(u16, bool) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync,
+>;
 
 /// Adapter that wraps a mux session as an AsyncRead + AsyncWrite stream.
 ///
@@ -53,9 +55,7 @@ impl SessionIo {
     }
 
     /// Create the write/close function pair from a mux client.
-    pub fn make_fns<R, W>(
-        mux: &Arc<MuxClient<R, W>>,
-    ) -> (MuxWriteFn, MuxCloseFn)
+    pub fn make_fns<R, W>(mux: &Arc<MuxClient<R, W>>) -> (MuxWriteFn, MuxCloseFn)
     where
         R: tokio::io::AsyncRead + Unpin + Send + 'static,
         W: tokio::io::AsyncWrite + Unpin + Send + 'static,
@@ -86,9 +86,7 @@ impl SessionIo {
     }
 
     /// Create the write/close function pair from a mux server.
-    pub fn make_fns_server<R, W>(
-        mux: &Arc<MuxServer<R, W>>,
-    ) -> (MuxWriteFn, MuxCloseFn)
+    pub fn make_fns_server<R, W>(mux: &Arc<MuxServer<R, W>>) -> (MuxWriteFn, MuxCloseFn)
     where
         R: tokio::io::AsyncRead + Unpin + Send + 'static,
         W: tokio::io::AsyncWrite + Unpin + Send + 'static,
@@ -120,9 +118,7 @@ impl SessionIo {
 }
 
 /// Helper to create a `SessionIo` from a `MuxClient` after allocating a session.
-pub async fn open_mux_stream<R, W>(
-    mux: &Arc<MuxClient<R, W>>,
-) -> Option<SessionIo>
+pub async fn open_mux_stream<R, W>(mux: &Arc<MuxClient<R, W>>) -> Option<SessionIo>
 where
     R: tokio::io::AsyncRead + Unpin + Send + 'static,
     W: tokio::io::AsyncWrite + Unpin + Send + 'static,
@@ -130,10 +126,7 @@ where
     let session = mux.open_session().await?;
     let (data_tx, data_rx) = mpsc::unbounded_channel();
     let (close_tx, _close_rx) = tokio::sync::oneshot::channel();
-    let ch = SessionChannels {
-        data_tx,
-        close_tx,
-    };
+    let ch = SessionChannels { data_tx, close_tx };
     session.attach_channels(ch).await;
     let (write_fn, close_fn) = SessionIo::make_fns(mux);
     Some(SessionIo::new(session.id, data_rx, write_fn, close_fn))
@@ -157,11 +150,11 @@ impl AsyncRead for SessionIo {
                 this.read_buf.clear();
                 this.read_pos = 0;
             }
-            return Poll::Ready(Ok(()))
+            return Poll::Ready(Ok(()));
         }
 
         if this.eof {
-            return Poll::Ready(Ok(()))
+            return Poll::Ready(Ok(()));
         }
 
         // Try to receive next chunk from the session channel.
@@ -180,9 +173,7 @@ impl AsyncRead for SessionIo {
                 }
                 Poll::Ready(Ok(()))
             }
-            Err(mpsc::error::TryRecvError::Empty) => {
-                Poll::Pending
-            }
+            Err(mpsc::error::TryRecvError::Empty) => Poll::Pending,
             Err(mpsc::error::TryRecvError::Disconnected) => {
                 this.eof = true;
                 Poll::Ready(Ok(()))
@@ -202,7 +193,7 @@ impl AsyncWrite for SessionIo {
             return Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,
                 "session closed",
-            )))
+            )));
         }
 
         let data = buf.to_vec();
@@ -220,10 +211,13 @@ impl AsyncWrite for SessionIo {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         let this = self.get_mut();
         if this.shutdown {
-            return Poll::Ready(Ok(()))
+            return Poll::Ready(Ok(()));
         }
         this.shutdown = true;
 

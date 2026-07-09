@@ -8,8 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 pub use astra_core_proxy::ProxyResult;
 
 /// Transport protocol selection for outbound connections.
-#[derive(Clone)]
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub enum Transport {
     #[default]
     RawTcp,
@@ -31,16 +30,17 @@ pub enum Transport {
     },
 }
 
-
 impl Transport {
     pub fn from_stream_config(stream: &cfg::StreamConfig) -> Self {
         if stream.network.is_h2() {
-            let host = stream.http_settings
+            let host = stream
+                .http_settings
                 .as_ref()
                 .and_then(|h| h.host.first())
                 .cloned()
                 .unwrap_or_default();
-            let path = stream.http_settings
+            let path = stream
+                .http_settings
                 .as_ref()
                 .map(|h| h.path.clone())
                 .filter(|p| !p.is_empty())
@@ -64,9 +64,7 @@ impl Transport {
                 .and_then(|v| v.as_object())
                 .map(|obj| {
                     obj.iter()
-                        .map(|(k, v)| {
-                            (k.clone(), v.as_str().unwrap_or_default().to_string())
-                        })
+                        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -90,9 +88,7 @@ impl Transport {
                     .and_then(|v| v.as_object())
                     .map(|obj| {
                         obj.iter()
-                            .map(|(k, v)| {
-                                (k.clone(), v.as_str().unwrap_or_default().to_string())
-                            })
+                            .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
                             .collect()
                     })
                     .unwrap_or_default(),
@@ -201,10 +197,9 @@ pub async fn dial_transport(
             Ok(Box::new(ws_conn))
         }
         Transport::HttpUpgrade(http_cfg) => {
-            let tcp =
-                astra_core_transport_httpupgrade::dialer::dial(dest, http_cfg)
-                    .await
-                    .map_err(|e| format!("httpupgrade dial: {}", e))?;
+            let tcp = astra_core_transport_httpupgrade::dialer::dial(dest, http_cfg)
+                .await
+                .map_err(|e| format!("httpupgrade dial: {}", e))?;
             Ok(Box::new(tcp))
         }
         Transport::SplitHttp(sh_cfg) => {
@@ -234,11 +229,9 @@ pub async fn dial_transport(
             // support send_through (bind to specific source IP)
             let is_ipv6 = addr_str.contains("]:") || addr_str.matches(':').count() > 1;
             let socket = if is_ipv6 {
-                tokio::net::TcpSocket::new_v6()
-                    .map_err(|e| format!("create socket: {}", e))?
+                tokio::net::TcpSocket::new_v6().map_err(|e| format!("create socket: {}", e))?
             } else {
-                tokio::net::TcpSocket::new_v4()
-                    .map_err(|e| format!("create socket: {}", e))?
+                tokio::net::TcpSocket::new_v4().map_err(|e| format!("create socket: {}", e))?
             };
 
             // send_through: bind to specific source IP before connect
@@ -246,11 +239,16 @@ pub async fn dial_transport(
                 let bind_addr: std::net::SocketAddr = format!("{}:0", bind_ip)
                     .parse()
                     .map_err(|e| format!("invalid bind address {}: {}", bind_ip, e))?;
-                socket.bind(bind_addr)
+                socket
+                    .bind(bind_addr)
                     .map_err(|e| format!("bind {}: {}", bind_ip, e))?;
             }
-            let tcp = socket.connect(addr_str.parse::<std::net::SocketAddr>()
-                .map_err(|e| format!("parse addr {}: {}", addr_str, e))?)
+            let tcp = socket
+                .connect(
+                    addr_str
+                        .parse::<std::net::SocketAddr>()
+                        .map_err(|e| format!("parse addr {}: {}", addr_str, e))?,
+                )
                 .await
                 .map_err(|e| format!("connect {}: {}", addr_str, e))?;
             Ok(Box::new(tcp))
@@ -272,37 +270,38 @@ where
             let addr: std::net::SocketAddr = listen_addr
                 .parse()
                 .map_err(|e| format!("kcp listen addr: {}", e))?;
-            let handler: Arc<dyn Fn(Arc<astra_core_transport_kcp::connection::Connection>) + Send + Sync> =
-                Arc::new(move |kcp_conn| {
-                    let (client, server) = tokio::io::duplex(64 * 1024);
-                    let (mut server_reader, mut server_writer) = tokio::io::split(server);
-                    let c = kcp_conn.clone();
-                    tokio::spawn(async move {
-                        let mut buf = vec![0u8; 65536];
-                        loop {
-                            let n = match c.read_bytes(&mut buf).await {
-                                Ok(n) if n > 0 => n,
-                                _ => break,
-                            };
-                            if server_writer.write_all(&buf[..n]).await.is_err() {
-                                break;
-                            }
+            let handler: Arc<
+                dyn Fn(Arc<astra_core_transport_kcp::connection::Connection>) + Send + Sync,
+            > = Arc::new(move |kcp_conn| {
+                let (client, server) = tokio::io::duplex(64 * 1024);
+                let (mut server_reader, mut server_writer) = tokio::io::split(server);
+                let c = kcp_conn.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    loop {
+                        let n = match c.read_bytes(&mut buf).await {
+                            Ok(n) if n > 0 => n,
+                            _ => break,
+                        };
+                        if server_writer.write_all(&buf[..n]).await.is_err() {
+                            break;
                         }
-                    });
-                    tokio::spawn(async move {
-                        let mut buf = vec![0u8; 65536];
-                        loop {
-                            let n = match server_reader.read(&mut buf).await {
-                                Ok(n) if n > 0 => n,
-                                _ => break,
-                            };
-                            if kcp_conn.write_bytes(&buf[..n]).await.is_err() {
-                                break;
-                            }
-                        }
-                    });
-                    on_conn(Box::new(client));
+                    }
                 });
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    loop {
+                        let n = match server_reader.read(&mut buf).await {
+                            Ok(n) if n > 0 => n,
+                            _ => break,
+                        };
+                        if kcp_conn.write_bytes(&buf[..n]).await.is_err() {
+                            break;
+                        }
+                    }
+                });
+                on_conn(Box::new(client));
+            });
 
             astra_core_transport_kcp::listener::listen_kcp(addr, kcp_cfg.clone(), handler)
                 .await
@@ -314,10 +313,13 @@ where
                 host: host.clone(),
                 path: path.clone(),
             };
-            let handler: Arc<dyn Fn(astra_core_transport_ws::connection::WsConnection<tokio::net::TcpStream>) + Send + Sync> =
-                Arc::new(move |ws_conn| {
-                    on_conn(Box::new(ws_conn));
-                });
+            let handler: Arc<
+                dyn Fn(astra_core_transport_ws::connection::WsConnection<tokio::net::TcpStream>)
+                    + Send
+                    + Sync,
+            > = Arc::new(move |ws_conn| {
+                on_conn(Box::new(ws_conn));
+            });
 
             astra_core_transport_ws::listener::serve_ws(listen_addr, ws_cfg, handler)
                 .await
@@ -329,9 +331,13 @@ where
                 on_conn(Box::new(tcp));
             });
 
-            astra_core_transport_httpupgrade::listener::serve(listen_addr, http_cfg.clone(), handler_cb)
-                .await
-                .map_err(|e| format!("httpupgrade listen: {}", e))?;
+            astra_core_transport_httpupgrade::listener::serve(
+                listen_addr,
+                http_cfg.clone(),
+                handler_cb,
+            )
+            .await
+            .map_err(|e| format!("httpupgrade listen: {}", e))?;
             Ok(())
         }
         Transport::SplitHttp(sh_cfg) => {
@@ -341,9 +347,7 @@ where
         }
         // QUIC inbound is handled separately via the inbound TLS config
         // because QUIC requires TLS natively.
-        Transport::Quic(_) => {
-            Err("quic inbound: use TLS transport config".into())
-        }
+        Transport::Quic(_) => Err("quic inbound: use TLS transport config".into()),
         Transport::Grpc { service_name: _ } => {
             use astra_core_transport_grpc::listener as grpc_listener;
             let handler: grpc_listener::GrpcConnHandler = Arc::new(move |hunk| {
@@ -354,9 +358,7 @@ where
                 .map_err(|e| format!("grpc serve: {}", e))?;
             Ok(())
         }
-        Transport::H2 { .. } => {
-            Err("h2 inbound: use TLS transport config".into())
-        }
+        Transport::H2 { .. } => Err("h2 inbound: use TLS transport config".into()),
         Transport::RawTcp => {
             let listener = tokio::net::TcpListener::bind(listen_addr)
                 .await

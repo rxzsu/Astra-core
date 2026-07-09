@@ -4,16 +4,16 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
-use astra_core_common::task;
 use astra_core_common::signal::ActivityTimer;
+use astra_core_common::task;
 use astra_core_mux::client::MuxClient;
-use astra_core_mux::io::{open_mux_stream, SessionIo};
+use astra_core_mux::io::{SessionIo, open_mux_stream};
 use astra_core_mux::server::MuxServer;
 use astra_core_mux::session::{MuxClientStrategy, SessionChannels};
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, Dialer, Dispatcher, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{Dialer, Dispatcher, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
-use astra_core_transport::{new_link_pair, Link};
+use astra_core_transport::{Link, new_link_pair};
 
 #[allow(dead_code)]
 const INTERNAL_DOMAIN: &str = "reverse";
@@ -21,7 +21,10 @@ const INTERNAL_DOMAIN: &str = "reverse";
 // ─── Control protocol (Go: `Control` proto) ────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ControlState { Active, Drain }
+pub enum ControlState {
+    Active,
+    Drain,
+}
 
 #[derive(Debug, Clone)]
 pub struct Control {
@@ -48,21 +51,31 @@ impl Control {
     }
 
     pub fn decode(data: &[u8]) -> Option<Self> {
-        if data.len() < 3 { return None; }
+        if data.len() < 3 {
+            return None;
+        }
         let state = match data[0] {
             0 => ControlState::Active,
             1 => ControlState::Drain,
             _ => return None,
         };
         let len = u16::from_be_bytes([data[1], data[2]]) as usize;
-        if data.len() < 3 + len { return None; }
-        Some(Control { state, random: data[3..3 + len].to_vec() })
+        if data.len() < 3 + len {
+            return None;
+        }
+        Some(Control {
+            state,
+            random: data[3..3 + len].to_vec(),
+        })
     }
 }
 
 #[allow(dead_code)]
 fn is_internal_domain(dest: &Destination) -> bool {
-    dest.address.as_domain().map(|d| d == INTERNAL_DOMAIN).unwrap_or(false)
+    dest.address
+        .as_domain()
+        .map(|d| d == INTERNAL_DOMAIN)
+        .unwrap_or(false)
 }
 
 // ─── Bridge worker ─────────────────────────────────────────────────────────
@@ -102,7 +115,9 @@ impl BridgeWorker {
                 rx.recv().await
             };
             let Some(session_id) = session_id else { break };
-            if self.mux.is_done() { break; }
+            if self.mux.is_done() {
+                break;
+            }
             self.handle_session(session_id).await;
         }
     }
@@ -134,7 +149,8 @@ impl BridgeWorker {
             tokio::select! {
                 r = to_remote => r.map(|_| ()),
                 r = to_local => r.map(|_| ()),
-            }.ok();
+            }
+            .ok();
         });
 
         // Create a new dispatch for this session
@@ -171,7 +187,9 @@ impl Bridge {
             tag,
             domain,
             workers: Arc::new(tokio::sync::Mutex::new(Vec::new())),
-            monitor_task: Arc::new(task::Periodic::new(Duration::from_secs(2), || async { Ok(()) })),
+            monitor_task: Arc::new(task::Periodic::new(Duration::from_secs(2), || async {
+                Ok(())
+            })),
             running: Arc::new(AtomicBool::new(true)),
         }
     }
@@ -194,7 +212,10 @@ impl Bridge {
                 // Cleanup closed workers
                 wlist.retain(|ws| !ws.closed.load(Ordering::Relaxed));
                 // Auto-scale: if no workers or avg connections > 16, spawn new one
-                let total_conns: u32 = wlist.iter().map(|ws| ws.connections.load(Ordering::Relaxed)).sum();
+                let total_conns: u32 = wlist
+                    .iter()
+                    .map(|ws| ws.connections.load(Ordering::Relaxed))
+                    .sum();
                 let num_workers = wlist.len() as u32;
                 if num_workers == 0 || (num_workers > 0 && total_conns / num_workers > 16) {
                     // Spawn happens in the main loop below
@@ -215,8 +236,10 @@ impl Bridge {
                     Ok(link) => {
                         let (mux, new_session_rx) = MuxServer::new(link.reader, link.writer);
                         let bw = Arc::new(BridgeWorker::new(
-                            mux, new_session_rx,
-                            dispatcher.clone(), tag.clone(),
+                            mux,
+                            new_session_rx,
+                            dispatcher.clone(),
+                            tag.clone(),
                         ));
                         let bw_clone = bw.clone();
                         let ws = BridgeWorkerState {
@@ -300,7 +323,9 @@ impl Default for StaticMuxPicker {
 
 impl StaticMuxPicker {
     pub fn new() -> Self {
-        StaticMuxPicker { workers: Vec::new() }
+        StaticMuxPicker {
+            workers: Vec::new(),
+        }
     }
 
     pub fn add_worker(&mut self, worker: PortalWorker) {
@@ -308,7 +333,9 @@ impl StaticMuxPicker {
     }
 
     pub fn pick_available(&mut self) -> Option<&mut PortalWorker> {
-        self.workers.iter_mut().find(|w| !w.draining && !w.client.is_done())
+        self.workers
+            .iter_mut()
+            .find(|w| !w.draining && !w.client.is_done())
     }
 
     pub fn cleanup(&mut self) {
@@ -326,18 +353,36 @@ pub struct PortalHandler {
 
 impl PortalHandler {
     pub fn new(tag: String, domain: String) -> Self {
-        PortalHandler { tag, domain, picker: tokio::sync::Mutex::new(StaticMuxPicker::new()) }
+        PortalHandler {
+            tag,
+            domain,
+            picker: tokio::sync::Mutex::new(StaticMuxPicker::new()),
+        }
     }
 }
 
 #[async_trait]
 impl OutboundHandler for PortalHandler {
-    async fn process(&self, session: Session, link: &mut Link, _dialer: &dyn Dialer) -> ProxyResult<()> {
-        let target = session.outbound.as_ref().map(|o| &o.target).cloned()
+    async fn process(
+        &self,
+        session: Session,
+        link: &mut Link,
+        _dialer: &dyn Dialer,
+    ) -> ProxyResult<()> {
+        let target = session
+            .outbound
+            .as_ref()
+            .map(|o| &o.target)
+            .cloned()
             .ok_or_else(|| "no target".to_string())?;
 
         // If target is the portal domain, create a mux client from this link
-        if target.address.as_domain().map(|d| d == self.domain).unwrap_or(false) {
+        if target
+            .address
+            .as_domain()
+            .map(|d| d == self.domain)
+            .unwrap_or(false)
+        {
             // Take ownership of link's reader/writer by swapping with dummies
             let (dummy_r, _) = tokio::io::duplex(64);
             let (_, dummy_w) = tokio::io::duplex(64);
@@ -353,17 +398,18 @@ impl OutboundHandler for PortalHandler {
         // Dispatch through mux picker
         let mut picker = self.picker.lock().await;
         if let Some(worker) = picker.pick_available()
-            && let Some(mut session_io) = open_mux_stream(&worker.client).await {
-                let (mut si_r, mut si_w) = tokio::io::split(&mut session_io);
-                let to_remote = tokio::io::copy(&mut link.reader, &mut si_w);
-                let to_local = tokio::io::copy(&mut si_r, &mut link.writer);
-                tokio::select! {
-                    r = to_remote => r.map(|_| ()),
-                    r = to_local => r.map(|_| ()),
-                }
-                .map_err(|e| format!("reverse relay: {}", e))?;
-                return Ok(());
+            && let Some(mut session_io) = open_mux_stream(&worker.client).await
+        {
+            let (mut si_r, mut si_w) = tokio::io::split(&mut session_io);
+            let to_remote = tokio::io::copy(&mut link.reader, &mut si_w);
+            let to_local = tokio::io::copy(&mut si_r, &mut link.writer);
+            tokio::select! {
+                r = to_remote => r.map(|_| ()),
+                r = to_local => r.map(|_| ()),
             }
+            .map_err(|e| format!("reverse relay: {}", e))?;
+            return Ok(());
+        }
         Err("no reverse worker available".into())
     }
 

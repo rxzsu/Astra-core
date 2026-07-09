@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 
 use astra_core_net::Destination;
-use astra_core_proxy::{async_trait, Dialer, ProxyResult};
 use astra_core_proxy::OutboundHandler as OutboundHandlerTrait;
+use astra_core_proxy::{Dialer, ProxyResult, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -141,7 +141,9 @@ impl OutboundHandlerTrait for Handler {
             flow: self.config.flow.clone(),
             seed: self.config.seed.clone(),
         });
-        inner.process_async(&target, &mut remote_reader, &mut remote_writer).await?;
+        inner
+            .process_async(&target, &mut remote_reader, &mut remote_writer)
+            .await?;
 
         let to_remote = tokio::io::copy(&mut link.reader, &mut remote_writer);
         let to_client = tokio::io::copy(&mut remote_reader, &mut link.writer);
@@ -178,7 +180,7 @@ fn dest_to_request(dest: &Destination) -> astra_core_proto::RequestHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use astra_core_net::{Address, Port, Network};
+    use astra_core_net::{Address, Network, Port};
     use std::io::Cursor;
 
     #[test]

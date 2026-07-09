@@ -22,9 +22,16 @@ impl FullCone {
     }
 
     /// Create a new session. Returns a receiver for inbound packets.
-    pub fn create_session(&self, src: SocketAddr, dst: SocketAddr) -> tokio::sync::mpsc::UnboundedReceiver<Vec<u8>> {
+    pub fn create_session(
+        &self,
+        src: SocketAddr,
+        dst: SocketAddr,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<Vec<u8>> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.sessions.lock().unwrap().insert(src, Session { dst, tx });
+        self.sessions
+            .lock()
+            .unwrap()
+            .insert(src, Session { dst, tx });
         rx
     }
 

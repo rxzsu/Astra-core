@@ -58,8 +58,7 @@ impl Authenticator for AeadAuthenticator {
             .as_mut()
             .map(|g| g.generate())
             .unwrap_or_default();
-        self.cipher
-            .open_with_nonce(dst, ciphertext, &iv, &aad)
+        self.cipher.open_with_nonce(dst, ciphertext, &iv, &aad)
     }
 
     fn seal(&mut self, dst: &mut Vec<u8>, plaintext: &[u8]) -> Result<Vec<u8>, String> {
@@ -77,8 +76,7 @@ impl Authenticator for AeadAuthenticator {
             .as_mut()
             .map(|g| g.generate())
             .unwrap_or_default();
-        self.cipher
-            .seal_with_nonce(dst, plaintext, &iv, &aad)
+        self.cipher.seal_with_nonce(dst, plaintext, &iv, &aad)
     }
 }
 
@@ -148,7 +146,10 @@ impl BufReader for AuthenticationReader {
         for _ in 1..READ_SIZE {
             match self.read_internal(true, &mut mb) {
                 Ok(_) => {}
-                Err(e) if e.to_string() == "waiting for more data" || e.kind() == io::ErrorKind::UnexpectedEof => {
+                Err(e)
+                    if e.to_string() == "waiting for more data"
+                        || e.kind() == io::ErrorKind::UnexpectedEof =>
+                {
                     break;
                 }
                 Err(e) => {
@@ -178,7 +179,10 @@ impl AuthenticationReader {
             read += n;
         }
         if read < size {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "not enough data"));
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "not enough data",
+            ));
         }
         b.set_end(size);
         let actual_size = size - padding;

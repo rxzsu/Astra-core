@@ -7,13 +7,11 @@ use crate::connection::{HunkConn, MultiHunkConn};
 use crate::proto::grpc_service_client::GrpcServiceClient;
 
 /// Configuration for gRPC dialer.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct GrpcDialerConfig {
     pub service_name: String,
     pub multi_mode: bool,
 }
-
 
 async fn connect_channel(dest: &Destination) -> Result<Channel, String> {
     let addr = format!("http://{}:{}", dest.address, dest.port.value());
@@ -32,10 +30,7 @@ async fn connect_channel(dest: &Destination) -> Result<Channel, String> {
 }
 
 /// Dial a gRPC transport connection (single-stream).
-pub async fn dial_grpc(
-    dest: &Destination,
-    _config: &GrpcDialerConfig,
-) -> Result<HunkConn, String> {
+pub async fn dial_grpc(dest: &Destination, _config: &GrpcDialerConfig) -> Result<HunkConn, String> {
     let channel = connect_channel(dest).await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);

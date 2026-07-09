@@ -1,7 +1,6 @@
 /// VStream — WebSocket over HTTP/1.1 upgrade transport.
 /// Go equivalent: `transport/internet/headers/` VStream.
 /// Uses HTTP Upgrade mechanism (not the WebSocket protocol) for proxying.
-
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 /// VStream connection wrapping a TCP stream with HTTP upgrade headers.
@@ -20,16 +19,24 @@ impl<T: AsyncRead + AsyncWrite + Unpin> VStream<T> {
             "GET {} HTTP/1.1\r\nHost: {}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
             path, host
         );
-        self.inner.write_all(request.as_bytes()).await
+        self.inner
+            .write_all(request.as_bytes())
+            .await
             .map_err(|e| format!("vstream handshake write: {}", e))?;
 
         // Read response (simplified — read first line)
         let mut buf = [0u8; 1024];
-        let n = self.inner.read(&mut buf).await
+        let n = self
+            .inner
+            .read(&mut buf)
+            .await
             .map_err(|e| format!("vstream handshake read: {}", e))?;
         let response = String::from_utf8_lossy(&buf[..n]);
         if !response.contains("101") && !response.contains("Switching Protocols") {
-            return Err(format!("vstream handshake failed: {}", response.lines().next().unwrap_or("unknown")));
+            return Err(format!(
+                "vstream handshake failed: {}",
+                response.lines().next().unwrap_or("unknown")
+            ));
         }
         Ok(())
     }

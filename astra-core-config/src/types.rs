@@ -35,7 +35,9 @@ impl<'de> Deserialize<'de> for StringList {
                 if v.is_empty() {
                     return Ok(StringList(Vec::new()));
                 }
-                Ok(StringList(v.split(',').map(|s| s.trim().to_string()).collect()))
+                Ok(StringList(
+                    v.split(',').map(|s| s.trim().to_string()).collect(),
+                ))
             }
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<StringList, A::Error> {
@@ -77,7 +79,9 @@ impl<'de> Deserialize<'de> for NetworkList {
                 if v.is_empty() {
                     return Ok(NetworkList(Vec::new()));
                 }
-                Ok(NetworkList(v.split(',').map(|s| s.trim().to_string()).collect()))
+                Ok(NetworkList(
+                    v.split(',').map(|s| s.trim().to_string()).collect(),
+                ))
             }
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<NetworkList, A::Error> {
@@ -112,13 +116,17 @@ pub struct PortList(pub Vec<PortRange>);
 impl Serialize for PortList {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         // Serialize as a comma-separated string
-        let parts: Vec<String> = self.0.iter().map(|r| {
-            if r.from == r.to {
-                r.from.to_string()
-            } else {
-                format!("{}-{}", r.from, r.to)
-            }
-        }).collect();
+        let parts: Vec<String> = self
+            .0
+            .iter()
+            .map(|r| {
+                if r.from == r.to {
+                    r.from.to_string()
+                } else {
+                    format!("{}-{}", r.from, r.to)
+                }
+            })
+            .collect();
         parts.join(",").serialize(serializer)
     }
 }

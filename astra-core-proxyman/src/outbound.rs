@@ -3,17 +3,17 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
 
+use crate::transport;
 use astra_core_dispatcher::DispatchHandler;
 use astra_core_mux::client::MuxClient;
 use astra_core_mux::io as mux_io;
 use astra_core_mux::session::MuxClientStrategy;
 use astra_core_net::Destination;
-use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyResult, UdpLink};
 use astra_core_proxy::timeout::TimeoutConn;
+use astra_core_proxy::{AsyncConn, Dialer, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 use rustls::pki_types::ServerName;
-use crate::transport;
 
 /// TLS configuration for outbound connections.
 pub struct TlsConfig {
@@ -165,12 +165,7 @@ impl Handler {
             } else {
                 reality_cfg.server_name.clone()
             };
-            return astra_core_transport_reality::client::dial_tls(
-                tcp,
-                &sn,
-                false,
-            )
-            .await;
+            return astra_core_transport_reality::client::dial_tls(tcp, &sn, false).await;
         }
 
         let raw = transport::dial_transport(&self.transport, dest, None).await?;
@@ -210,9 +205,10 @@ impl Handler {
         {
             let guard = self.mux_client.lock().await;
             if let Some(ref client) = *guard
-                && let Some(session_io) = mux_io::open_mux_stream(client).await {
-                    return Ok(Box::new(session_io));
-                }
+                && let Some(session_io) = mux_io::open_mux_stream(client).await
+            {
+                return Ok(Box::new(session_io));
+            }
         }
 
         let conn = self.dial_transport(dest).await?;
@@ -229,11 +225,7 @@ impl Handler {
 
 #[async_trait]
 impl Dialer for Handler {
-    async fn dial(
-        &self,
-        _session: Session,
-        dest: Destination,
-    ) -> ProxyResult<Box<dyn AsyncConn>> {
+    async fn dial(&self, _session: Session, dest: Destination) -> ProxyResult<Box<dyn AsyncConn>> {
         let conn = if self.mux.as_ref().is_some_and(|m| m.enabled) {
             self.dial_mux(&dest).await?
         } else {
@@ -298,11 +290,18 @@ impl Manager {
     pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
         let removed = self.handlers.write().unwrap().remove(tag);
         if removed.is_some()
-            && self.default_handler.read().unwrap().as_ref().map(|h| std::ptr::addr_eq(Arc::as_ptr(h), Arc::as_ptr(removed.as_ref().unwrap()))).unwrap_or(false) {
-                // If we removed the default handler, pick a new default
-                let mut dh = self.default_handler.write().unwrap();
-                *dh = self.handlers.read().unwrap().values().next().cloned();
-            }
+            && self
+                .default_handler
+                .read()
+                .unwrap()
+                .as_ref()
+                .map(|h| std::ptr::addr_eq(Arc::as_ptr(h), Arc::as_ptr(removed.as_ref().unwrap())))
+                .unwrap_or(false)
+        {
+            // If we removed the default handler, pick a new default
+            let mut dh = self.default_handler.write().unwrap();
+            *dh = self.handlers.read().unwrap().values().next().cloned();
+        }
         removed
     }
 

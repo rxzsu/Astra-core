@@ -3,9 +3,9 @@ use astra_core_crypto::cipher::{AeadCipher, StreamCipher};
 use astra_core_crypto::sha256::Sha256_hash;
 use astra_core_proto::{RequestCommand, RequestHeader, SecurityType};
 
+use crate::aead::consts::*;
 use crate::aead::encrypt::SealVMessAEADHeader;
 use crate::aead::kdf::{KDF, KDF16};
-use crate::aead::consts::*;
 use crate::encoding::auth::Authenticate;
 
 /// Client session for encoding VMess requests and decoding responses.
@@ -79,7 +79,11 @@ impl ClientSession {
 
     /// Create an encrypted body writer for the request.
     pub fn EncodeRequestBody(&self, request: &RequestHeader) -> EncryptionWriter {
-        body_encrypt_writer(request.security, &self.request_body_key, &self.request_body_iv)
+        body_encrypt_writer(
+            request.security,
+            &self.request_body_key,
+            &self.request_body_iv,
+        )
     }
 
     /// Decode the VMess response header.
@@ -116,7 +120,9 @@ impl ClientSession {
 
     /// Create a decrypted body reader for the response.
     pub fn DecodeResponseBody(&self) -> EncryptionReader {
-        let rk: [u8; 16] = Sha256_hash(&self.request_body_key)[..16].try_into().unwrap();
+        let rk: [u8; 16] = Sha256_hash(&self.request_body_key)[..16]
+            .try_into()
+            .unwrap();
         let riv: [u8; 16] = Sha256_hash(&self.request_body_iv)[..16].try_into().unwrap();
         EncryptionReader::new_aes_cfb(&rk, &riv)
     }
@@ -183,9 +189,19 @@ fn body_encrypt_writer(
 
 fn encode_address(addr: &astra_core_net::Address, buf: &mut Vec<u8>) {
     match addr {
-        astra_core_net::Address::Ipv4(o) => { buf.push(1); buf.extend_from_slice(o); }
-        astra_core_net::Address::Domain(d) => { buf.push(2); buf.push(d.len() as u8); buf.extend_from_slice(d.as_bytes()); }
-        astra_core_net::Address::Ipv6(o) => { buf.push(3); buf.extend_from_slice(o); }
+        astra_core_net::Address::Ipv4(o) => {
+            buf.push(1);
+            buf.extend_from_slice(o);
+        }
+        astra_core_net::Address::Domain(d) => {
+            buf.push(2);
+            buf.push(d.len() as u8);
+            buf.extend_from_slice(d.as_bytes());
+        }
+        astra_core_net::Address::Ipv6(o) => {
+            buf.push(3);
+            buf.extend_from_slice(o);
+        }
     }
 }
 
@@ -197,7 +213,12 @@ fn aes_gcm_seal(key: &[u8; 16], iv: &[u8], plaintext: &[u8], aad: &[u8]) -> Vec<
         .unwrap_or_else(|_| plaintext.to_vec())
 }
 
-fn aes_gcm_open(key: &[u8; 16], iv: &[u8], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
+fn aes_gcm_open(
+    key: &[u8; 16],
+    iv: &[u8],
+    ciphertext: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>, String> {
     let cipher = AesGcmCipher::new(key);
     cipher.open_with_nonce(&mut vec![], ciphertext, iv, aad)
 }

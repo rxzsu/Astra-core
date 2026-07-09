@@ -15,14 +15,16 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--version" || a == "-v") {
         println!("Astra-Core v{}", VERSION);
-        println!("Platform: {} / {}", std::env::consts::OS, std::env::consts::ARCH);
+        println!(
+            "Platform: {} / {}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
         println!("Rust: {}", env!("CARGO_PKG_RUST_VERSION"));
         return;
     }
 
-    let config_path = args.get(1)
-        .map(|s| s.as_str())
-        .unwrap_or("config.json");
+    let config_path = args.get(1).map(|s| s.as_str()).unwrap_or("config.json");
 
     let config_json = match tokio::fs::read_to_string(config_path).await {
         Ok(s) => s,
@@ -72,27 +74,32 @@ async fn main() {
 
     // gRPC API server
     if let Some(ref api_cfg) = config.api
-        && !api_cfg.listen.is_empty() {
-            let dispatcher: Arc<dyn astra_core_proxy::Dispatcher> = runtime.dispatcher.clone();
-            let cell: DispatcherCell = Arc::new(Mutex::new(Some(dispatcher)));
+        && !api_cfg.listen.is_empty()
+    {
+        let dispatcher: Arc<dyn astra_core_proxy::Dispatcher> = runtime.dispatcher.clone();
+        let cell: DispatcherCell = Arc::new(Mutex::new(Some(dispatcher)));
 
-            let grpc_config = astra_core_app_grpc::GrpcApiConfig {
-                listen_addr: api_cfg.listen.clone(),
-                stats_manager: runtime.stats_manager.clone(),
-                outbound_manager: runtime.outbound_manager.clone(),
-                inbound_manager: runtime.inbound_manager.clone(),
-                dispatcher_cell: cell,
-            };
+        let grpc_config = astra_core_app_grpc::GrpcApiConfig {
+            listen_addr: api_cfg.listen.clone(),
+            stats_manager: runtime.stats_manager.clone(),
+            outbound_manager: runtime.outbound_manager.clone(),
+            inbound_manager: runtime.inbound_manager.clone(),
+            dispatcher_cell: cell,
+        };
 
-            tokio::spawn(async move {
-                if let Err(e) = astra_core_app_grpc::serve_grpc_api(grpc_config).await {
-                    tracing::error!("gRPC API server error: {}", e);
-                }
-            });
+        tokio::spawn(async move {
+            if let Err(e) = astra_core_app_grpc::serve_grpc_api(grpc_config).await {
+                tracing::error!("gRPC API server error: {}", e);
+            }
+        });
 
-            let services: Vec<&str> = api_cfg.services.iter().map(|s| s.as_str()).collect();
-            tracing::info!("gRPC API server listening on {} with services: {:?}", api_cfg.listen, services);
-        }
+        let services: Vec<&str> = api_cfg.services.iter().map(|s| s.as_str()).collect();
+        tracing::info!(
+            "gRPC API server listening on {} with services: {:?}",
+            api_cfg.listen,
+            services
+        );
+    }
 
     // Prometheus metrics server
     if let Some(ref metrics_addr) = runtime.metrics_addr {

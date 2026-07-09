@@ -5,12 +5,12 @@ pub mod protocol;
 
 #[cfg(test)]
 mod tests {
-    use bytes::BytesMut;
-    use astra_core_net::{Address, Port};
     use crate::protocol::{
-        CipherType, password_to_key, write_address, read_address,
-        create_aead, aead_chunk_encrypt, aead_chunk_decrypt,
+        CipherType, aead_chunk_decrypt, aead_chunk_encrypt, create_aead, password_to_key,
+        read_address, write_address,
     };
+    use astra_core_net::{Address, Port};
+    use bytes::BytesMut;
 
     #[test]
     fn test_cipher_key_sizes() {
@@ -50,7 +50,9 @@ mod tests {
 
     #[test]
     fn test_write_read_address_ipv6_roundtrip() {
-        let addr = Address::Ipv6([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01]);
+        let addr = Address::Ipv6([
+            0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
+        ]);
         let mut buf = BytesMut::new();
         write_address(&mut buf, &addr);
         buf.extend_from_slice(&[0x00, 0x50]); // port 80
@@ -79,8 +81,12 @@ mod tests {
 
     #[test]
     fn test_create_aead_all_types() {
-        for ct in &[CipherType::Aes128Gcm, CipherType::Aes256Gcm,
-                    CipherType::Chacha20Poly1305, CipherType::XChacha20Poly1305] {
+        for ct in &[
+            CipherType::Aes128Gcm,
+            CipherType::Aes256Gcm,
+            CipherType::Chacha20Poly1305,
+            CipherType::XChacha20Poly1305,
+        ] {
             let key = vec![0u8; ct.key_size()];
             let cipher = create_aead(*ct, &key);
             assert!(cipher.is_ok(), "failed to create {:?}", ct);

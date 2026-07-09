@@ -6,16 +6,9 @@ use crate::ProxyResult;
 
 #[async_trait::async_trait]
 pub trait Dispatcher: Send + Sync {
-    async fn dispatch(
-        &self,
-        session: Session,
-        dest: Destination,
-    ) -> ProxyResult<Link>;
+    async fn dispatch(&self, session: Session, dest: Destination) -> ProxyResult<Link>;
 
-    async fn dispatch_udp(
-        &self,
-        session: Session,
-    ) -> ProxyResult<UdpLink>;
+    async fn dispatch_udp(&self, session: Session) -> ProxyResult<UdpLink>;
 
     /// Dispatch using an existing link instead of creating a new one.
     /// Used by loopback outbound for re-dispatching traffic.

@@ -33,9 +33,12 @@ impl OutboundHandler for Handler {
         link: &mut Link,
         dialer: &dyn Dialer,
     ) -> ProxyResult<()> {
-        let target = session.outbound.as_ref()
+        let target = session
+            .outbound
+            .as_ref()
             .ok_or_else(|| "no outbound target".to_string())?
-            .target.clone();
+            .target
+            .clone();
 
         if target.network == Network::Udp {
             return Err("UDP over SOCKS outbound requires process_udp".into());
@@ -51,10 +54,14 @@ impl OutboundHandler for Handler {
         let (mut remote_r, mut remote_w) = tokio::io::split(&mut *remote);
 
         socks5_client_handshake(
-            &mut remote_r, &mut remote_w,
-            &self.config.username, &self.config.password,
-            &target.address, target.port,
-        ).await?;
+            &mut remote_r,
+            &mut remote_w,
+            &self.config.username,
+            &self.config.password,
+            &target.address,
+            target.port,
+        )
+        .await?;
 
         let to_remote = tokio::io::copy(&mut link.reader, &mut remote_w);
         let to_local = tokio::io::copy(&mut remote_r, &mut link.writer);
@@ -69,16 +76,23 @@ impl OutboundHandler for Handler {
     }
 
     async fn process_udp(&self, _session: Session, link: &mut UdpLink) -> ProxyResult<()> {
-        let server_addr = format!("{}:{}", self.config.server_address, self.config.server_port.value());
+        let server_addr = format!(
+            "{}:{}",
+            self.config.server_address,
+            self.config.server_port.value()
+        );
         let remote = tokio::net::TcpStream::connect(&server_addr)
             .await
             .map_err(|e| format!("connect socks server {}: {}", server_addr, e))?;
         let (mut remote_r, mut remote_w) = tokio::io::split(remote);
 
         let (relay_addr, relay_port) = socks5_udp_associate(
-            &mut remote_r, &mut remote_w,
-            &self.config.username, &self.config.password,
-        ).await?;
+            &mut remote_r,
+            &mut remote_w,
+            &self.config.username,
+            &self.config.password,
+        )
+        .await?;
 
         let relay_addr_str = format!("{}:{}", relay_addr, relay_port.value());
         let relay = std::sync::Arc::new(
@@ -95,7 +109,11 @@ impl OutboundHandler for Handler {
             let mut buf = vec![0u8; 65535];
             while let Ok((n, _src)) = relay_clone.recv_from(&mut buf).await {
                 if let Ok((addr, port, payload)) = decode_udp_packet(&buf[..n]) {
-                    let source = Destination { address: addr, port, network: Network::Udp };
+                    let source = Destination {
+                        address: addr,
+                        port,
+                        network: Network::Udp,
+                    };
                     let pkt = UdpPacket::new(source.clone(), source, payload.to_vec());
                     if writer.send(pkt).is_err() {
                         break;
@@ -106,7 +124,8 @@ impl OutboundHandler for Handler {
 
         // Read requests from link, wrap in SOCKS UDP header, send to relay
         while let Some(packet) = link.recv().await {
-            let encoded = encode_udp_packet(&packet.target.address, packet.target.port, &packet.data);
+            let encoded =
+                encode_udp_packet(&packet.target.address, packet.target.port, &packet.data);
             if relay.send_to(&encoded, &relay_addr_str).await.is_err() {
                 break;
             }
@@ -130,7 +149,11 @@ where
     W: AsyncWriteExt + Unpin + Send,
 {
     let has_auth = !username.is_empty();
-    let auth_byte = if has_auth { AUTH_PASSWORD } else { AUTH_NOT_REQUIRED };
+    let auth_byte = if has_auth {
+        AUTH_PASSWORD
+    } else {
+        AUTH_NOT_REQUIRED
+    };
 
     write_all(writer, &[SOCKS5_VERSION, 0x01, auth_byte]).await?;
 
@@ -171,9 +194,19 @@ where
 
     let atyp = resp_hdr[3];
     match atyp {
-        0x01 => { let mut ip = [0u8; 4]; read_exact(reader, &mut ip).await?; }
-        0x03 => { let len = read_u8(reader).await? as usize; let mut d = vec![0u8; len]; read_exact(reader, &mut d).await?; }
-        0x04 => { let mut ip = [0u8; 16]; read_exact(reader, &mut ip).await?; }
+        0x01 => {
+            let mut ip = [0u8; 4];
+            read_exact(reader, &mut ip).await?;
+        }
+        0x03 => {
+            let len = read_u8(reader).await? as usize;
+            let mut d = vec![0u8; len];
+            read_exact(reader, &mut d).await?;
+        }
+        0x04 => {
+            let mut ip = [0u8; 16];
+            read_exact(reader, &mut ip).await?;
+        }
         _ => return Err(format!("unknown bind addr type: {}", atyp)),
     }
     let _ = read_u16(reader).await?;
@@ -194,7 +227,11 @@ where
     W: AsyncWriteExt + Unpin + Send,
 {
     let has_auth = !username.is_empty();
-    let auth_byte = if has_auth { AUTH_PASSWORD } else { AUTH_NOT_REQUIRED };
+    let auth_byte = if has_auth {
+        AUTH_PASSWORD
+    } else {
+        AUTH_NOT_REQUIRED
+    };
 
     write_all(writer, &[SOCKS5_VERSION, 0x01, auth_byte]).await?;
 

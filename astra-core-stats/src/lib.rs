@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
 
 /// A named atomic counter for traffic or connection stats.
@@ -12,18 +12,31 @@ pub struct Counter {
 
 impl Counter {
     pub fn new(name: &str) -> Self {
-        Counter { name: name.to_string(), value: AtomicI64::new(0) }
+        Counter {
+            name: name.to_string(),
+            value: AtomicI64::new(0),
+        }
     }
 
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
-    pub fn add(&self, n: i64) { self.value.fetch_add(n, Ordering::Relaxed); }
+    pub fn add(&self, n: i64) {
+        self.value.fetch_add(n, Ordering::Relaxed);
+    }
 
-    pub fn set(&self, n: i64) { self.value.store(n, Ordering::Relaxed); }
+    pub fn set(&self, n: i64) {
+        self.value.store(n, Ordering::Relaxed);
+    }
 
-    pub fn get(&self) -> i64 { self.value.load(Ordering::Relaxed) }
+    pub fn get(&self) -> i64 {
+        self.value.load(Ordering::Relaxed)
+    }
 
-    pub fn reset(&self) { self.value.store(0, Ordering::Relaxed); }
+    pub fn reset(&self) {
+        self.value.store(0, Ordering::Relaxed);
+    }
 }
 
 /// A stat channel tracking a rate over time (like Xray's "channel" stat).
@@ -42,22 +55,33 @@ impl Channel {
         }
     }
 
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
     pub fn add(&self, n: i64) {
         self.value.fetch_add(n, Ordering::Relaxed);
-        if let Ok(mut t) = self.last_updated.write() { *t = Instant::now(); }
+        if let Ok(mut t) = self.last_updated.write() {
+            *t = Instant::now();
+        }
     }
 
     pub fn set(&self, n: i64) {
         self.value.store(n, Ordering::Relaxed);
-        if let Ok(mut t) = self.last_updated.write() { *t = Instant::now(); }
+        if let Ok(mut t) = self.last_updated.write() {
+            *t = Instant::now();
+        }
     }
 
-    pub fn get(&self) -> i64 { self.value.load(Ordering::Relaxed) }
+    pub fn get(&self) -> i64 {
+        self.value.load(Ordering::Relaxed)
+    }
 
     pub fn last_updated(&self) -> Instant {
-        self.last_updated.read().map(|t| *t).unwrap_or(Instant::now())
+        self.last_updated
+            .read()
+            .map(|t| *t)
+            .unwrap_or(Instant::now())
     }
 }
 
@@ -230,8 +254,17 @@ mod tests {
 
     #[test]
     fn test_naming() {
-        assert_eq!(naming::inbound_downlink("socks"), "inbound>>>socks>>>traffic>>>downlink");
-        assert_eq!(naming::outbound_uplink("freedom"), "outbound>>>freedom>>>traffic>>>uplink");
-        assert_eq!(naming::user_downlink("user@test"), "user>>>user@test>>>traffic>>>downlink");
+        assert_eq!(
+            naming::inbound_downlink("socks"),
+            "inbound>>>socks>>>traffic>>>downlink"
+        );
+        assert_eq!(
+            naming::outbound_uplink("freedom"),
+            "outbound>>>freedom>>>traffic>>>uplink"
+        );
+        assert_eq!(
+            naming::user_downlink("user@test"),
+            "user>>>user@test>>>traffic>>>downlink"
+        );
     }
 }

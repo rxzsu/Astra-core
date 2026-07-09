@@ -88,10 +88,7 @@ impl AsyncWrite for HunkConn {
         }
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -130,9 +127,7 @@ impl MultiHunkConn {
 
         tokio::spawn(async move {
             while let Some(data) = write_rx.recv().await {
-                let msg = proto::MultiHunk {
-                    data: vec![data],
-                };
+                let msg = proto::MultiHunk { data: vec![data] };
                 if grpc_tx.send(msg).await.is_err() {
                     break;
                 }
@@ -168,10 +163,7 @@ impl AsyncWrite for MultiHunkConn {
         Pin::new(&mut self.get_mut().inner).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
         Pin::new(&mut self.get_mut().inner).poll_flush(cx)
     }
 

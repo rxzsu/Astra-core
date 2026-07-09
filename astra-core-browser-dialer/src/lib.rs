@@ -99,7 +99,11 @@ impl BrowserDialer {
     }
 
     /// Send a GET request through the browser.
-    pub async fn dial_get(&self, uri: &str, headers: HashMap<String, String>) -> Result<Vec<u8>, String> {
+    pub async fn dial_get(
+        &self,
+        uri: &str,
+        headers: HashMap<String, String>,
+    ) -> Result<Vec<u8>, String> {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         {
@@ -123,10 +127,7 @@ impl BrowserDialer {
         // In a real implementation, this would be sent over the WebSocket
         // For now, return a placeholder
         let _ = data;
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            rx.recv(),
-        ).await {
+        match tokio::time::timeout(std::time::Duration::from_secs(30), rx.recv()).await {
             Ok(Some(data)) => Ok(data),
             Ok(None) => Err("browser dialer: connection closed".into()),
             Err(_) => Err("browser dialer: timeout".into()),
@@ -146,21 +147,26 @@ async fn handle_connection(
     html: &str,
     conns: Arc<Mutex<Vec<mpsc::UnboundedSender<Vec<u8>>>>>,
 ) -> Result<(), String> {
+    use futures_util::StreamExt;
     use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::Message;
-    use futures_util::StreamExt;
 
     let peer = stream.peer_addr().ok();
     let mut buf = [0u8; 4096];
     let mut stream = stream;
 
     // Simple HTTP parsing: check if it's a WebSocket upgrade or regular HTTP
-    let n = stream.peek(&mut buf).await.map_err(|e| format!("peek: {}", e))?;
+    let n = stream
+        .peek(&mut buf)
+        .await
+        .map_err(|e| format!("peek: {}", e))?;
     let header = String::from_utf8_lossy(&buf[..n.min(200)]);
 
     if header.contains("/websocket") && header.contains(&format!("token={}", token)) {
         // WebSocket upgrade
-        let ws_stream = accept_async(stream).await.map_err(|e| format!("ws accept: {}", e))?;
+        let ws_stream = accept_async(stream)
+            .await
+            .map_err(|e| format!("ws accept: {}", e))?;
         let (mut _write, mut read) = ws_stream.split();
 
         while let Some(msg) = read.next().await {
@@ -188,7 +194,10 @@ async fn handle_connection(
             html.len(),
             html
         );
-        stream.write_all(response.as_bytes()).await.map_err(|e| format!("write: {}", e))?;
+        stream
+            .write_all(response.as_bytes())
+            .await
+            .map_err(|e| format!("write: {}", e))?;
     }
 
     if let Some(addr) = peer {

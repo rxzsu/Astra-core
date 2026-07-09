@@ -1,4 +1,3 @@
-
 /// Applies socket options from Xray's SocketConfig to a TCP stream.
 /// Mirrors Go's `transport/internet/tcp/sockopt_*.go` implementations.
 #[cfg(target_os = "linux")]
@@ -84,13 +83,17 @@ pub fn apply_keepalive(_stream: &tokio::net::TcpStream, _idle: i32, _interval: i
 /// Enable tproxy (transparent proxy) on a socket (Linux only).
 #[cfg(target_os = "linux")]
 pub fn apply_tproxy(stream: &tokio::net::TcpStream, enable: bool) {
-    if !enable { return; }
+    if !enable {
+        return;
+    }
     use std::os::unix::io::AsRawFd;
     let fd = stream.as_raw_fd();
     let val: i32 = 1;
     unsafe {
         libc::setsockopt(
-            fd, libc::IPPROTO_IP, 19, // IP_TRANSPARENT
+            fd,
+            libc::IPPROTO_IP,
+            19, // IP_TRANSPARENT
             &val as *const _ as *const libc::c_void,
             std::mem::size_of::<i32>() as libc::socklen_t,
         );
@@ -106,7 +109,9 @@ pub fn apply_tproxy(_stream: &tokio::net::TcpStream, _enable: bool) {}
 #[cfg(target_os = "linux")]
 pub fn bind_to_interface(stream: &tokio::net::TcpStream, iface_name: &str) {
     use std::os::unix::io::AsRawFd;
-    if iface_name.is_empty() { return; }
+    if iface_name.is_empty() {
+        return;
+    }
     let fd = stream.as_raw_fd();
     let name_bytes = iface_name.as_bytes();
     unsafe {

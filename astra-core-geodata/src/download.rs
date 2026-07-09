@@ -36,7 +36,8 @@ pub async fn download_file(url: &str, dest: &Path, opts: &DownloadOptions) -> Re
     }
 
     if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {}", parent.display(), e))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("mkdir {}: {}", parent.display(), e))?;
     }
 
     let tmp = dest.with_extension("dat.tmp");
@@ -73,23 +74,17 @@ pub async fn ensure_geo_files(
     let geoip = dir.join("geoip.dat");
     let geosite = dir.join("geosite.dat");
 
-    download_file(
-        geoip_url.unwrap_or(DEFAULT_GEOIP_URL),
-        &geoip,
-        &opts,
-    )
-    .await?;
-    download_file(
-        geosite_url.unwrap_or(DEFAULT_GEOSITE_URL),
-        &geosite,
-        &opts,
-    )
-    .await?;
+    download_file(geoip_url.unwrap_or(DEFAULT_GEOIP_URL), &geoip, &opts).await?;
+    download_file(geosite_url.unwrap_or(DEFAULT_GEOSITE_URL), &geosite, &opts).await?;
 
     Ok((geoip, geosite))
 }
 
-async fn http_get_bytes(url: &str, timeout: Duration, redirect_depth: u8) -> Result<Vec<u8>, String> {
+async fn http_get_bytes(
+    url: &str,
+    timeout: Duration,
+    redirect_depth: u8,
+) -> Result<Vec<u8>, String> {
     if redirect_depth > 5 {
         return Err("too many redirects".into());
     }
@@ -152,11 +147,14 @@ async fn http_get_bytes(url: &str, timeout: Duration, redirect_depth: u8) -> Res
 
 fn parse_host_port(host_port: &str, scheme: &str) -> (String, u16) {
     if let Some((h, p)) = host_port.rsplit_once(':')
-        && (!h.contains(':') || host_port.starts_with('[')) {
-            let host = h.trim_matches(|c| c == '[' || c == ']').to_string();
-            let port = p.parse().unwrap_or(if scheme == "https" { 443 } else { 80 });
-            return (host, port);
-        }
+        && (!h.contains(':') || host_port.starts_with('['))
+    {
+        let host = h.trim_matches(|c| c == '[' || c == ']').to_string();
+        let port = p
+            .parse()
+            .unwrap_or(if scheme == "https" { 443 } else { 80 });
+        return (host, port);
+    }
     (
         host_port.to_string(),
         if scheme == "https" { 443 } else { 80 },
@@ -200,7 +198,10 @@ async fn tls_exchange(
     read_all(&mut tls, timeout).await
 }
 
-async fn read_all<R: AsyncReadExt + Unpin>(reader: &mut R, timeout: Duration) -> Result<Vec<u8>, String> {
+async fn read_all<R: AsyncReadExt + Unpin>(
+    reader: &mut R,
+    timeout: Duration,
+) -> Result<Vec<u8>, String> {
     let mut buf = Vec::new();
     let mut tmp = [0u8; 8192];
     loop {

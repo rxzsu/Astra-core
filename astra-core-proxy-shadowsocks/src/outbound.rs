@@ -1,10 +1,10 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use rand::Rng;
 use astra_core_net::{ParseAddress, Port, TcpDestination};
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult};
+use astra_core_proxy::{Dialer, OutboundHandler, ProxyResult, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
+use rand::Rng;
 
 use crate::config::ClientConfig;
 use crate::protocol::SessionCipher;
@@ -69,7 +69,8 @@ impl OutboundHandler for Handler {
             .await
             .map_err(|e| format!("ss outbound: read resp iv: {}", e))?;
 
-        let mut dec_cipher = SessionCipher::new(self.config.cipher_type, &self.config.key, &resp_iv);
+        let mut dec_cipher =
+            SessionCipher::new(self.config.cipher_type, &self.config.key, &resp_iv);
 
         let nonce_size = self.config.cipher_type.nonce_size();
         let link_reader = &mut link.reader;

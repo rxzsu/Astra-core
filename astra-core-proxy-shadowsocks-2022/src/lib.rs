@@ -2,6 +2,6 @@
 //!
 //! Uses BLAKE3 key derivation, AEAD chunked TCP, and per-session UDP encryption.
 
-pub mod protocol;
-pub mod outbound;
 pub mod inbound;
+pub mod outbound;
+pub mod protocol;

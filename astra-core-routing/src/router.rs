@@ -34,7 +34,10 @@ pub struct Router {
 
 impl Router {
     pub fn new(rules: Vec<RouteRule>, domain_strategy: DomainStrategy) -> Self {
-        Router { rules, domain_strategy }
+        Router {
+            rules,
+            domain_strategy,
+        }
     }
 
     /// Pick a route for the given context.
@@ -67,6 +70,9 @@ impl Router {
 
 impl Default for Router {
     fn default() -> Self {
-        Router { rules: Vec::new(), domain_strategy: DomainStrategy::AsIs }
+        Router {
+            rules: Vec::new(),
+            domain_strategy: DomainStrategy::AsIs,
+        }
     }
 }

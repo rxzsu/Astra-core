@@ -3,8 +3,8 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 use tonic_reflection::server::Builder as ReflectionBuilder;
 
-use astra_core_proxyman::{inbound, outbound};
 use astra_core_proxy_loopback::DispatcherCell;
+use astra_core_proxyman::{inbound, outbound};
 use astra_core_stats::StatsManager;
 
 pub mod proto {
@@ -12,14 +12,13 @@ pub mod proto {
 }
 
 /// Generated file descriptor set for gRPC reflection.
-const FILE_DESCRIPTOR_SET: &[u8] =
-    tonic::include_file_descriptor_set!("api_descriptor");
+const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("api_descriptor");
 
 use proto::{
     handler_service_server::{HandlerService, HandlerServiceServer},
-    stats_service_server::{StatsService, StatsServiceServer},
-    routing_service_server::{RoutingService, RoutingServiceServer},
     logger_service_server::{LoggerService, LoggerServiceServer},
+    routing_service_server::{RoutingService, RoutingServiceServer},
+    stats_service_server::{StatsService, StatsServiceServer},
     *,
 };
 
@@ -81,24 +80,39 @@ struct HandlerSvc {
 
 #[tonic::async_trait]
 impl HandlerService for HandlerSvc {
-    async fn add_inbound(&self, req: Request<AddInboundRequest>) -> Result<Response<AddInboundResponse>, Status> {
+    async fn add_inbound(
+        &self,
+        req: Request<AddInboundRequest>,
+    ) -> Result<Response<AddInboundResponse>, Status> {
         let config_json = req.into_inner().config;
         let inbound_config: astra_core_config::InboundDetourConfig =
-            serde_json::from_str(&config_json).map_err(|e| Status::invalid_argument(format!("invalid config: {}", e)))?;
+            serde_json::from_str(&config_json)
+                .map_err(|e| Status::invalid_argument(format!("invalid config: {}", e)))?;
 
         let tag = inbound_config.tag.clone();
-        if tag.is_empty() { return Err(Status::invalid_argument("inbound config missing tag")); }
+        if tag.is_empty() {
+            return Err(Status::invalid_argument("inbound config missing tag"));
+        }
 
         if self.inbound_manager.contains(&tag) {
-            return Err(Status::already_exists(format!("inbound {} already exists", tag)));
+            return Err(Status::already_exists(format!(
+                "inbound {} already exists",
+                tag
+            )));
         }
 
         let handler = astra_core_app::build_inbound_handler(&inbound_config)
             .map_err(|e| Status::internal(format!("build inbound: {}", e)))?;
 
         let dispatcher = {
-            let guard = self.dispatcher_cell.lock().map_err(|e| Status::internal(format!("dispatcher lock: {}", e)))?;
-            guard.as_ref().cloned().ok_or_else(|| Status::failed_precondition("dispatcher not ready"))?
+            let guard = self
+                .dispatcher_cell
+                .lock()
+                .map_err(|e| Status::internal(format!("dispatcher lock: {}", e)))?;
+            guard
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| Status::failed_precondition("dispatcher not ready"))?
         };
 
         let join = tokio::spawn(async move {
@@ -114,7 +128,10 @@ impl HandlerService for HandlerSvc {
         Ok(Response::new(AddInboundResponse {}))
     }
 
-    async fn remove_inbound(&self, req: Request<RemoveInboundRequest>) -> Result<Response<RemoveInboundResponse>, Status> {
+    async fn remove_inbound(
+        &self,
+        req: Request<RemoveInboundRequest>,
+    ) -> Result<Response<RemoveInboundResponse>, Status> {
         let tag = req.into_inner().tag;
         if self.inbound_manager.remove(&tag) {
             tracing::info!("removed inbound {}", tag);
@@ -124,38 +141,59 @@ impl HandlerService for HandlerSvc {
         }
     }
 
-    async fn add_outbound(&self, req: Request<AddOutboundRequest>) -> Result<Response<AddOutboundResponse>, Status> {
+    async fn add_outbound(
+        &self,
+        req: Request<AddOutboundRequest>,
+    ) -> Result<Response<AddOutboundResponse>, Status> {
         let config_json = req.into_inner().config;
         let outbound_config: astra_core_config::OutboundDetourConfig =
-            serde_json::from_str(&config_json).map_err(|e| Status::invalid_argument(format!("invalid config: {}", e)))?;
+            serde_json::from_str(&config_json)
+                .map_err(|e| Status::invalid_argument(format!("invalid config: {}", e)))?;
 
         let tag = outbound_config.tag.clone();
-        if tag.is_empty() { return Err(Status::invalid_argument("outbound config missing tag")); }
+        if tag.is_empty() {
+            return Err(Status::invalid_argument("outbound config missing tag"));
+        }
 
-        let handler = astra_core_app::build_outbound_handler(&outbound_config, self.dispatcher_cell.clone())
-            .map_err(|e| Status::internal(format!("build outbound: {}", e)))?;
+        let handler =
+            astra_core_app::build_outbound_handler(&outbound_config, self.dispatcher_cell.clone())
+                .map_err(|e| Status::internal(format!("build outbound: {}", e)))?;
 
         self.outbound_manager.add_handler(tag, handler);
         Ok(Response::new(AddOutboundResponse {}))
     }
 
-    async fn remove_outbound(&self, req: Request<RemoveOutboundRequest>) -> Result<Response<RemoveOutboundResponse>, Status> {
+    async fn remove_outbound(
+        &self,
+        req: Request<RemoveOutboundRequest>,
+    ) -> Result<Response<RemoveOutboundResponse>, Status> {
         let tag = req.into_inner().tag;
-        self.outbound_manager.remove_handler(&tag).ok_or_else(|| Status::not_found(format!("outbound {} not found", tag)))?;
+        self.outbound_manager
+            .remove_handler(&tag)
+            .ok_or_else(|| Status::not_found(format!("outbound {} not found", tag)))?;
         Ok(Response::new(RemoveOutboundResponse {}))
     }
 
-    async fn get_inbounds(&self, _req: Request<GetInboundsRequest>) -> Result<Response<GetInboundsResponse>, Status> {
+    async fn get_inbounds(
+        &self,
+        _req: Request<GetInboundsRequest>,
+    ) -> Result<Response<GetInboundsResponse>, Status> {
         let tags = self.inbound_manager.list();
         Ok(Response::new(GetInboundsResponse { tags }))
     }
 
-    async fn get_outbounds(&self, _req: Request<GetOutboundsRequest>) -> Result<Response<GetOutboundsResponse>, Status> {
+    async fn get_outbounds(
+        &self,
+        _req: Request<GetOutboundsRequest>,
+    ) -> Result<Response<GetOutboundsResponse>, Status> {
         let tags = self.outbound_manager.list_handlers();
         Ok(Response::new(GetOutboundsResponse { tags }))
     }
 
-    async fn alter_inbound(&self, req: Request<AlterInboundRequest>) -> Result<Response<AlterInboundResponse>, Status> {
+    async fn alter_inbound(
+        &self,
+        req: Request<AlterInboundRequest>,
+    ) -> Result<Response<AlterInboundResponse>, Status> {
         let r = req.into_inner();
         match r.operation.as_str() {
             "addUser" => {
@@ -165,16 +203,30 @@ impl HandlerService for HandlerSvc {
             "removeUser" => {
                 tracing::info!("remove user {} from inbound {}", r.email, r.tag);
             }
-            _ => return Err(Status::invalid_argument(format!("unknown operation: {}", r.operation))),
+            _ => {
+                return Err(Status::invalid_argument(format!(
+                    "unknown operation: {}",
+                    r.operation
+                )));
+            }
         }
         Ok(Response::new(AlterInboundResponse {}))
     }
 
-    async fn get_inbound_users(&self, _req: Request<GetInboundUserRequest>) -> Result<Response<GetInboundUserResponse>, Status> {
-        Ok(Response::new(GetInboundUserResponse { count: 0, emails: vec![] }))
+    async fn get_inbound_users(
+        &self,
+        _req: Request<GetInboundUserRequest>,
+    ) -> Result<Response<GetInboundUserResponse>, Status> {
+        Ok(Response::new(GetInboundUserResponse {
+            count: 0,
+            emails: vec![],
+        }))
     }
 
-    async fn get_inbound_users_count(&self, _req: Request<GetInboundUserRequest>) -> Result<Response<GetInboundUsersCountResponse>, Status> {
+    async fn get_inbound_users_count(
+        &self,
+        _req: Request<GetInboundUserRequest>,
+    ) -> Result<Response<GetInboundUsersCountResponse>, Status> {
         Ok(Response::new(GetInboundUsersCountResponse { count: 0 }))
     }
 }
@@ -189,48 +241,93 @@ struct StatsSvc {
 
 #[tonic::async_trait]
 impl StatsService for StatsSvc {
-    async fn get_stats(&self, req: Request<GetStatsRequest>) -> Result<Response<GetStatsResponse>, Status> {
+    async fn get_stats(
+        &self,
+        req: Request<GetStatsRequest>,
+    ) -> Result<Response<GetStatsResponse>, Status> {
         let r = req.into_inner();
         if let Some(counter) = self.stats_manager.get_counter(&r.name) {
-            let value = if r.reset { counter.reset(); counter.get() } else { counter.get() };
-            Ok(Response::new(GetStatsResponse { name: r.name.clone(), value }))
+            let value = if r.reset {
+                counter.reset();
+                counter.get()
+            } else {
+                counter.get()
+            };
+            Ok(Response::new(GetStatsResponse {
+                name: r.name.clone(),
+                value,
+            }))
         } else if let Some(ch) = self.stats_manager.get_channel(&r.name) {
-            let value = if r.reset { ch.set(0); ch.get() } else { ch.get() };
-            Ok(Response::new(GetStatsResponse { name: r.name.clone(), value }))
+            let value = if r.reset {
+                ch.set(0);
+                ch.get()
+            } else {
+                ch.get()
+            };
+            Ok(Response::new(GetStatsResponse {
+                name: r.name.clone(),
+                value,
+            }))
         } else {
             Err(Status::not_found(format!("stat {} not found", r.name)))
         }
     }
 
-    async fn query_stats(&self, req: Request<QueryStatsRequest>) -> Result<Response<QueryStatsResponse>, Status> {
+    async fn query_stats(
+        &self,
+        req: Request<QueryStatsRequest>,
+    ) -> Result<Response<QueryStatsResponse>, Status> {
         let r = req.into_inner();
         let pattern = r.pattern;
         let reset = r.reset;
 
         let mut stats = Vec::new();
         let is_match = |name: &str| -> bool {
-            if pattern.is_empty() || pattern == "*" { return true; }
+            if pattern.is_empty() || pattern == "*" {
+                return true;
+            }
             let pat = pattern.replace('*', ".*").replace('?', ".");
-            regex_lite::Regex::new(&format!("^{}$", pat)).map(|re| re.is_match(name)).unwrap_or(false)
+            regex_lite::Regex::new(&format!("^{}$", pat))
+                .map(|re| re.is_match(name))
+                .unwrap_or(false)
         };
 
         for counter in self.stats_manager.all_counters() {
             if is_match(counter.name()) {
-                let value = if reset { counter.reset(); counter.get() } else { counter.get() };
-                stats.push(Stat { name: counter.name().to_string(), value });
+                let value = if reset {
+                    counter.reset();
+                    counter.get()
+                } else {
+                    counter.get()
+                };
+                stats.push(Stat {
+                    name: counter.name().to_string(),
+                    value,
+                });
             }
         }
         for ch in self.stats_manager.all_channels() {
             if is_match(ch.name()) {
-                let value = if reset { ch.set(0); ch.get() } else { ch.get() };
-                stats.push(Stat { name: ch.name().to_string(), value });
+                let value = if reset {
+                    ch.set(0);
+                    ch.get()
+                } else {
+                    ch.get()
+                };
+                stats.push(Stat {
+                    name: ch.name().to_string(),
+                    value,
+                });
             }
         }
 
         Ok(Response::new(QueryStatsResponse { stats }))
     }
 
-    async fn get_sys_stats(&self, _req: Request<GetSysStatsRequest>) -> Result<Response<GetSysStatsResponse>, Status> {
+    async fn get_sys_stats(
+        &self,
+        _req: Request<GetSysStatsRequest>,
+    ) -> Result<Response<GetSysStatsResponse>, Status> {
         let uptime = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -261,25 +358,43 @@ impl StatsService for StatsSvc {
         }))
     }
 
-    async fn get_stats_online(&self, req: Request<GetStatsRequest>) -> Result<Response<GetStatsResponse>, Status> {
+    async fn get_stats_online(
+        &self,
+        req: Request<GetStatsRequest>,
+    ) -> Result<Response<GetStatsResponse>, Status> {
         let r = req.into_inner();
         if let Some(ch) = self.stats_manager.get_channel(&r.name) {
             let value = ch.get();
-            Ok(Response::new(GetStatsResponse { name: r.name, value }))
+            Ok(Response::new(GetStatsResponse {
+                name: r.name,
+                value,
+            }))
         } else {
-            Ok(Response::new(GetStatsResponse { name: r.name, value: 0 }))
+            Ok(Response::new(GetStatsResponse {
+                name: r.name,
+                value: 0,
+            }))
         }
     }
 
-    async fn get_stats_online_ip_list(&self, _req: Request<GetStatsRequest>) -> Result<Response<StatsOnlineIpListResponse>, Status> {
+    async fn get_stats_online_ip_list(
+        &self,
+        _req: Request<GetStatsRequest>,
+    ) -> Result<Response<StatsOnlineIpListResponse>, Status> {
         Ok(Response::new(StatsOnlineIpListResponse { ips: vec![] }))
     }
 
-    async fn get_users_stats(&self, _req: Request<GetUsersStatsRequest>) -> Result<Response<GetUsersStatsResponse>, Status> {
+    async fn get_users_stats(
+        &self,
+        _req: Request<GetUsersStatsRequest>,
+    ) -> Result<Response<GetUsersStatsResponse>, Status> {
         Ok(Response::new(GetUsersStatsResponse { users: vec![] }))
     }
 
-    async fn get_all_online_users(&self, _req: Request<GetAllOnlineUsersRequest>) -> Result<Response<GetAllOnlineUsersResponse>, Status> {
+    async fn get_all_online_users(
+        &self,
+        _req: Request<GetAllOnlineUsersRequest>,
+    ) -> Result<Response<GetAllOnlineUsersResponse>, Status> {
         Ok(Response::new(GetAllOnlineUsersResponse { emails: vec![] }))
     }
 }
@@ -292,29 +407,44 @@ struct RoutingSvc {}
 
 #[tonic::async_trait]
 impl RoutingService for RoutingSvc {
-    async fn add_rule(&self, req: Request<AddRuleRequest>) -> Result<Response<AddRuleResponse>, Status> {
+    async fn add_rule(
+        &self,
+        req: Request<AddRuleRequest>,
+    ) -> Result<Response<AddRuleResponse>, Status> {
         let _r = req.into_inner();
         tracing::info!("add routing rule (stub)");
         Ok(Response::new(AddRuleResponse {}))
     }
 
-    async fn remove_rule(&self, req: Request<RemoveRuleRequest>) -> Result<Response<RemoveRuleResponse>, Status> {
+    async fn remove_rule(
+        &self,
+        req: Request<RemoveRuleRequest>,
+    ) -> Result<Response<RemoveRuleResponse>, Status> {
         let _r = req.into_inner();
         tracing::info!("remove routing rule (stub)");
         Ok(Response::new(RemoveRuleResponse {}))
     }
 
-    async fn list_rule(&self, _req: Request<ListRuleRequest>) -> Result<Response<ListRuleResponse>, Status> {
+    async fn list_rule(
+        &self,
+        _req: Request<ListRuleRequest>,
+    ) -> Result<Response<ListRuleResponse>, Status> {
         Ok(Response::new(ListRuleResponse { rule_tags: vec![] }))
     }
 
-    async fn override_balancer_target(&self, req: Request<OverrideBalancerTargetRequest>) -> Result<Response<OverrideBalancerTargetResponse>, Status> {
+    async fn override_balancer_target(
+        &self,
+        req: Request<OverrideBalancerTargetRequest>,
+    ) -> Result<Response<OverrideBalancerTargetResponse>, Status> {
         let _r = req.into_inner();
         tracing::info!("override balancer target (stub)");
         Ok(Response::new(OverrideBalancerTargetResponse {}))
     }
 
-    async fn get_balancer_info(&self, _req: Request<GetBalancerInfoRequest>) -> Result<Response<GetBalancerInfoResponse>, Status> {
+    async fn get_balancer_info(
+        &self,
+        _req: Request<GetBalancerInfoRequest>,
+    ) -> Result<Response<GetBalancerInfoResponse>, Status> {
         Ok(Response::new(GetBalancerInfoResponse {
             balancer: Some(BalancerMsg {
                 tag: String::new(),
@@ -333,7 +463,10 @@ struct LoggerSvc {}
 
 #[tonic::async_trait]
 impl LoggerService for LoggerSvc {
-    async fn restart_logger(&self, _req: Request<RestartLoggerRequest>) -> Result<Response<RestartLoggerResponse>, Status> {
+    async fn restart_logger(
+        &self,
+        _req: Request<RestartLoggerRequest>,
+    ) -> Result<Response<RestartLoggerResponse>, Status> {
         tracing::info!("restart logger requested");
         Ok(Response::new(RestartLoggerResponse {}))
     }

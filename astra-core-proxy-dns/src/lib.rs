@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::{Link, UdpPacket};
 
@@ -23,7 +23,12 @@ impl Handler {
 
 #[async_trait]
 impl OutboundHandler for Handler {
-    async fn process(&self, _session: Session, _link: &mut Link, _dialer: &dyn astra_core_proxy::Dialer) -> ProxyResult<()> {
+    async fn process(
+        &self,
+        _session: Session,
+        _link: &mut Link,
+        _dialer: &dyn astra_core_proxy::Dialer,
+    ) -> ProxyResult<()> {
         Err("DNS outbound only supports UDP".into())
     }
 
@@ -48,7 +53,11 @@ impl OutboundHandler for Handler {
                             std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
                             std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
                         };
-                        let dest = Destination { address: addr, port: Port(server.port()), network: Network::Udp };
+                        let dest = Destination {
+                            address: addr,
+                            port: Port(server.port()),
+                            network: Network::Udp,
+                        };
                         let pkt = UdpPacket::new(dest.clone(), dest, buf[..n].to_vec());
                         if writer.send(pkt).is_err() {
                             break;
@@ -61,7 +70,11 @@ impl OutboundHandler for Handler {
 
         // Read query packets from link, forward to upstream DNS
         while let Some(packet) = link.recv().await {
-            if socket.send_to(&packet.data, self.server_addr).await.is_err() {
+            if socket
+                .send_to(&packet.data, self.server_addr)
+                .await
+                .is_err()
+            {
                 break;
             }
         }

@@ -1,6 +1,6 @@
+use aes::Aes128;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::cipher::{KeyIvInit, StreamCipher as CipherStream};
-use aes::Aes128;
 use aes_gcm::aead::{AeadInPlace, Nonce};
 
 use crate::cipher::{AeadCipher, StreamCipher};
@@ -98,8 +98,7 @@ pub struct AesCtrStream {
 impl AesCtrStream {
     pub fn new(key: &[u8], nonce: &[u8; 16]) -> Self {
         AesCtrStream {
-            cipher: ctr::Ctr128BE::<Aes128>::new_from_slices(key, nonce)
-                .expect("AES-CTR key/iv"),
+            cipher: ctr::Ctr128BE::<Aes128>::new_from_slices(key, nonce).expect("AES-CTR key/iv"),
         }
     }
 }
@@ -119,8 +118,7 @@ pub struct AesGcmCipher {
 impl AesGcmCipher {
     pub fn new(key: &[u8]) -> Self {
         AesGcmCipher {
-            cipher: aes_gcm::Aes128Gcm::new_from_slice(&key[..16])
-                .expect("AES-128-GCM key"),
+            cipher: aes_gcm::Aes128Gcm::new_from_slice(&key[..16]).expect("AES-128-GCM key"),
         }
     }
 }

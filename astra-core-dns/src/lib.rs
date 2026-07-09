@@ -58,8 +58,12 @@ impl QueryStrategy {
         }
     }
 
-    pub fn ipv4_enabled(&self) -> bool { matches!(self, QueryStrategy::UseIp | QueryStrategy::UseIp4) }
-    pub fn ipv6_enabled(&self) -> bool { matches!(self, QueryStrategy::UseIp | QueryStrategy::UseIp6) }
+    pub fn ipv4_enabled(&self) -> bool {
+        matches!(self, QueryStrategy::UseIp | QueryStrategy::UseIp4)
+    }
+    pub fn ipv6_enabled(&self) -> bool {
+        matches!(self, QueryStrategy::UseIp | QueryStrategy::UseIp6)
+    }
 }
 
 // ─── DnsResolver trait ──────────────────────────────────────────────────────
@@ -88,17 +92,29 @@ pub fn decode_domain_name(data: &[u8], offset: usize) -> Result<(String, usize),
     let mut jumped = false;
     let mut jump_pos = 0;
     loop {
-        if pos >= data.len() { return Err("truncated domain name".into()); }
+        if pos >= data.len() {
+            return Err("truncated domain name".into());
+        }
         let len = data[pos] as usize;
-        if len == 0 { pos += 1; break; }
+        if len == 0 {
+            pos += 1;
+            break;
+        }
         if len & 0xc0 == 0xc0 {
-            if pos + 1 >= data.len() { return Err("truncated pointer".into()); }
+            if pos + 1 >= data.len() {
+                return Err("truncated pointer".into());
+            }
             let ptr = ((len & 0x3f) << 8) | (data[pos + 1] as usize);
-            if !jumped { jump_pos = pos + 2; jumped = true; }
+            if !jumped {
+                jump_pos = pos + 2;
+                jumped = true;
+            }
             pos = ptr;
             continue;
         }
-        if pos + 1 + len > data.len() { return Err("truncated label".into()); }
+        if pos + 1 + len > data.len() {
+            return Err("truncated label".into());
+        }
         labels.push(
             std::str::from_utf8(&data[pos + 1..pos + 1 + len])
                 .map_err(|_| "invalid utf8 in domain".to_string())?,
@@ -137,8 +153,8 @@ pub fn build_edns0_subnet_option(client_ip: Option<IpAddr>) -> Option<Vec<u8>> {
     opt.extend_from_slice(&0x0008u16.to_be_bytes()); // option code = 8 (EDNS0 Client Subnet)
     opt.extend_from_slice(&((4 + masked.len()) as u16).to_be_bytes());
     opt.extend_from_slice(&family.to_be_bytes());
-    opt.push(netmask);       // source netmask
-    opt.push(0u8);           // scope netmask (0 = not known)
+    opt.push(netmask); // source netmask
+    opt.push(0u8); // scope netmask (0 = not known)
     opt.extend_from_slice(&masked[..netmask as usize / 8]);
     Some(opt)
 }
@@ -170,7 +186,7 @@ pub fn build_dns_query_with_edns(
     buf.extend_from_slice(&qtype.to_be_bytes());
     buf.extend_from_slice(&QCLASS_IN.to_be_bytes());
     // OPT pseudo-record (type 41)
-    buf.extend_from_slice(&[0x00]);        // name = root (0)
+    buf.extend_from_slice(&[0x00]); // name = root (0)
     buf.extend_from_slice(&[0x00, 0x29]); // type = OPT (41)
     buf.extend_from_slice(&[0x05, 0x36]); // UDP payload size 1350
     buf.extend_from_slice(&[0x00, 0x00, 0x80, 0x00]); // DO=1
@@ -179,9 +195,10 @@ pub fn build_dns_query_with_edns(
         opt_data.extend_from_slice(&subnet);
     }
     if let Some(pad_len) = padding
-        && pad_len > 0 {
-            opt_data.extend_from_slice(&build_edns0_padding_option(pad_len));
-        }
+        && pad_len > 0
+    {
+        opt_data.extend_from_slice(&build_edns0_padding_option(pad_len));
+    }
     buf.extend_from_slice(&(opt_data.len() as u16).to_be_bytes());
     buf.extend_from_slice(&opt_data);
     buf
@@ -206,9 +223,8 @@ pub fn parse_dns_response(data: &[u8]) -> Result<(Vec<IpAddr>, u32), DnsError> {
     let rcode = (flags & 0x000f) as u8;
     if rcode != 0 {
         let reasons = [
-            "NoError", "FormErr", "ServFail", "NXDomain",
-            "NotImp", "Refused", "YXDomain", "YXRRSet",
-            "NXRRSet", "NotAuth", "NotZone",
+            "NoError", "FormErr", "ServFail", "NXDomain", "NotImp", "Refused", "YXDomain",
+            "YXRRSet", "NXRRSet", "NotAuth", "NotZone",
         ];
         let reason = reasons.get(rcode as usize).unwrap_or(&"Unknown");
         return Err(DnsError::RCode(rcode, reason.to_string()));
@@ -225,15 +241,24 @@ pub fn parse_dns_response(data: &[u8]) -> Result<(Vec<IpAddr>, u32), DnsError> {
     for _ in 0..ancount {
         let (_, new_pos) = decode_domain_name(data, pos).map_err(DnsError::Network)?;
         pos = new_pos;
-        if pos + 10 > data.len() { return Err(DnsError::Network("truncated answer".into())); }
+        if pos + 10 > data.len() {
+            return Err(DnsError::Network("truncated answer".into()));
+        }
         let rtype = u16::from_be_bytes([data[pos], data[pos + 1]]);
         let ttl = u32::from_be_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]);
         let rdlength = u16::from_be_bytes([data[pos + 8], data[pos + 9]]) as usize;
         pos += 10;
-        if pos + rdlength > data.len() { return Err(DnsError::Network("truncated rdata".into())); }
+        if pos + rdlength > data.len() {
+            return Err(DnsError::Network("truncated rdata".into()));
+        }
         match rtype {
             QTYPE_A if rdlength == 4 => {
-                ips.push(IpAddr::V4(Ipv4Addr::new(data[pos], data[pos + 1], data[pos + 2], data[pos + 3])));
+                ips.push(IpAddr::V4(Ipv4Addr::new(
+                    data[pos],
+                    data[pos + 1],
+                    data[pos + 2],
+                    data[pos + 3],
+                )));
                 min_ttl = min_ttl.min(ttl);
             }
             QTYPE_AAAA if rdlength == 16 => {
@@ -315,7 +340,12 @@ pub struct CacheController {
 }
 
 impl CacheController {
-    pub fn new(name: &str, disable_cache: bool, serve_stale: bool, serve_expired_ttl_secs: i32) -> Self {
+    pub fn new(
+        name: &str,
+        disable_cache: bool,
+        serve_stale: bool,
+        serve_expired_ttl_secs: i32,
+    ) -> Self {
         CacheController {
             name: name.to_string(),
             disable_cache,
@@ -341,7 +371,8 @@ impl CacheController {
                 return Some((rec.ips.clone(), ttl.max(1)));
             }
             if self.serve_stale
-                && (self.serve_expired_ttl.is_zero() || now.duration_since(rec.expiry) <= self.serve_expired_ttl)
+                && (self.serve_expired_ttl.is_zero()
+                    || now.duration_since(rec.expiry) <= self.serve_expired_ttl)
             {
                 return Some((rec.ips.clone(), 1));
             }
@@ -382,30 +413,39 @@ impl Default for StaticHosts {
 
 impl StaticHosts {
     pub fn new() -> Self {
-        StaticHosts { entries: HashMap::new() }
+        StaticHosts {
+            entries: HashMap::new(),
+        }
     }
 
     pub fn from_json(value: &serde_json::Value) -> Result<Self, String> {
         let mut hosts = StaticHosts::new();
-        let obj = value.as_object().ok_or_else(|| "hosts must be a JSON object".to_string())?;
+        let obj = value
+            .as_object()
+            .ok_or_else(|| "hosts must be a JSON object".to_string())?;
         for (domain, val) in obj {
             let key = domain.trim_end_matches('.').to_lowercase();
             match val {
-                serde_json::Value::String(s) if s.starts_with('#') => { continue; }
+                serde_json::Value::String(s) if s.starts_with('#') => {
+                    continue;
+                }
                 serde_json::Value::String(s) => {
                     if let Ok(ip) = s.parse::<IpAddr>() {
                         hosts.entries.insert(key, HostEntry::Ips(vec![ip]));
                     } else {
-                        hosts.entries.insert(key, HostEntry::Domain(s.to_lowercase()));
+                        hosts
+                            .entries
+                            .insert(key, HostEntry::Domain(s.to_lowercase()));
                     }
                 }
                 serde_json::Value::Array(arr) => {
                     let mut ips = Vec::new();
                     for v in arr {
                         if let Some(s) = v.as_str()
-                            && let Ok(ip) = s.parse::<IpAddr>() {
-                                ips.push(ip);
-                            }
+                            && let Ok(ip) = s.parse::<IpAddr>()
+                        {
+                            ips.push(ip);
+                        }
                     }
                     if !ips.is_empty() {
                         hosts.entries.insert(key, HostEntry::Ips(ips));
@@ -426,7 +466,11 @@ impl StaticHosts {
         }
     }
 
-    pub fn lookup_recursive(&self, domain: &str, depth: usize) -> Option<Result<Vec<IpAddr>, String>> {
+    pub fn lookup_recursive(
+        &self,
+        domain: &str,
+        depth: usize,
+    ) -> Option<Result<Vec<IpAddr>, String>> {
         if depth > 5 {
             return None;
         }
@@ -446,7 +490,9 @@ impl StaticHosts {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn filter_expected(ips: Vec<IpAddr>, expected: &[IpAddr]) -> Vec<IpAddr> {
-    if expected.is_empty() { return ips; }
+    if expected.is_empty() {
+        return ips;
+    }
     ips.into_iter().filter(|ip| expected.contains(ip)).collect()
 }
 
@@ -469,7 +515,8 @@ async fn resolve_udp(
     let socket = tokio::net::UdpSocket::bind("0.0.0.0:0")
         .await
         .map_err(|e| DnsError::Network(e.to_string()))?;
-    socket.send_to(&query, ns_addr)
+    socket
+        .send_to(&query, ns_addr)
         .await
         .map_err(|e| DnsError::Network(e.to_string()))?;
     let mut buf = vec![0u8; 4096];
@@ -479,7 +526,9 @@ async fn resolve_udp(
         .map_err(|e| DnsError::Network(e.to_string()))?
         .0;
     let resp_id = u16::from_be_bytes([buf[0], buf[1]]);
-    if resp_id != id { return Err(DnsError::Network("response ID mismatch".into())); }
+    if resp_id != id {
+        return Err(DnsError::Network("response ID mismatch".into()));
+    }
     let (ips, _ttl) = parse_dns_response(&buf[..n])?;
     Ok(ips)
 }
@@ -496,21 +545,28 @@ async fn resolve_tcp(
     let mut wire = Vec::with_capacity(2 + query.len());
     wire.extend_from_slice(&len.to_be_bytes());
     wire.extend_from_slice(&query);
-    let stream = tokio::time::timeout(Duration::from_secs(5), tokio::net::TcpStream::connect(ns_addr))
-        .await
-        .map_err(|_| DnsError::Timeout)?
-        .map_err(|e| DnsError::Network(e.to_string()))?;
+    let stream = tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::net::TcpStream::connect(ns_addr),
+    )
+    .await
+    .map_err(|_| DnsError::Timeout)?
+    .map_err(|e| DnsError::Network(e.to_string()))?;
     let (mut r, mut w) = tokio::io::split(stream);
-    w.write_all(&wire).await.map_err(|e| DnsError::Network(e.to_string()))?;
+    w.write_all(&wire)
+        .await
+        .map_err(|e| DnsError::Network(e.to_string()))?;
     drop(w);
     let mut len_buf = [0u8; 2];
     tokio::time::timeout(Duration::from_secs(5), r.read_exact(&mut len_buf))
-        .await.map_err(|_| DnsError::Timeout)?
+        .await
+        .map_err(|_| DnsError::Timeout)?
         .map_err(|e| DnsError::Network(e.to_string()))?;
     let resp_len = u16::from_be_bytes(len_buf) as usize;
     let mut resp = vec![0u8; resp_len];
     tokio::time::timeout(Duration::from_secs(5), r.read_exact(&mut resp))
-        .await.map_err(|_| DnsError::Timeout)?
+        .await
+        .map_err(|_| DnsError::Timeout)?
         .map_err(|e| DnsError::Network(e.to_string()))?;
     let (ips, _ttl) = parse_dns_response(&resp)?;
     Ok(ips)
@@ -530,7 +586,8 @@ fn sort_clients_by_domain<'a>(
     if has_final {
         return (matched, true);
     }
-    let mut remaining: Vec<&NameServer> = nameservers.iter()
+    let mut remaining: Vec<&NameServer> = nameservers
+        .iter()
         .filter(|ns| !matched.iter().any(|m| std::ptr::eq(*m, *ns)))
         .filter(|ns| !ns.skip_fallback)
         .collect();
@@ -591,7 +648,11 @@ impl DnsResolver for UdpDnsResolver {
 }
 
 impl UdpDnsResolver {
-    async fn do_nameserver_lookup(&self, domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
+    async fn do_nameserver_lookup(
+        &self,
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
         let cache_key = format!("{}|{:?}", domain, qtypes);
         if let Some((cached_ips, _ttl)) = self.cache.find(&cache_key).await {
             return Ok(cached_ips);
@@ -599,7 +660,8 @@ impl UdpDnsResolver {
         let (sorted_ns, has_final) = sort_clients_by_domain(domain, &self.nameservers);
         let has_match = !sorted_ns.is_empty() && sorted_ns[0].matches_domain(domain);
         if (self.disable_fallback || (self.disable_fallback_if_match && has_match)) && !has_final {
-            let matched_only: Vec<&NameServer> = sorted_ns.iter()
+            let matched_only: Vec<&NameServer> = sorted_ns
+                .iter()
                 .filter(|ns| ns.matches_domain(domain))
                 .copied()
                 .collect();
@@ -610,12 +672,19 @@ impl UdpDnsResolver {
         }
         let result = self.query_servers(&sorted_ns, domain, qtypes).await;
         if let Ok(ref ips) = result {
-            self.cache.update(&cache_key, ips.clone(), DEFAULT_TTL).await;
+            self.cache
+                .update(&cache_key, ips.clone(), DEFAULT_TTL)
+                .await;
         }
         result
     }
 
-    async fn query_servers(&self, nameservers: &[&NameServer], domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
+    async fn query_servers(
+        &self,
+        nameservers: &[&NameServer],
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
         if self.enable_parallel {
             self.parallel_query(nameservers, domain, qtypes).await
         } else {
@@ -623,33 +692,52 @@ impl UdpDnsResolver {
         }
     }
 
-    async fn serial_query(&self, nameservers: &[&NameServer], domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
+    async fn serial_query(
+        &self,
+        nameservers: &[&NameServer],
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
         let mut last_err = DnsError::EmptyResponse;
         for ns in nameservers {
             match self.query_single(ns, domain, qtypes).await {
                 Ok(ips) if !ips.is_empty() => return Ok(ips),
                 Ok(_) => continue,
-                Err(e) => { last_err = e; }
+                Err(e) => {
+                    last_err = e;
+                }
             }
         }
         Err(last_err)
     }
 
-    async fn parallel_query(&self, nameservers: &[&NameServer], domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
-        let futures: Vec<_> = nameservers.iter().map(|ns| {
-            self.query_single(ns, domain, qtypes)
-        }).collect();
+    async fn parallel_query(
+        &self,
+        nameservers: &[&NameServer],
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
+        let futures: Vec<_> = nameservers
+            .iter()
+            .map(|ns| self.query_single(ns, domain, qtypes))
+            .collect();
         let results = futures::future::join_all(futures).await;
         for r in results {
             if let Ok(ips) = r
-                && !ips.is_empty() {
-                    return Ok(ips);
-                }
+                && !ips.is_empty()
+            {
+                return Ok(ips);
+            }
         }
         Err(DnsError::EmptyResponse)
     }
 
-    async fn query_single(&self, ns: &NameServer, domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
+    async fn query_single(
+        &self,
+        ns: &NameServer,
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
         let ns_addr = format!("{}:{}", ns.address, ns.port);
         let mut all_ips = Vec::new();
         for &qtype in qtypes {
@@ -666,10 +754,16 @@ impl UdpDnsResolver {
                         break;
                     }
                 }
-                Err(e) => { tracing::debug!("dns query to {} failed: {}", ns_addr, e); }
+                Err(e) => {
+                    tracing::debug!("dns query to {} failed: {}", ns_addr, e);
+                }
             }
         }
-        if all_ips.is_empty() { Err(DnsError::EmptyResponse) } else { Ok(all_ips) }
+        if all_ips.is_empty() {
+            Err(DnsError::EmptyResponse)
+        } else {
+            Ok(all_ips)
+        }
     }
 }
 
@@ -728,7 +822,11 @@ impl DnsResolver for TcpDnsResolver {
 }
 
 impl TcpDnsResolver {
-    async fn do_nameserver_lookup(&self, domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
+    async fn do_nameserver_lookup(
+        &self,
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
         let cache_key = format!("{}|{:?}", domain, qtypes);
         if let Some((cached_ips, _ttl)) = self.cache.find(&cache_key).await {
             return Ok(cached_ips);
@@ -740,12 +838,19 @@ impl TcpDnsResolver {
             self.serial_query(&sorted_ns, domain, qtypes).await
         };
         if let Ok(ref ips) = result {
-            self.cache.update(&cache_key, ips.clone(), DEFAULT_TTL).await;
+            self.cache
+                .update(&cache_key, ips.clone(), DEFAULT_TTL)
+                .await;
         }
         result
     }
 
-    async fn serial_query(&self, nameservers: &[&NameServer], domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
+    async fn serial_query(
+        &self,
+        nameservers: &[&NameServer],
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
         let mut last_err = DnsError::EmptyResponse;
         for ns in nameservers {
             let ns_addr = format!("{}:{}", ns.address, ns.port);
@@ -754,37 +859,60 @@ impl TcpDnsResolver {
                 match resolve_tcp(ns, domain, qtype, &ns_addr).await {
                     Ok(ips) => {
                         let filtered = filter_expected(ips, &ns.expected_ips);
-                        if !filtered.is_empty() { all_ips.extend(filtered); break; }
+                        if !filtered.is_empty() {
+                            all_ips.extend(filtered);
+                            break;
+                        }
                     }
-                    Err(e) => { last_err = e; }
+                    Err(e) => {
+                        last_err = e;
+                    }
                 }
             }
-            if !all_ips.is_empty() { return Ok(all_ips); }
+            if !all_ips.is_empty() {
+                return Ok(all_ips);
+            }
         }
         Err(last_err)
     }
 
-    async fn parallel_query(&self, nameservers: &[&NameServer], domain: &str, qtypes: &[u16]) -> Result<Vec<IpAddr>, DnsError> {
-        let futures: Vec<_> = nameservers.iter().map(|ns| {
-            let ns_addr = format!("{}:{}", ns.address, ns.port);
-            let expected = ns.expected_ips.clone();
-            async move {
-                let mut all_ips = Vec::new();
-                for &qtype in qtypes {
-                    if let Ok(ips) = resolve_tcp(ns, domain, qtype, &ns_addr).await {
-                        let filtered = filter_expected(ips, &expected);
-                        if !filtered.is_empty() { all_ips.extend(filtered); break; }
+    async fn parallel_query(
+        &self,
+        nameservers: &[&NameServer],
+        domain: &str,
+        qtypes: &[u16],
+    ) -> Result<Vec<IpAddr>, DnsError> {
+        let futures: Vec<_> = nameservers
+            .iter()
+            .map(|ns| {
+                let ns_addr = format!("{}:{}", ns.address, ns.port);
+                let expected = ns.expected_ips.clone();
+                async move {
+                    let mut all_ips = Vec::new();
+                    for &qtype in qtypes {
+                        if let Ok(ips) = resolve_tcp(ns, domain, qtype, &ns_addr).await {
+                            let filtered = filter_expected(ips, &expected);
+                            if !filtered.is_empty() {
+                                all_ips.extend(filtered);
+                                break;
+                            }
+                        }
+                    }
+                    if all_ips.is_empty() {
+                        Err(DnsError::EmptyResponse)
+                    } else {
+                        Ok(all_ips)
                     }
                 }
-                if all_ips.is_empty() { Err(DnsError::EmptyResponse) } else { Ok(all_ips) }
-            }
-        }).collect();
+            })
+            .collect();
         let results = futures::future::join_all(futures).await;
         for r in results {
             if let Ok(ips) = r
-                && !ips.is_empty() {
-                    return Ok(ips);
-                }
+                && !ips.is_empty()
+            {
+                return Ok(ips);
+            }
         }
         Err(DnsError::EmptyResponse)
     }
@@ -865,7 +993,10 @@ impl DoHResolver {
             if resp.status().as_u16() != 200 {
                 return Err(DnsError::Network(format!("DoH status {}", resp.status())));
             }
-            let body = resp.bytes().await.map_err(|e| DnsError::Network(e.to_string()))?;
+            let body = resp
+                .bytes()
+                .await
+                .map_err(|e| DnsError::Network(e.to_string()))?;
             if let Ok((ips, _ttl)) = parse_dns_response(&body) {
                 all_ips.extend(ips);
                 break;
@@ -874,7 +1005,9 @@ impl DoHResolver {
         if all_ips.is_empty() {
             Err(DnsError::EmptyResponse)
         } else {
-            self.cache.update(&cache_key, all_ips.clone(), DEFAULT_TTL).await;
+            self.cache
+                .update(&cache_key, all_ips.clone(), DEFAULT_TTL)
+                .await;
             Ok(all_ips)
         }
     }
@@ -897,15 +1030,23 @@ struct FakeIpPool {
 impl FakeIpPool {
     fn new(base: Ipv4Addr, prefix: u8) -> Self {
         let count = 1u32 << (32 - prefix.min(32).max(8));
-        FakeIpPool { base, count, next: AtomicU32::new(1) }
+        FakeIpPool {
+            base,
+            count,
+            next: AtomicU32::new(1),
+        }
     }
     fn allocate(&self) -> Option<IpAddr> {
         let offset = self.next.fetch_add(1, Ordering::Relaxed);
-        if offset >= self.count { return None; }
+        if offset >= self.count {
+            return None;
+        }
         let mut octets = self.base.octets();
         let v = u32::from_be_bytes(octets).wrapping_add(offset);
         octets = v.to_be_bytes();
-        Some(IpAddr::V4(Ipv4Addr::new(octets[0], octets[1], octets[2], octets[3])))
+        Some(IpAddr::V4(Ipv4Addr::new(
+            octets[0], octets[1], octets[2], octets[3],
+        )))
     }
 }
 
@@ -945,7 +1086,10 @@ impl DnsResolver for FakeDnsResolver {
                 return Ok(vec![*ip]);
             }
         }
-        let ip = self.pool.allocate().ok_or(DnsError::Network("fake DNS pool exhausted".into()))?;
+        let ip = self
+            .pool
+            .allocate()
+            .ok_or(DnsError::Network("fake DNS pool exhausted".into()))?;
         {
             let mut map = self.domain_to_ip.lock().await;
             let mut rev = self.ip_to_domain.lock().await;
@@ -975,16 +1119,23 @@ impl DnsResolver for SimpleDnsResolver {
         if let Some(result) = self.hosts.lookup_recursive(&lower, 0) {
             match result {
                 Ok(ips) => return Ok(ips),
-                Err(replacement) => return tokio::net::lookup_host((replacement, 0)).await
-                    .map_err(|e| DnsError::Network(e.to_string()))
-                    .map(|addrs| addrs.map(|a| a.ip()).collect()),
+                Err(replacement) => {
+                    return tokio::net::lookup_host((replacement, 0))
+                        .await
+                        .map_err(|e| DnsError::Network(e.to_string()))
+                        .map(|addrs| addrs.map(|a| a.ip()).collect());
+                }
             }
         }
         let addrs = tokio::net::lookup_host((domain, 0))
             .await
             .map_err(|e| DnsError::Network(e.to_string()))?;
         let ips: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();
-        if ips.is_empty() { Err(DnsError::EmptyResponse) } else { Ok(ips) }
+        if ips.is_empty() {
+            Err(DnsError::EmptyResponse)
+        } else {
+            Ok(ips)
+        }
     }
 }
 
@@ -1052,7 +1203,9 @@ impl DoQResolver {
         if all_ips.is_empty() {
             Err(DnsError::EmptyResponse)
         } else {
-            self.cache.update(&cache_key, all_ips.clone(), DEFAULT_TTL).await;
+            self.cache
+                .update(&cache_key, all_ips.clone(), DEFAULT_TTL)
+                .await;
             Ok(all_ips)
         }
     }
@@ -1064,22 +1217,28 @@ impl DoQResolver {
         let stream = tokio::time::timeout(
             Duration::from_secs(5),
             tokio::net::TcpStream::connect(&tcp_addr),
-        ).await.map_err(|_| DnsError::Timeout)?
-          .map_err(|e| DnsError::Network(e.to_string()))?;
+        )
+        .await
+        .map_err(|_| DnsError::Timeout)?
+        .map_err(|e| DnsError::Network(e.to_string()))?;
 
         let (mut r, mut w) = tokio::io::split(stream);
         use tokio::io::AsyncWriteExt;
-        w.write_all(wire).await.map_err(|e| DnsError::Network(e.to_string()))?;
+        w.write_all(wire)
+            .await
+            .map_err(|e| DnsError::Network(e.to_string()))?;
         drop(w);
 
         let mut len_buf = [0u8; 2];
         tokio::time::timeout(Duration::from_secs(5), r.read_exact(&mut len_buf))
-            .await.map_err(|_| DnsError::Timeout)?
+            .await
+            .map_err(|_| DnsError::Timeout)?
             .map_err(|e| DnsError::Network(e.to_string()))?;
         let resp_len = u16::from_be_bytes(len_buf) as usize;
         let mut resp = vec![0u8; resp_len];
         tokio::time::timeout(Duration::from_secs(5), r.read_exact(&mut resp))
-            .await.map_err(|_| DnsError::Timeout)?
+            .await
+            .map_err(|_| DnsError::Timeout)?
             .map_err(|e| DnsError::Network(e.to_string()))?;
 
         let (ips, _) = parse_dns_response(&resp)?;
@@ -1104,7 +1263,9 @@ impl DnsResolver for DoQResolver {
 // ─── Hosts parsing ──────────────────────────────────────────────────────────
 
 pub fn parse_hosts(value: Option<&serde_json::Value>) -> Result<StaticHosts, String> {
-    let Some(val) = value else { return Ok(StaticHosts::new()) };
+    let Some(val) = value else {
+        return Ok(StaticHosts::new());
+    };
     StaticHosts::from_json(val)
 }
 
@@ -1116,9 +1277,13 @@ mod tests {
 
     #[test]
     fn test_encode_domain() {
-        assert_eq!(encode_domain_name("www.example.com"), vec![
-            3, b'w', b'w', b'w', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o', b'm', 0
-        ]);
+        assert_eq!(
+            encode_domain_name("www.example.com"),
+            vec![
+                3, b'w', b'w', b'w', 7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 3, b'c', b'o',
+                b'm', 0
+            ]
+        );
     }
 
     #[test]
@@ -1141,7 +1306,10 @@ mod tests {
     fn test_parse_hosts_single() {
         let json = serde_json::json!({ "example.com": "1.2.3.4" });
         let hosts = parse_hosts(Some(&json)).unwrap();
-        assert_eq!(hosts.lookup("example.com").unwrap().unwrap(), vec![IpAddr::V4([1, 2, 3, 4].into())]);
+        assert_eq!(
+            hosts.lookup("example.com").unwrap().unwrap(),
+            vec![IpAddr::V4([1, 2, 3, 4].into())]
+        );
     }
 
     #[test]
@@ -1164,9 +1332,14 @@ mod tests {
     #[test]
     fn test_nameserver_domain_match() {
         let ns = NameServer {
-            address: "8.8.8.8".into(), port: 53, protocol: "udp".into(),
-            domains: vec!["domain:example.com".into()], expected_ips: vec![],
-            client_ip: None, skip_fallback: false, tag: String::new(),
+            address: "8.8.8.8".into(),
+            port: 53,
+            protocol: "udp".into(),
+            domains: vec!["domain:example.com".into()],
+            expected_ips: vec![],
+            client_ip: None,
+            skip_fallback: false,
+            tag: String::new(),
             query_strategy: QueryStrategy::UseIp,
         };
         assert!(ns.matches_domain("example.com"));
@@ -1177,9 +1350,14 @@ mod tests {
     #[test]
     fn test_nameserver_keyword_match() {
         let ns = NameServer {
-            address: "8.8.8.8".into(), port: 53, protocol: "udp".into(),
-            domains: vec!["keyword:google".into()], expected_ips: vec![],
-            client_ip: None, skip_fallback: false, tag: String::new(),
+            address: "8.8.8.8".into(),
+            port: 53,
+            protocol: "udp".into(),
+            domains: vec!["keyword:google".into()],
+            expected_ips: vec![],
+            client_ip: None,
+            skip_fallback: false,
+            tag: String::new(),
             query_strategy: QueryStrategy::UseIp,
         };
         assert!(ns.matches_domain("google.com"));
@@ -1198,15 +1376,25 @@ mod tests {
     #[test]
     fn test_domain_priority_sorting() {
         let ns1 = NameServer {
-            address: "8.8.8.8".into(), port: 53, protocol: "udp".into(),
-            domains: vec!["domain:example.com".into()], expected_ips: vec![],
-            client_ip: None, skip_fallback: false, tag: String::new(),
+            address: "8.8.8.8".into(),
+            port: 53,
+            protocol: "udp".into(),
+            domains: vec!["domain:example.com".into()],
+            expected_ips: vec![],
+            client_ip: None,
+            skip_fallback: false,
+            tag: String::new(),
             query_strategy: QueryStrategy::UseIp,
         };
         let ns2 = NameServer {
-            address: "1.1.1.1".into(), port: 53, protocol: "udp".into(),
-            domains: vec![], expected_ips: vec![],
-            client_ip: None, skip_fallback: true, tag: String::new(),
+            address: "1.1.1.1".into(),
+            port: 53,
+            protocol: "udp".into(),
+            domains: vec![],
+            expected_ips: vec![],
+            client_ip: None,
+            skip_fallback: true,
+            tag: String::new(),
             query_strategy: QueryStrategy::UseIp,
         };
         let nss = [ns1, ns2];
@@ -1222,7 +1410,13 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let cache = CacheController::new("test", false, false, 0);
-            cache.update("example.com|A", vec!["1.2.3.4".parse::<IpAddr>().unwrap()], 60).await;
+            cache
+                .update(
+                    "example.com|A",
+                    vec!["1.2.3.4".parse::<IpAddr>().unwrap()],
+                    60,
+                )
+                .await;
             let found = cache.find("example.com|A").await;
             assert!(found.is_some());
             assert_eq!(found.unwrap().0[0], "1.2.3.4".parse::<IpAddr>().unwrap());

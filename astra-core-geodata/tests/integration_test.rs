@@ -37,7 +37,10 @@ fn test_load_real_geosite() {
     assert!(!mgr.geosite.is_empty(), "should have at least one category");
 
     if let Some(google) = mgr.geosite.get("GOOGLE") {
-        assert!(!google.domains.is_empty(), "GOOGLE should have domain entries");
+        assert!(
+            !google.domains.is_empty(),
+            "GOOGLE should have domain entries"
+        );
         eprintln!("GOOGLE has {} domain entries", google.domains.len());
         for d in google.domains.iter().take(5) {
             eprintln!("  type={} value={}", d.r#type, d.value);

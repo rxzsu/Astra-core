@@ -116,8 +116,7 @@ async fn handle_conn(
         return Err("not an upgrade request".into());
     }
 
-    let response =
-        "HTTP/1.1 101 Switching Protocols\r\n\
+    let response = "HTTP/1.1 101 Switching Protocols\r\n\
          Connection: Upgrade\r\n\
          Upgrade: websocket\r\n\
          \r\n";

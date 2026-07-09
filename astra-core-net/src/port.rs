@@ -167,12 +167,10 @@ mod tests {
 
     #[test]
     fn test_memory_port_list() {
-        let mpl = MemoryPortList::new(vec![
-            MemoryPortRange {
-                from: Port(100),
-                to: Port(200),
-            },
-        ]);
+        let mpl = MemoryPortList::new(vec![MemoryPortRange {
+            from: Port(100),
+            to: Port(200),
+        }]);
         assert!(mpl.contains(Port(150)));
         assert!(!mpl.contains(Port(250)));
     }

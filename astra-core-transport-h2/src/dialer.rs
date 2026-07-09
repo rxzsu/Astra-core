@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
+use astra_core_net::Destination;
 use h2::client;
 use http::Request;
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
-use astra_core_net::Destination;
 
 use astra_core_proxy::{Conn, ProxyResult};
 
-use crate::{build_tls_client_config, H2Stream};
+use crate::{H2Stream, build_tls_client_config};
 
 pub async fn dial_h2(dest: &Destination, host: &str, path: &str) -> ProxyResult<Conn> {
     let addr_str = format!("{}:{}", dest.address, dest.port.value());

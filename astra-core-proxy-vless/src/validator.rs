@@ -53,7 +53,10 @@ impl Validator for MemoryValidator {
     fn add(&mut self, u: MemoryUser) -> Result<(), String> {
         // Extract UUID from account if available
         let key = if let Some(account) = &u.account {
-            if let Some(vless_account) = account.as_any().downcast_ref::<crate::account::MemoryAccount>() {
+            if let Some(vless_account) = account
+                .as_any()
+                .downcast_ref::<crate::account::MemoryAccount>()
+            {
                 ProcessUUID(vless_account.id.bytes())
             } else {
                 ProcessUUID([0u8; 16])

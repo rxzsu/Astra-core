@@ -31,7 +31,8 @@ pub struct GrpcConnService {
 
 #[tonic::async_trait]
 impl GrpcService for GrpcConnService {
-    type TunStream = Pin<Box<dyn tokio_stream::Stream<Item = Result<crate::proto::Hunk, Status>> + Send>>;
+    type TunStream =
+        Pin<Box<dyn tokio_stream::Stream<Item = Result<crate::proto::Hunk, Status>> + Send>>;
 
     async fn tun(
         &self,
@@ -47,13 +48,16 @@ impl GrpcService for GrpcConnService {
         Ok(Response::new(Box::pin(out_stream.map(Ok))))
     }
 
-    type TunMultiStream = Pin<Box<dyn tokio_stream::Stream<Item = Result<crate::proto::MultiHunk, Status>> + Send>>;
+    type TunMultiStream =
+        Pin<Box<dyn tokio_stream::Stream<Item = Result<crate::proto::MultiHunk, Status>> + Send>>;
 
     async fn tun_multi(
         &self,
         _req: Request<tonic::Streaming<crate::proto::MultiHunk>>,
     ) -> Result<Response<Self::TunMultiStream>, Status> {
-        Err(Status::unimplemented("tun_multi not yet supported on server"))
+        Err(Status::unimplemented(
+            "tun_multi not yet supported on server",
+        ))
     }
 }
 

@@ -3,8 +3,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 /// TCP mask trait: wraps a TCP connection with obfuscation.
 pub trait Tcpmask: Send + Sync {
-    fn wrap_client(&self, conn: Box<dyn AsyncReadWrite>) -> Result<Box<dyn AsyncReadWrite>, String>;
-    fn wrap_server(&self, conn: Box<dyn AsyncReadWrite>) -> Result<Box<dyn AsyncReadWrite>, String>;
+    fn wrap_client(&self, conn: Box<dyn AsyncReadWrite>)
+    -> Result<Box<dyn AsyncReadWrite>, String>;
+    fn wrap_server(&self, conn: Box<dyn AsyncReadWrite>)
+    -> Result<Box<dyn AsyncReadWrite>, String>;
 }
 
 /// UDP mask trait: wraps a UDP datagram connection with obfuscation.
@@ -48,15 +50,23 @@ pub struct SalamanderMask {
 
 impl SalamanderMask {
     pub fn new(password: &str) -> Self {
-        SalamanderMask { psk: password.as_bytes().to_vec() }
+        SalamanderMask {
+            psk: password.as_bytes().to_vec(),
+        }
     }
 }
 
 impl Tcpmask for SalamanderMask {
-    fn wrap_client(&self, conn: Box<dyn AsyncReadWrite>) -> Result<Box<dyn AsyncReadWrite>, String> {
+    fn wrap_client(
+        &self,
+        conn: Box<dyn AsyncReadWrite>,
+    ) -> Result<Box<dyn AsyncReadWrite>, String> {
         Ok(Box::new(SalamanderConn::new(conn, self.psk.clone())))
     }
-    fn wrap_server(&self, conn: Box<dyn AsyncReadWrite>) -> Result<Box<dyn AsyncReadWrite>, String> {
+    fn wrap_server(
+        &self,
+        conn: Box<dyn AsyncReadWrite>,
+    ) -> Result<Box<dyn AsyncReadWrite>, String> {
         Ok(Box::new(SalamanderConn::new(conn, self.psk.clone())))
     }
 }
@@ -117,7 +127,9 @@ impl SalamanderConn {
         hasher.update(&self.psk);
         hasher.update(salt);
         let key = hasher.finalize();
-        Ok(payload.iter().enumerate()
+        Ok(payload
+            .iter()
+            .enumerate()
             .map(|(i, &b)| b ^ key[i % key.len()])
             .collect())
     }
@@ -135,7 +147,9 @@ impl tokio::io::AsyncRead for SalamanderConn {
         match std::pin::Pin::new(&mut this.inner).poll_read(cx, &mut tmp_buf) {
             Poll::Ready(Ok(())) => {
                 let n = tmp_buf.filled().len();
-                if n == 0 { return Poll::Ready(Ok(())); }
+                if n == 0 {
+                    return Poll::Ready(Ok(()));
+                }
                 match this.deobfuscate(&tmp[..n]) {
                     Ok(deobf) => {
                         let len = deobf.len().min(buf.remaining());
@@ -213,7 +227,9 @@ impl SalamanderUdpConn {
         hasher.update(&self.psk);
         hasher.update(salt);
         let key = hasher.finalize();
-        Ok(payload.iter().enumerate()
+        Ok(payload
+            .iter()
+            .enumerate()
             .map(|(i, &b)| b ^ key[i % key.len()])
             .collect())
     }

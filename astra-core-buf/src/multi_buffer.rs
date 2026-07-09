@@ -180,6 +180,11 @@ impl From<Buffer> for MultiBuffer {
 
 impl std::fmt::Debug for MultiBuffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MultiBuffer({} buffers, {} bytes)", self.bufs.len(), self.total_len)
+        write!(
+            f,
+            "MultiBuffer({} buffers, {} bytes)",
+            self.bufs.len(),
+            self.total_len
+        )
     }
 }

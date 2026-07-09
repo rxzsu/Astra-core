@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use astra_core_net::Destination;
-use astra_core_proto::{RequestCommand, MemoryUser};
-use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proto::{MemoryUser, RequestCommand};
+use astra_core_proxy::{Conn, Dispatcher, InboundHandler, ProxyResult, async_trait};
 use astra_core_session::{Outbound, Session};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -30,12 +30,13 @@ impl Handler {
     fn find_user(&self, auth_id: &[u8; 16]) -> Option<[u8; 16]> {
         for user in &self.users {
             if let Some(acc) = user.account.as_ref()
-                && let Some(macc) = acc.as_any().downcast_ref::<crate::account::MemoryAccount>() {
-                    let cmd_key = *macc.id.cmd_key();
-                    if DecodeAuthID(&cmd_key, auth_id).is_ok() {
-                        return Some(cmd_key);
-                    }
+                && let Some(macc) = acc.as_any().downcast_ref::<crate::account::MemoryAccount>()
+            {
+                let cmd_key = *macc.id.cmd_key();
+                if DecodeAuthID(&cmd_key, auth_id).is_ok() {
+                    return Some(cmd_key);
                 }
+            }
         }
         None
     }
@@ -52,16 +53,21 @@ impl InboundHandler for Handler {
         let (mut reader, mut writer) = tokio::io::split(conn);
 
         let mut auth_id = [0u8; 16];
-        reader.read_exact(&mut auth_id).await
+        reader
+            .read_exact(&mut auth_id)
+            .await
             .map_err(|e| format!("read auth id: {}", e))?;
 
-        let cmd_key = self.find_user(&auth_id)
+        let cmd_key = self
+            .find_user(&auth_id)
             .ok_or_else(|| "no matching user for auth id".to_string())?;
 
         let mut buf = Vec::new();
         let mut tmp = [0u8; 4096];
         loop {
-            let n = reader.read(&mut tmp).await
+            let n = reader
+                .read(&mut tmp)
+                .await
                 .map_err(|e| format!("read header data: {}", e))?;
             if n == 0 {
                 break;
@@ -77,11 +83,14 @@ impl InboundHandler for Handler {
         }
 
         let mut server = ServerSession::new(SessionHistory::new());
-        let request = server.DecodeRequestHeader(&auth_id, &buf, &cmd_key)
+        let request = server
+            .DecodeRequestHeader(&auth_id, &buf, &cmd_key)
             .map_err(|e| format!("decode request: {}", e))?;
 
         let response_header = server.EncodeResponseHeader(0, None);
-        writer.write_all(&response_header).await
+        writer
+            .write_all(&response_header)
+            .await
             .map_err(|e| format!("write response: {}", e))?;
 
         let target = Destination {
@@ -115,4 +124,3 @@ impl InboundHandler for Handler {
         Ok(())
     }
 }
-

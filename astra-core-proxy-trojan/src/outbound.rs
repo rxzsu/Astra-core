@@ -1,7 +1,7 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use astra_core_net::{ParseAddress, Port, TcpDestination};
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult};
+use astra_core_proxy::{Dialer, OutboundHandler, ProxyResult, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 
@@ -41,11 +41,8 @@ impl OutboundHandler for Handler {
 
         let (mut conn_reader, mut conn_writer) = tokio::io::split(&mut conn);
 
-        let header = protocol::write_tcp_header(
-            &self.config.key,
-            &target.address,
-            target.port.value(),
-        );
+        let header =
+            protocol::write_tcp_header(&self.config.key, &target.address, target.port.value());
         conn_writer
             .write_all(&header)
             .await

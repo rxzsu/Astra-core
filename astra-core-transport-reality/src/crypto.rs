@@ -1,6 +1,6 @@
 use aes_gcm::{
-    aead::{Aead, KeyInit as AeadKeyInit, Payload},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit as AeadKeyInit, Payload},
 };
 use hkdf::Hkdf;
 use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
@@ -40,7 +40,13 @@ pub fn aes256gcm_encrypt(
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| format!("aes key: {}", e))?;
     let nonce = Nonce::from_slice(nonce);
     cipher
-        .encrypt(nonce, Payload { msg: plaintext, aad })
+        .encrypt(
+            nonce,
+            Payload {
+                msg: plaintext,
+                aad,
+            },
+        )
         .map_err(|e| format!("aes encrypt: {}", e))
 }
 
@@ -53,13 +59,18 @@ pub fn aes256gcm_decrypt(
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| format!("aes key: {}", e))?;
     let nonce = Nonce::from_slice(nonce);
     cipher
-        .decrypt(nonce, Payload { msg: ciphertext, aad })
+        .decrypt(
+            nonce,
+            Payload {
+                msg: ciphertext,
+                aad,
+            },
+        )
         .map_err(|e| format!("aes decrypt: {}", e))
 }
 
 pub fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
-    let mut mac = HmacSha512::new_from_slice(key)
-        .expect("HMAC-SHA512 key size is valid");
+    let mut mac = HmacSha512::new_from_slice(key).expect("HMAC-SHA512 key size is valid");
     mac.update(data);
     let result = mac.finalize();
     let mut out = [0u8; 64];
@@ -70,7 +81,10 @@ pub fn hmac_sha512(key: &[u8], data: &[u8]) -> [u8; 64] {
 pub fn parse_public_key(hex_key: &str) -> Result<[u8; 32], String> {
     let decoded = hex::decode(hex_key).map_err(|e| format!("hex decode: {}", e))?;
     if decoded.len() != 32 {
-        return Err(format!("public key must be 32 bytes, got {}", decoded.len()));
+        return Err(format!(
+            "public key must be 32 bytes, got {}",
+            decoded.len()
+        ));
     }
     let mut arr = [0u8; 32];
     arr.copy_from_slice(&decoded);
@@ -87,10 +101,7 @@ pub fn parse_short_id(hex_id: &str) -> Result<[u8; 8], String> {
     Ok(arr)
 }
 
-pub fn build_session_id(
-    short_id: &[u8; 8],
-    timestamp: u32,
-) -> Vec<u8> {
+pub fn build_session_id(short_id: &[u8; 8], timestamp: u32) -> Vec<u8> {
     let mut sid = vec![0u8; SESSION_ID_SIZE];
     sid[0] = 1;
     sid[1] = 0;

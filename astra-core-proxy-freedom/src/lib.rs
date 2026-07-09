@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{Dialer, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::{Link, UdpPacket};
 
@@ -16,11 +16,11 @@ pub fn default_blocking_rules() -> Vec<FinalRule> {
         "10.0.0.0/8",
         "172.16.0.0/12",
         "192.168.0.0/16",
-        "100.64.0.0/10",    // Carrier-grade NAT (RFC6598)
-        "127.0.0.0/8",      // Loopback
-        "169.254.0.0/16",   // Link-local
-        "224.0.0.0/4",      // Multicast
-        "240.0.0.0/4",      // Reserved
+        "100.64.0.0/10",      // Carrier-grade NAT (RFC6598)
+        "127.0.0.0/8",        // Loopback
+        "169.254.0.0/16",     // Link-local
+        "224.0.0.0/4",        // Multicast
+        "240.0.0.0/4",        // Reserved
         "255.255.255.255/32", // Broadcast
     ];
 
@@ -103,7 +103,10 @@ pub fn parse_packets(s: &str) -> (u64, u64) {
 /// Write data with fragmentation matching Go's FragmentWriter.
 /// Returns Ok(()) on success.
 async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
-    writer: &mut W, data: &[u8], cfg: &FragmentConfig, count: u64,
+    writer: &mut W,
+    data: &[u8],
+    cfg: &FragmentConfig,
+    count: u64,
 ) -> Result<(), String> {
     use tokio::io::AsyncWriteExt;
 
@@ -124,8 +127,8 @@ async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
         let mut from = 0;
 
         while from < tls_data.len() {
-            let to = (from + rand_between(cfg.length_min, cfg.length_max) as usize)
-                .min(tls_data.len());
+            let to =
+                (from + rand_between(cfg.length_min, cfg.length_max) as usize).min(tls_data.len());
             split_num += 1;
             if max_split > 0 && split_num >= max_split {
                 let remaining = &tls_data[from..];
@@ -139,9 +142,11 @@ async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
                     hello.extend_from_slice(&buf);
                 } else {
                     writer.write_all(&buf).await.map_err(|e| e.to_string())?;
-                    tokio::time::sleep(std::time::Duration::from_millis(
-                        rand_between(cfg.interval_min, cfg.interval_max)
-                    )).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(rand_between(
+                        cfg.interval_min,
+                        cfg.interval_max,
+                    )))
+                    .await;
                 }
                 break;
             }
@@ -158,9 +163,11 @@ async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
                 hello.extend_from_slice(&buf);
             } else {
                 writer.write_all(&buf).await.map_err(|e| e.to_string())?;
-                tokio::time::sleep(std::time::Duration::from_millis(
-                    rand_between(cfg.interval_min, cfg.interval_max)
-                )).await;
+                tokio::time::sleep(std::time::Duration::from_millis(rand_between(
+                    cfg.interval_min,
+                    cfg.interval_max,
+                )))
+                .await;
             }
         }
 
@@ -168,7 +175,10 @@ async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
             writer.write_all(&hello).await.map_err(|e| e.to_string())?;
         }
         if data.len() > record_len {
-            writer.write_all(&data[record_len..]).await.map_err(|e| e.to_string())?;
+            writer
+                .write_all(&data[record_len..])
+                .await
+                .map_err(|e| e.to_string())?;
         }
         return Ok(());
     }
@@ -183,18 +193,25 @@ async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
     let mut from = 0;
 
     while from < data.len() {
-        let to = (from + rand_between(cfg.length_min, cfg.length_max) as usize)
-            .min(data.len());
+        let to = (from + rand_between(cfg.length_min, cfg.length_max) as usize).min(data.len());
         split_num += 1;
         if max_split > 0 && split_num >= max_split {
-            writer.write_all(&data[from..]).await.map_err(|e| e.to_string())?;
+            writer
+                .write_all(&data[from..])
+                .await
+                .map_err(|e| e.to_string())?;
             break;
         }
-        writer.write_all(&data[from..to]).await.map_err(|e| e.to_string())?;
+        writer
+            .write_all(&data[from..to])
+            .await
+            .map_err(|e| e.to_string())?;
         if cfg.interval_max > 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(
-                rand_between(cfg.interval_min, cfg.interval_max)
-            )).await;
+            tokio::time::sleep(std::time::Duration::from_millis(rand_between(
+                cfg.interval_min,
+                cfg.interval_max,
+            )))
+            .await;
         }
         from = to;
     }
@@ -202,7 +219,9 @@ async fn write_fragmented<W: tokio::io::AsyncWrite + Unpin>(
 }
 
 fn rand_between(min: u64, max: u64) -> u64 {
-    if min >= max { return min; }
+    if min >= max {
+        return min;
+    }
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -219,14 +238,25 @@ pub struct FragmentWriter {
 }
 
 impl FragmentWriter {
-    pub fn new(config: FragmentConfig, inner: Box<dyn tokio::io::AsyncWrite + Unpin + Send>) -> Self {
-        FragmentWriter { config, inner, count: 0 }
+    pub fn new(
+        config: FragmentConfig,
+        inner: Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
+    ) -> Self {
+        FragmentWriter {
+            config,
+            inner,
+            count: 0,
+        }
     }
 
     fn rand_between(min: u64, max: u64) -> u64 {
-        if min >= max { return min; }
+        if min >= max {
+            return min;
+        }
         let range = max - min + 1;
-        if range == 0 { return min; }
+        if range == 0 {
+            return min;
+        }
         // Simple pseudo-random using time
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -272,10 +302,15 @@ impl FragmentWriter {
                     if cfg.interval_max == 0 {
                         hello.extend_from_slice(&buf);
                     } else {
-                        self.inner.write_all(&buf).await.map_err(|e| e.to_string())?;
-                        tokio::time::sleep(std::time::Duration::from_millis(
-                            Self::rand_between(cfg.interval_min, cfg.interval_max)
-                        )).await;
+                        self.inner
+                            .write_all(&buf)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        tokio::time::sleep(std::time::Duration::from_millis(Self::rand_between(
+                            cfg.interval_min,
+                            cfg.interval_max,
+                        )))
+                        .await;
                     }
                     break;
                 }
@@ -291,18 +326,29 @@ impl FragmentWriter {
                 if cfg.interval_max == 0 {
                     hello.extend_from_slice(&buf);
                 } else {
-                    self.inner.write_all(&buf).await.map_err(|e| e.to_string())?;
-                    tokio::time::sleep(std::time::Duration::from_millis(
-                        Self::rand_between(cfg.interval_min, cfg.interval_max)
-                    )).await;
+                    self.inner
+                        .write_all(&buf)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    tokio::time::sleep(std::time::Duration::from_millis(Self::rand_between(
+                        cfg.interval_min,
+                        cfg.interval_max,
+                    )))
+                    .await;
                 }
             }
 
             if !hello.is_empty() {
-                self.inner.write_all(&hello).await.map_err(|e| e.to_string())?;
+                self.inner
+                    .write_all(&hello)
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
             if data.len() > record_len {
-                self.inner.write_all(&data[record_len..]).await.map_err(|e| e.to_string())?;
+                self.inner
+                    .write_all(&data[record_len..])
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
             return Ok(());
         }
@@ -321,14 +367,22 @@ impl FragmentWriter {
                 .min(data.len());
             split_num += 1;
             if max_split > 0 && split_num >= max_split {
-                self.inner.write_all(&data[from..]).await.map_err(|e| e.to_string())?;
+                self.inner
+                    .write_all(&data[from..])
+                    .await
+                    .map_err(|e| e.to_string())?;
                 break;
             }
-            self.inner.write_all(&data[from..to]).await.map_err(|e| e.to_string())?;
+            self.inner
+                .write_all(&data[from..to])
+                .await
+                .map_err(|e| e.to_string())?;
             if cfg.interval_max > 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(
-                    Self::rand_between(cfg.interval_min, cfg.interval_max)
-                )).await;
+                tokio::time::sleep(std::time::Duration::from_millis(Self::rand_between(
+                    cfg.interval_min,
+                    cfg.interval_max,
+                )))
+                .await;
             }
             from = to;
         }
@@ -406,16 +460,29 @@ impl OutboundHandler for Handler {
         // PROXY protocol v1 (Go: proxy/freedom/freedom.go lines 378-387)
         if self.config.proxy_protocol > 0 {
             use tokio::io::AsyncWriteExt;
-            let src_ip = session.inbound.as_ref()
+            let src_ip = session
+                .inbound
+                .as_ref()
                 .map(|i| format!("{}", i.source.address))
                 .unwrap_or_else(|| "0.0.0.0".to_string());
-            let src_port = session.inbound.as_ref()
+            let src_port = session
+                .inbound
+                .as_ref()
                 .map(|i| i.source.port.value())
                 .unwrap_or(0);
             let dst_ip = format!("{}", target.address.clone());
-            let header = format!("PROXY TCP{} {} {} {} {}\r\n",
-                if self.config.proxy_protocol == 1 { "1" } else { "2" },
-                src_ip, dst_ip, src_port, target.port.value());
+            let header = format!(
+                "PROXY TCP{} {} {} {} {}\r\n",
+                if self.config.proxy_protocol == 1 {
+                    "1"
+                } else {
+                    "2"
+                },
+                src_ip,
+                dst_ip,
+                src_port,
+                target.port.value()
+            );
             let _ = remote.write_all(header.as_bytes()).await;
         }
 
@@ -433,7 +500,8 @@ impl OutboundHandler for Handler {
                         Ok(0) | Err(_) => break,
                         Ok(n) => {
                             frag_count += 1;
-                            write_fragmented(&mut remote_writer, &buf[..n], &frag_cfg, frag_count).await
+                            write_fragmented(&mut remote_writer, &buf[..n], &frag_cfg, frag_count)
+                                .await
                                 .map_err(|e| format!("fragment: {}", e))?;
                         }
                     }
@@ -504,9 +572,10 @@ impl OutboundHandler for Handler {
             let target = &packet.target;
             let addr_str = format!("{}:{}", target.address, target.port.value());
             if let Ok(mut addrs) = tokio::net::lookup_host(&addr_str).await
-                && let Some(remote_addr) = addrs.next() {
-                    let _ = socket.send_to(&packet.data, remote_addr).await;
-                }
+                && let Some(remote_addr) = addrs.next()
+            {
+                let _ = socket.send_to(&packet.data, remote_addr).await;
+            }
         }
 
         let _ = recv_handle.await;
@@ -550,7 +619,9 @@ mod tests {
             let mut buf = [0u8; 1024];
             loop {
                 let n = stream.read(&mut buf).await.unwrap();
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
                 stream.write_all(&buf[..n]).await.unwrap();
             }
         });
@@ -586,7 +657,10 @@ mod tests {
                 content: None,
             };
             let dialer = TestDialer;
-            handler.process(session, &mut outbound_link, &dialer).await.unwrap();
+            handler
+                .process(session, &mut outbound_link, &dialer)
+                .await
+                .unwrap();
             let _ = pipe_handle.await;
         });
 
@@ -618,10 +692,14 @@ mod tests {
         let dest = TcpDestination(Address::Ipv4([127, 0, 0, 1]), Port(echo_addr.port()));
         let cfg = OutboundConfig {
             fragment: Some(FragmentConfig {
-                packets_from: 0, packets_to: 1,
-                length_min: 1, length_max: 5,
-                interval_min: 0, interval_max: 0,
-                max_split_min: 1, max_split_max: 3,
+                packets_from: 0,
+                packets_to: 1,
+                length_min: 1,
+                length_max: 5,
+                interval_min: 0,
+                interval_max: 0,
+                max_split_min: 1,
+                max_split_max: 3,
             }),
             ..Default::default()
         };
@@ -652,7 +730,10 @@ mod tests {
                 content: None,
             };
             let dialer = TestDialer;
-            handler.process(session, &mut outbound_link, &dialer).await.unwrap();
+            handler
+                .process(session, &mut outbound_link, &dialer)
+                .await
+                .unwrap();
         });
 
         let mut client = tokio::net::TcpStream::connect(client_addr).await.unwrap();
@@ -697,16 +778,25 @@ impl NoisePacketWriter {
             return true;
         }
         match self.target_ip {
-            std::net::IpAddr::V4(_) => self.config.apply_to == "ipv4" || self.config.apply_to == "ip",
-            std::net::IpAddr::V6(_) => self.config.apply_to == "ipv6" || self.config.apply_to == "ip",
+            std::net::IpAddr::V4(_) => {
+                self.config.apply_to == "ipv4" || self.config.apply_to == "ip"
+            }
+            std::net::IpAddr::V6(_) => {
+                self.config.apply_to == "ipv6" || self.config.apply_to == "ip"
+            }
         }
     }
 
     pub async fn send_noise(&self, socket: &tokio::net::UdpSocket, remote: std::net::SocketAddr) {
-        if self.has_sent_noise.load(std::sync::atomic::Ordering::Relaxed) || !self.should_apply() {
+        if self
+            .has_sent_noise
+            .load(std::sync::atomic::Ordering::Relaxed)
+            || !self.should_apply()
+        {
             return;
         }
-        self.has_sent_noise.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.has_sent_noise
+            .store(true, std::sync::atomic::Ordering::Relaxed);
 
         let len = if self.config.length_min >= self.config.length_max {
             self.config.length_min
@@ -743,10 +833,10 @@ pub enum RuleAction {
 #[derive(Debug, Clone, Default)]
 pub struct FinalRule {
     pub action: RuleAction,
-    pub networks: Vec<String>,   // "tcp", "udp"
-    pub ports: Vec<(u16, u16)>,  // port ranges
-    pub ips: Vec<String>,        // CIDRs or IPs
-    pub block_delay_min: u64,    // seconds
+    pub networks: Vec<String>,  // "tcp", "udp"
+    pub ports: Vec<(u16, u16)>, // port ranges
+    pub ips: Vec<String>,       // CIDRs or IPs
+    pub block_delay_min: u64,   // seconds
     pub block_delay_max: u64,
 }
 
@@ -767,7 +857,10 @@ impl FinalRule {
         // Check port
         if !self.ports.is_empty() {
             let port_val = target.port.value();
-            let port_match = self.ports.iter().any(|(from, to)| port_val >= *from && port_val <= *to);
+            let port_match = self
+                .ports
+                .iter()
+                .any(|(from, to)| port_val >= *from && port_val <= *to);
             if !port_match {
                 return false;
             }
@@ -782,7 +875,9 @@ impl FinalRule {
                 } else if cidr.contains('/') {
                     if ipnetwork::IpNetwork::from_str(cidr).is_ok() {
                         false
-                    } else { false }
+                    } else {
+                        false
+                    }
                 } else {
                     &target_str == cidr
                 }

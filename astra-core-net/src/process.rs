@@ -116,7 +116,11 @@ fn find_process_linux(network: &str, src_ip: &str, src_port: u16) -> Result<Proc
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_default();
                 let pid: u32 = pid_str.parse().unwrap_or(0);
-                return Ok(ProcessInfo { pid, name, path: abs_path });
+                return Ok(ProcessInfo {
+                    pid,
+                    name,
+                    path: abs_path,
+                });
             }
         }
     }
@@ -138,7 +142,11 @@ fn ip_to_le_u32(ip: std::net::IpAddr) -> u32 {
 // ─── Windows implementation ─────────────────────────────────────────────────
 
 #[cfg(target_os = "windows")]
-fn find_process_windows(network: &str, _src_ip: &str, _src_port: u16) -> Result<ProcessInfo, String> {
+fn find_process_windows(
+    network: &str,
+    _src_ip: &str,
+    _src_port: u16,
+) -> Result<ProcessInfo, String> {
     Err("Windows process lookup not yet implemented".into())
 }
 

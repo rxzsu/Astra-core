@@ -50,8 +50,7 @@ async fn create_linux_tun(config: &Config) -> Result<Box<dyn TunDevice>, String>
         .up()
         .packet_info(false);
 
-    let device = tun::create_as_async(&tun_cfg)
-        .map_err(|e| format!("create tun: {}", e))?;
+    let device = tun::create_as_async(&tun_cfg).map_err(|e| format!("create tun: {}", e))?;
 
     // Set IP addresses via ip CLI
     for addr in &config.addresses {
@@ -114,7 +113,10 @@ fn bring_up(ifname: &str) -> Result<(), String> {
         .output()
         .map_err(|e| format!("ip link set up: {}", e))?;
     if !out.status.success() {
-        return Err(format!("ip link set up failed: {}", String::from_utf8_lossy(&out.stderr)));
+        return Err(format!(
+            "ip link set up failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        ));
     }
     Ok(())
 }

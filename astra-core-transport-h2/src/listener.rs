@@ -6,7 +6,7 @@ use tokio_rustls::TlsAcceptor;
 
 use astra_core_proxy::{Conn, ProxyResult};
 
-use crate::{build_tls_server_config, H2Stream};
+use crate::{H2Stream, build_tls_server_config};
 
 pub async fn serve_h2(
     listen_addr: &str,
@@ -61,10 +61,7 @@ pub async fn serve_h2(
 
                 tokio::spawn(async move {
                     let send = match respond.send_response(
-                        http::Response::builder()
-                            .status(200)
-                            .body(())
-                            .unwrap(),
+                        http::Response::builder().status(200).body(()).unwrap(),
                         false,
                     ) {
                         Ok(send) => send,

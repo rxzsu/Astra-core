@@ -289,7 +289,10 @@ async fn send_http_response(
 ) -> Result<(), String> {
     let resp = format!(
         "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n{}",
-        code, reason, body.len(), body
+        code,
+        reason,
+        body.len(),
+        body
     );
     writer
         .write_all(resp.as_bytes())
@@ -302,9 +305,7 @@ async fn send_http_response(
     Ok(())
 }
 
-async fn send_options_response(
-    writer: &mut tokio::io::WriteHalf<TcpStream>,
-) -> Result<(), String> {
+async fn send_options_response(writer: &mut tokio::io::WriteHalf<TcpStream>) -> Result<(), String> {
     let resp = "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, OPTIONS\r\nAccess-Control-Allow-Headers: *\r\nContent-Length: 0\r\n\r\n";
     writer
         .write_all(resp.as_bytes())

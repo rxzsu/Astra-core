@@ -1,6 +1,6 @@
 use std::pin::Pin;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -34,7 +34,8 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for CounterConnection<T> {
         let before = buf.filled().len();
         let result = Pin::new(&mut self.inner).poll_read(cx, buf);
         let after = buf.filled().len();
-        self.read_counter.fetch_add((after - before) as i64, Ordering::Relaxed);
+        self.read_counter
+            .fetch_add((after - before) as i64, Ordering::Relaxed);
         result
     }
 }
@@ -105,17 +106,11 @@ impl AsyncWrite for LinkStream {
         Pin::new(&mut self.writer).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.writer).poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.writer).poll_shutdown(cx)
     }
 }
@@ -137,7 +132,11 @@ pub struct UdpPacket {
 
 impl UdpPacket {
     pub fn new(source: Destination, target: Destination, data: Vec<u8>) -> Self {
-        UdpPacket { source, target, data }
+        UdpPacket {
+            source,
+            target,
+            data,
+        }
     }
 }
 
@@ -154,19 +153,27 @@ impl UdpLink {
     }
 
     pub fn send(&self, packet: UdpPacket) -> Result<(), String> {
-        self.writer.send(packet).map_err(|_| "udp link closed".into())
+        self.writer
+            .send(packet)
+            .map_err(|_| "udp link closed".into())
     }
 }
 
+pub mod headers;
 pub mod tagged;
 pub mod vstream;
-pub mod headers;
 
 pub fn new_udp_link_pair() -> (UdpLink, UdpLink) {
     let (tx1, rx1) = tokio::sync::mpsc::unbounded_channel();
     let (tx2, rx2) = tokio::sync::mpsc::unbounded_channel();
     (
-        UdpLink { reader: rx1, writer: tx2 },
-        UdpLink { reader: rx2, writer: tx1 },
+        UdpLink {
+            reader: rx1,
+            writer: tx2,
+        },
+        UdpLink {
+            reader: rx2,
+            writer: tx1,
+        },
     )
 }

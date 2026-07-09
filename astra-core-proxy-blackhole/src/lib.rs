@@ -1,4 +1,4 @@
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{Dialer, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 

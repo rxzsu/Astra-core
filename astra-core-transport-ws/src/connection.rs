@@ -55,12 +55,12 @@ where
                     tokio_tungstenite::tungstenite::Message::Ping(_)
                     | tokio_tungstenite::tungstenite::Message::Pong(_) => continue,
                     tokio_tungstenite::tungstenite::Message::Close(_) => {
-                        return Poll::Ready(Ok(()))
+                        return Poll::Ready(Ok(()));
                     }
                     _ => continue,
                 },
                 Poll::Ready(Some(Err(e))) => {
-                    return Poll::Ready(Err(std::io::Error::other(e.to_string())))
+                    return Poll::Ready(Err(std::io::Error::other(e.to_string())));
                 }
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Pending => return Poll::Pending,
@@ -82,9 +82,7 @@ where
 
         match Pin::new(&mut self.ws).poll_ready(cx) {
             Poll::Ready(Ok(())) => {}
-            Poll::Ready(Err(e)) => {
-                return Poll::Ready(Err(std::io::Error::other(e.to_string())))
-            }
+            Poll::Ready(Err(e)) => return Poll::Ready(Err(std::io::Error::other(e.to_string()))),
             Poll::Pending => return Poll::Pending,
         }
 

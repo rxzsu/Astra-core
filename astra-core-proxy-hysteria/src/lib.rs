@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{Conn, Dispatcher, InboundHandler, OutboundHandler, ProxyResult};
 use astra_core_proxy::dialer::Dialer;
+use astra_core_proxy::{Conn, Dispatcher, InboundHandler, OutboundHandler, ProxyResult};
 use astra_core_session::{Inbound, Session};
 use astra_core_transport::{Link, UdpLink, UdpPacket};
 use quinn::crypto::rustls::QuicClientConfig;
@@ -38,7 +38,9 @@ const PADDING_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
 
 pub fn random_padding(min: usize, max: usize) -> String {
     let n = min + fastrand::usize(..(max - min));
-    (0..n).map(|_| PADDING_CHARS[fastrand::usize(..PADDING_CHARS.len())] as char).collect()
+    (0..n)
+        .map(|_| PADDING_CHARS[fastrand::usize(..PADDING_CHARS.len())] as char)
+        .collect()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,16 +60,28 @@ struct AuthResponse {
 fn parse_bandwidth(s: &str) -> Result<u64, String> {
     let s = s.trim().to_lowercase();
     if let Some(v) = s.strip_suffix("mbps").or_else(|| s.strip_suffix("m")) {
-        let v: f64 = v.trim().parse().map_err(|_| format!("invalid bandwidth: {}", s))?;
+        let v: f64 = v
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid bandwidth: {}", s))?;
         Ok((v * 1_000_000.0) as u64)
     } else if let Some(v) = s.strip_suffix("kbps").or_else(|| s.strip_suffix("k")) {
-        let v: f64 = v.trim().parse().map_err(|_| format!("invalid bandwidth: {}", s))?;
+        let v: f64 = v
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid bandwidth: {}", s))?;
         Ok((v * 1_000.0) as u64)
     } else if let Some(v) = s.strip_suffix("gbps").or_else(|| s.strip_suffix("g")) {
-        let v: f64 = v.trim().parse().map_err(|_| format!("invalid bandwidth: {}", s))?;
+        let v: f64 = v
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid bandwidth: {}", s))?;
         Ok((v * 1_000_000_000.0) as u64)
     } else if let Some(v) = s.strip_suffix("bps").or_else(|| s.strip_suffix("b")) {
-        let v: f64 = v.trim().parse().map_err(|_| format!("invalid bandwidth: {}", s))?;
+        let v: f64 = v
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid bandwidth: {}", s))?;
         Ok(v as u64)
     } else {
         s.parse::<f64>()
@@ -98,7 +112,14 @@ impl BrutalController {
 }
 
 impl quinn::congestion::Controller for BrutalController {
-    fn on_ack(&mut self, _now: Instant, _sent: Instant, _bytes: u64, _app_limited: bool, _rtt: &quinn_proto::RttEstimator) {
+    fn on_ack(
+        &mut self,
+        _now: Instant,
+        _sent: Instant,
+        _bytes: u64,
+        _app_limited: bool,
+        _rtt: &quinn_proto::RttEstimator,
+    ) {
         if self.cwnd < self.max_cwnd {
             let target = (self.target_bps / 8).max(self.min_cwnd);
             if self.cwnd < target {
@@ -107,7 +128,13 @@ impl quinn::congestion::Controller for BrutalController {
         }
     }
 
-    fn on_congestion_event(&mut self, _now: Instant, _sent: Instant, _is_persistent: bool, _lost_bytes: u64) {
+    fn on_congestion_event(
+        &mut self,
+        _now: Instant,
+        _sent: Instant,
+        _is_persistent: bool,
+        _lost_bytes: u64,
+    ) {
         if _is_persistent || _lost_bytes > 0 {
             self.cwnd = (self.cwnd as f64 * 0.7) as u64;
             if self.cwnd < self.min_cwnd {
@@ -118,9 +145,13 @@ impl quinn::congestion::Controller for BrutalController {
 
     fn on_mtu_update(&mut self, _new_mtu: u16) {}
 
-    fn window(&self) -> u64 { self.cwnd }
+    fn window(&self) -> u64 {
+        self.cwnd
+    }
 
-    fn initial_window(&self) -> u64 { self.min_cwnd }
+    fn initial_window(&self) -> u64 {
+        self.min_cwnd
+    }
 
     fn clone_box(&self) -> Box<dyn quinn::congestion::Controller> {
         Box::new(BrutalController {
@@ -131,7 +162,9 @@ impl quinn::congestion::Controller for BrutalController {
         })
     }
 
-    fn into_any(self: Box<Self>) -> Box<dyn Any> { self }
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
 }
 
 struct BrutalFactory {
@@ -139,7 +172,11 @@ struct BrutalFactory {
 }
 
 impl quinn::congestion::ControllerFactory for BrutalFactory {
-    fn build(self: Arc<Self>, _now: Instant, _current_mtu: u16) -> Box<dyn quinn::congestion::Controller> {
+    fn build(
+        self: Arc<Self>,
+        _now: Instant,
+        _current_mtu: u16,
+    ) -> Box<dyn quinn::congestion::Controller> {
         Box::new(BrutalController::new(self.target_bps))
     }
 }
@@ -153,15 +190,19 @@ struct QuicPool {
 
 impl QuicPool {
     fn new(config: HysteriaConfig) -> Self {
-        QuicPool { conn: tokio::sync::Mutex::new(None), config }
+        QuicPool {
+            conn: tokio::sync::Mutex::new(None),
+            config,
+        }
     }
 
     async fn get_or_create(&self) -> Result<quinn::Connection, String> {
         let mut guard = self.conn.lock().await;
         if let Some(ref conn) = *guard
-            && conn.close_reason().is_none() {
-                return Ok(conn.clone());
-            }
+            && conn.close_reason().is_none()
+        {
+            return Ok(conn.clone());
+        }
         let conn = Self::dial_quic(&self.config).await?;
         *guard = Some(conn.clone());
         Ok(conn)
@@ -169,8 +210,14 @@ impl QuicPool {
 
     async fn dial_quic(config: &HysteriaConfig) -> Result<quinn::Connection, String> {
         let server = config.server.as_ref().ok_or("hysteria: no server addr")?;
-        let remote: SocketAddr = server.parse().map_err(|e| format!("invalid server: {}", e))?;
-        let bind: SocketAddr = if remote.is_ipv4() { "0.0.0.0:0".parse().unwrap() } else { "[::]:0".parse().unwrap() };
+        let remote: SocketAddr = server
+            .parse()
+            .map_err(|e| format!("invalid server: {}", e))?;
+        let bind: SocketAddr = if remote.is_ipv4() {
+            "0.0.0.0:0".parse().unwrap()
+        } else {
+            "[::]:0".parse().unwrap()
+        };
 
         let endpoint = quinn::Endpoint::client(bind).map_err(|e| format!("endpoint: {}", e))?;
         let server_name = config.server_name.as_deref().unwrap_or("localhost");
@@ -192,20 +239,34 @@ impl QuicPool {
 
         client_cfg.transport_config(Arc::new(transport));
 
-        let connecting = endpoint.connect_with(client_cfg, remote, server_name)
+        let connecting = endpoint
+            .connect_with(client_cfg, remote, server_name)
             .map_err(|e| format!("connect: {}", e))?;
         let conn = connecting.await.map_err(|e| format!("handshake: {}", e))?;
 
         // Auth: JSON on first stream
-        let (mut send, mut recv) = conn.open_bi().await.map_err(|e| format!("auth stream: {}", e))?;
-        let auth = AuthRequest { auth: config.password.clone() };
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| format!("auth stream: {}", e))?;
+        let auth = AuthRequest {
+            auth: config.password.clone(),
+        };
         let body = serde_json::to_string(&auth).map_err(|e| format!("serialize auth: {}", e))?;
-        send.write_all(body.as_bytes()).await.map_err(|e| format!("send auth: {}", e))?;
-        send.write_all(b"\n").await.map_err(|e| format!("send auth nl: {}", e))?;
+        send.write_all(body.as_bytes())
+            .await
+            .map_err(|e| format!("send auth: {}", e))?;
+        send.write_all(b"\n")
+            .await
+            .map_err(|e| format!("send auth nl: {}", e))?;
         send.finish().map_err(|e| format!("finish auth: {}", e))?;
 
-        let buf = recv.read_to_end(65536).await.map_err(|e| format!("read auth: {}", e))?;
-        let resp: AuthResponse = serde_json::from_slice(&buf).map_err(|e| format!("parse auth: {}", e))?;
+        let buf = recv
+            .read_to_end(65536)
+            .await
+            .map_err(|e| format!("read auth: {}", e))?;
+        let resp: AuthResponse =
+            serde_json::from_slice(&buf).map_err(|e| format!("parse auth: {}", e))?;
         if !resp.ok {
             return Err(format!("auth rejected: {}", resp.error));
         }
@@ -222,7 +283,9 @@ pub struct HysteriaOutbound {
 
 impl HysteriaOutbound {
     pub fn new(config: HysteriaConfig) -> Self {
-        HysteriaOutbound { pool: Arc::new(QuicPool::new(config)) }
+        HysteriaOutbound {
+            pool: Arc::new(QuicPool::new(config)),
+        }
     }
 }
 
@@ -235,13 +298,22 @@ impl OutboundHandler for HysteriaOutbound {
         _dialer: &dyn Dialer,
     ) -> ProxyResult<()> {
         let conn = self.pool.get_or_create().await?;
-        let dest = &session.outbound.as_ref().ok_or("no outbound target")?.target;
+        let dest = &session
+            .outbound
+            .as_ref()
+            .ok_or("no outbound target")?
+            .target;
         let addr_str = format!("{}:{}", dest.address, dest.port.value());
 
-        let (mut send, mut recv) = conn.open_bi().await.map_err(|e| format!("open stream: {}", e))?;
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| format!("open stream: {}", e))?;
         let mut addr_bytes = addr_str.into_bytes();
         addr_bytes.push(b'\n');
-        send.write_all(&addr_bytes).await.map_err(|e| format!("send addr: {}", e))?;
+        send.write_all(&addr_bytes)
+            .await
+            .map_err(|e| format!("send addr: {}", e))?;
 
         let c1 = tokio::io::copy(&mut link.reader, &mut send);
         let c2 = tokio::io::copy(&mut recv, &mut link.writer);
@@ -254,18 +326,25 @@ impl OutboundHandler for HysteriaOutbound {
         Ok(())
     }
 
-    async fn process_udp(
-        &self,
-        session: Session,
-        link: &mut UdpLink,
-    ) -> ProxyResult<()> {
+    async fn process_udp(&self, session: Session, link: &mut UdpLink) -> ProxyResult<()> {
         let conn = self.pool.get_or_create().await?;
-        let dest = &session.outbound.as_ref().ok_or("no outbound target")?.target;
+        let dest = &session
+            .outbound
+            .as_ref()
+            .ok_or("no outbound target")?
+            .target;
         let addr_str = format!("{}:{}\n", dest.address, dest.port.value());
 
-        let (mut send, mut recv) = conn.open_bi().await.map_err(|e| format!("open stream: {}", e))?;
-        send.write_all(addr_str.as_bytes()).await.map_err(|e| format!("send addr: {}", e))?;
-        send.write_all(b"u\n").await.map_err(|e| format!("send udp mode: {}", e))?;
+        let (mut send, mut recv) = conn
+            .open_bi()
+            .await
+            .map_err(|e| format!("open stream: {}", e))?;
+        send.write_all(addr_str.as_bytes())
+            .await
+            .map_err(|e| format!("send addr: {}", e))?;
+        send.write_all(b"u\n")
+            .await
+            .map_err(|e| format!("send udp mode: {}", e))?;
 
         let placeholder = Destination {
             address: Address::Ipv4([0, 0, 0, 0]),
@@ -283,9 +362,11 @@ impl OutboundHandler for HysteriaOutbound {
                 match pkt {
                     Some(pkt) => {
                         let len = pkt.data.len() as u16;
-                        send.write_all(&len.to_be_bytes()).await
+                        send.write_all(&len.to_be_bytes())
+                            .await
                             .map_err(|e| format!("write udp len: {}", e))?;
-                        send.write_all(&pkt.data).await
+                        send.write_all(&pkt.data)
+                            .await
                             .map_err(|e| format!("write udp data: {}", e))?;
                     }
                     None => break,
@@ -353,14 +434,18 @@ pub async fn handle_hysteria_stream(
 
     let mut buf_reader = BufReader::new(&mut reader);
     let mut addr_line = String::new();
-    buf_reader.read_line(&mut addr_line).await
+    buf_reader
+        .read_line(&mut addr_line)
+        .await
         .map_err(|e| format!("hysteria: read addr: {}", e))?;
 
     let addr_str = addr_line.trim();
-    let (host, port_str) = addr_str.split_once(':')
+    let (host, port_str) = addr_str
+        .split_once(':')
         .ok_or_else(|| format!("hysteria: invalid addr: {}", addr_str))?;
 
-    let port_num: u16 = port_str.parse()
+    let port_num: u16 = port_str
+        .parse()
         .map_err(|_| format!("hysteria: invalid port: {}", port_str))?;
 
     let address = if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
@@ -381,7 +466,12 @@ pub async fn handle_hysteria_stream(
         buf_reader.consume(2);
         let stream_reader = buf_reader.into_inner();
         let session = Session {
-            inbound: Some(Inbound { source, local: None, gateway: None, tag }),
+            inbound: Some(Inbound {
+                source,
+                local: None,
+                gateway: None,
+                tag,
+            }),
             outbound: None,
             content: None,
         };
@@ -453,13 +543,19 @@ pub async fn handle_hysteria_stream(
     };
 
     let session = Session {
-        inbound: Some(Inbound { source, local: None, gateway: None, tag }),
+        inbound: Some(Inbound {
+            source,
+            local: None,
+            gateway: None,
+            tag,
+        }),
         outbound: None,
         content: None,
     };
 
     let link = dispatcher.dispatch(session, tcp_target).await?;
-    let (mut link_reader, mut link_writer) = tokio::io::split(astra_core_transport::new_link_stream(link));
+    let (mut link_reader, mut link_writer) =
+        tokio::io::split(astra_core_transport::new_link_stream(link));
 
     let mut stream_reader = buf_reader.into_inner();
     let c1 = tokio::io::copy(&mut stream_reader, &mut link_writer);
@@ -479,30 +575,43 @@ pub async fn hysteria_auth_first_stream(
     conn: &quinn::Connection,
     expected_password: &str,
 ) -> Result<(), String> {
-    let (mut send, mut recv) = conn.accept_bi().await
+    let (mut send, mut recv) = conn
+        .accept_bi()
+        .await
         .map_err(|e| format!("hysteria: accept auth stream: {}", e))?;
 
-    let buf = recv.read_to_end(4096).await
+    let buf = recv
+        .read_to_end(4096)
+        .await
         .map_err(|e| format!("hysteria: read auth: {}", e))?;
 
-    let auth_req: AuthRequest = serde_json::from_slice(&buf)
-        .map_err(|e| format!("hysteria: parse auth: {}", e))?;
+    let auth_req: AuthRequest =
+        serde_json::from_slice(&buf).map_err(|e| format!("hysteria: parse auth: {}", e))?;
 
     if auth_req.auth != expected_password {
-        let resp = AuthResponse { ok: false, error: "invalid password".into() };
+        let resp = AuthResponse {
+            ok: false,
+            error: "invalid password".into(),
+        };
         let body = serde_json::to_string(&resp)
             .map_err(|e| format!("hysteria: serialize auth resp: {}", e))?;
-        send.write_all(body.as_bytes()).await
+        send.write_all(body.as_bytes())
+            .await
             .map_err(|e| format!("hysteria: send auth resp: {}", e))?;
         return Err("hysteria: auth rejected".into());
     }
 
-    let resp = AuthResponse { ok: true, error: String::new() };
-    let body = serde_json::to_string(&resp)
-        .map_err(|e| format!("hysteria: serialize auth ok: {}", e))?;
-    send.write_all(body.as_bytes()).await
+    let resp = AuthResponse {
+        ok: true,
+        error: String::new(),
+    };
+    let body =
+        serde_json::to_string(&resp).map_err(|e| format!("hysteria: serialize auth ok: {}", e))?;
+    send.write_all(body.as_bytes())
+        .await
         .map_err(|e| format!("hysteria: send auth ok: {}", e))?;
-    send.finish().map_err(|e| format!("hysteria: finish auth: {}", e))?;
+    send.finish()
+        .map_err(|e| format!("hysteria: finish auth: {}", e))?;
 
     Ok(())
 }
@@ -522,8 +631,8 @@ impl InboundHandler for HysteriaInbound {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
     use quinn::congestion::Controller;
+    use std::time::Instant;
 
     #[test]
     fn test_parse_bandwidth_mbps() {
@@ -591,7 +700,11 @@ mod tests {
         let initial = ctrl.window();
         // Non-persistent loss with 0 lost_bytes should NOT reduce cwnd
         ctrl.on_congestion_event(Instant::now(), Instant::now(), false, 0);
-        assert_eq!(ctrl.window(), initial, "non-persistent loss with 0 lost should not reduce");
+        assert_eq!(
+            ctrl.window(),
+            initial,
+            "non-persistent loss with 0 lost should not reduce"
+        );
     }
 
     #[test]
@@ -621,14 +734,19 @@ mod tests {
 
     #[test]
     fn test_auth_request_serialize() {
-        let req = AuthRequest { auth: "mypassword".into() };
+        let req = AuthRequest {
+            auth: "mypassword".into(),
+        };
         let json = serde_json::to_string(&req).unwrap();
         assert_eq!(json, r#"{"auth":"mypassword"}"#);
     }
 
     #[test]
     fn test_auth_response_ok() {
-        let resp = AuthResponse { ok: true, error: String::new() };
+        let resp = AuthResponse {
+            ok: true,
+            error: String::new(),
+        };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains(r#""ok":true"#));
         assert!(!json.contains("error"));
@@ -636,7 +754,10 @@ mod tests {
 
     #[test]
     fn test_auth_response_error() {
-        let resp = AuthResponse { ok: false, error: "bad password".into() };
+        let resp = AuthResponse {
+            ok: false,
+            error: "bad password".into(),
+        };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains(r#""ok":false"#));
         assert!(json.contains(r#""error":"bad password""#));
@@ -660,5 +781,4 @@ mod tests {
         };
         assert_eq!(cfg.obfs.as_deref(), Some("f4.com"));
     }
-
 }

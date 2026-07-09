@@ -1,11 +1,11 @@
-pub mod protocol;
 pub mod outbound;
+pub mod protocol;
 
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 
-use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_net::address::any_ip;
+use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
 use astra_core_session::{Outbound, Session};
 use astra_core_transport::{new_link_stream, UdpPacket};
@@ -19,7 +19,9 @@ pub struct Handler {
 
 impl Handler {
     pub fn new() -> Self {
-        Handler { config: SocksConfig::default() }
+        Handler {
+            config: SocksConfig::default(),
+        }
     }
 
     pub fn with_config(config: SocksConfig) -> Self {
@@ -36,22 +38,23 @@ impl InboundHandler for Handler {
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
         let mut version_buf = [0u8; 1];
-        let n = conn.read(&mut version_buf).await
+        let n = conn
+            .read(&mut version_buf)
+            .await
             .map_err(|e| format!("socks read: {}", e))?;
         if n == 0 {
             return Err("connection closed".into());
         }
 
         match version_buf[0] {
-            SOCKS4_VERSION => {
-                handle_socks4(&self.config, &mut conn, &session, dispatcher).await
-            }
-            SOCKS5_VERSION => {
-                handle_socks5(&self.config, &mut conn, &session, dispatcher).await
-            }
+            SOCKS4_VERSION => handle_socks4(&self.config, &mut conn, &session, dispatcher).await,
+            SOCKS5_VERSION => handle_socks5(&self.config, &mut conn, &session, dispatcher).await,
             _ => {
                 // Not a SOCKS request — try HTTP CONNECT
-                Err(format!("not a SOCKS request: byte=0x{:02x} (HTTP fallback not available)", version_buf[0]))
+                Err(format!(
+                    "not a SOCKS request: byte=0x{:02x} (HTTP fallback not available)",
+                    version_buf[0]
+                ))
             }
         }
     }
@@ -88,7 +91,11 @@ async fn handle_socks4(
         return Err(format!("socks4 unsupported cmd: {}", cmd));
     }
 
-    let dest = Destination { address: address.clone(), port, network: Network::Tcp };
+    let dest = Destination {
+        address: address.clone(),
+        port,
+        network: Network::Tcp,
+    };
 
     write_all(conn, &socks4_response(SOCKS4_GRANTED, &address, port)).await?;
 
@@ -103,7 +110,8 @@ async fn handle_socks4(
     let link = dispatcher.dispatch(outbound_session, dest).await?;
     let mut link_stream = new_link_stream(link);
 
-    tokio::io::copy_bidirectional(conn, &mut link_stream).await
+    tokio::io::copy_bidirectional(conn, &mut link_stream)
+        .await
         .map_err(|e| format!("socks4 relay: {}", e))?;
 
     Ok(())
@@ -170,7 +178,11 @@ async fn tcp_connect(
     address: Address,
     port: Port,
 ) -> ProxyResult<()> {
-    let dest = Destination { address: address.clone(), port, network: Network::Tcp };
+    let dest = Destination {
+        address: address.clone(),
+        port,
+        network: Network::Tcp,
+    };
     write_all(conn, &socks5_response(&address, port)).await?;
 
     let mut outbound_session = session.clone();
@@ -184,7 +196,8 @@ async fn tcp_connect(
     let link = dispatcher.dispatch(outbound_session, dest).await?;
     let mut link_stream = new_link_stream(link);
 
-    tokio::io::copy_bidirectional(conn, &mut link_stream).await
+    tokio::io::copy_bidirectional(conn, &mut link_stream)
+        .await
         .map_err(|e| format!("socks5 relay: {}", e))?;
 
     Ok(())
@@ -209,8 +222,16 @@ async fn udp_associate(
     let outbound_session = {
         let mut s = session.clone();
         s.outbound = Some(Outbound {
-            target: Destination { address: address.clone(), port, network: Network::Udp },
-            original_target: Destination { address: address.clone(), port, network: Network::Udp },
+            target: Destination {
+                address: address.clone(),
+                port,
+                network: Network::Udp,
+            },
+            original_target: Destination {
+                address: address.clone(),
+                port,
+                network: Network::Udp,
+            },
             route_target: None,
             tag: String::new(),
         });
@@ -222,21 +243,25 @@ async fn udp_associate(
     let socket = tokio::net::UdpSocket::bind("0.0.0.0:0")
         .await
         .map_err(|e| format!("bind udp: {}", e))?;
-    let bind_port = socket.local_addr()
+    let bind_port = socket
+        .local_addr()
         .map_err(|e| format!("local addr: {}", e))?
         .port();
 
     write_all(conn, &socks5_response(any_ip(), Port(bind_port))).await?;
 
     let socket = std::sync::Arc::new(socket);
-    let client_addr = std::sync::Arc::new(tokio::sync::Mutex::<Option<std::net::SocketAddr>>::new(None));
+    let client_addr = std::sync::Arc::new(tokio::sync::Mutex::<Option<std::net::SocketAddr>>::new(
+        None,
+    ));
 
     let link_writer = udp_link.writer.clone();
     let client_addr_clone = client_addr.clone();
     let socket_clone = socket.clone();
 
     // FullCone: lock the first destination for the session
-    let cone_dest: Arc<std::sync::Mutex<Option<Destination>>> = Arc::new(std::sync::Mutex::new(None));
+    let cone_dest: Arc<std::sync::Mutex<Option<Destination>>> =
+        Arc::new(std::sync::Mutex::new(None));
 
     // Read UDP packets from SOCKS client, parse and send through UdpLink
     let to_upstream = {
@@ -248,7 +273,11 @@ async fn udp_associate(
                     Ok((n, src)) => {
                         *client_addr_clone.lock().await = Some(src);
                         if let Ok((addr, port, payload)) = decode_udp_packet(&recv_buf[..n]) {
-                            let target = Destination { address: addr, port, network: Network::Udp };
+                            let target = Destination {
+                                address: addr,
+                                port,
+                                network: Network::Udp,
+                            };
                             let target = if cone {
                                 let mut guard = cone_dest.lock().unwrap();
                                 if guard.is_some() {
@@ -264,7 +293,11 @@ async fn udp_associate(
                                 std::net::IpAddr::V4(v4) => Address::Ipv4(v4.octets()),
                                 std::net::IpAddr::V6(v6) => Address::Ipv6(v6.octets()),
                             };
-                            let source = Destination { address: addr, port: Port(src.port()), network: Network::Udp };
+                            let source = Destination {
+                                address: addr,
+                                port: Port(src.port()),
+                                network: Network::Udp,
+                            };
                             let pkt = UdpPacket::new(source, target, payload.to_vec());
                             if link_writer.send(pkt).is_err() {
                                 break;
@@ -284,7 +317,8 @@ async fn udp_associate(
                 Some(pkt) => {
                     let guard = client_addr.lock().await;
                     if let Some(addr) = *guard {
-                        let response = encode_udp_packet(&pkt.source.address, pkt.source.port, &pkt.data);
+                        let response =
+                            encode_udp_packet(&pkt.source.address, pkt.source.port, &pkt.data);
                         let _ = socket.send_to(&response, addr).await;
                     }
                 }

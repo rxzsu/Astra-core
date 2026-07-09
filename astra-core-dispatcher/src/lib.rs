@@ -1,9 +1,9 @@
 mod default;
 
-pub use default::{DefaultDispatcher, HandlerProvider};
 pub use astra_core_dns::{DnsResolver, FakeDnsResolver};
+pub use default::{DefaultDispatcher, HandlerProvider};
 
-use astra_core_proxy::{async_trait, ProxyResult};
+use astra_core_proxy::{ProxyResult, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::{Link, UdpLink};
 

@@ -54,76 +54,142 @@ impl<R: Read> Read for JsonCommentReader<R> {
 
             match self.state {
                 State::Content => match x {
-                    b'"' => { self.state = State::DoubleQuote; buf[written] = x; written += 1; }
-                    b'\'' => { self.state = State::SingleQuote; buf[written] = x; written += 1; }
-                    b'\\' => { self.state = State::Escape; }
-                    b'#' => { self.state = State::Comment; }
-                    b'/' => { self.state = State::Slash; }
-                    _ => { buf[written] = x; written += 1; }
+                    b'"' => {
+                        self.state = State::DoubleQuote;
+                        buf[written] = x;
+                        written += 1;
+                    }
+                    b'\'' => {
+                        self.state = State::SingleQuote;
+                        buf[written] = x;
+                        written += 1;
+                    }
+                    b'\\' => {
+                        self.state = State::Escape;
+                    }
+                    b'#' => {
+                        self.state = State::Comment;
+                    }
+                    b'/' => {
+                        self.state = State::Slash;
+                    }
+                    _ => {
+                        buf[written] = x;
+                        written += 1;
+                    }
                 },
                 State::Escape => {
                     // Write both bytes
-                    buf[written] = b'\\'; written += 1;
+                    buf[written] = b'\\';
+                    written += 1;
                     if written < buf.len() {
-                        buf[written] = x; written += 1;
+                        buf[written] = x;
+                        written += 1;
                     }
                     self.state = State::Content;
                 }
                 State::DoubleQuote => match x {
-                    b'"' => { self.state = State::Content; buf[written] = x; written += 1; }
-                    b'\\' => { self.state = State::DoubleQuoteEscape; buf[written] = x; written += 1; }
-                    _ => { buf[written] = x; written += 1; }
+                    b'"' => {
+                        self.state = State::Content;
+                        buf[written] = x;
+                        written += 1;
+                    }
+                    b'\\' => {
+                        self.state = State::DoubleQuoteEscape;
+                        buf[written] = x;
+                        written += 1;
+                    }
+                    _ => {
+                        buf[written] = x;
+                        written += 1;
+                    }
                 },
                 State::DoubleQuoteEscape => {
-                    buf[written] = b'\\'; written += 1;
+                    buf[written] = b'\\';
+                    written += 1;
                     if written < buf.len() {
-                        buf[written] = x; written += 1;
+                        buf[written] = x;
+                        written += 1;
                     }
                     self.state = State::DoubleQuote;
                 }
                 State::SingleQuote => match x {
-                    b'\'' => { self.state = State::Content; buf[written] = x; written += 1; }
-                    b'\\' => { self.state = State::SingleQuoteEscape; buf[written] = x; written += 1; }
-                    _ => { buf[written] = x; written += 1; }
+                    b'\'' => {
+                        self.state = State::Content;
+                        buf[written] = x;
+                        written += 1;
+                    }
+                    b'\\' => {
+                        self.state = State::SingleQuoteEscape;
+                        buf[written] = x;
+                        written += 1;
+                    }
+                    _ => {
+                        buf[written] = x;
+                        written += 1;
+                    }
                 },
                 State::SingleQuoteEscape => {
-                    buf[written] = b'\\'; written += 1;
+                    buf[written] = b'\\';
+                    written += 1;
                     if written < buf.len() {
-                        buf[written] = x; written += 1;
+                        buf[written] = x;
+                        written += 1;
                     }
                     self.state = State::SingleQuote;
                 }
                 State::Comment => {
                     if x == b'\n' {
                         self.state = State::Content;
-                        buf[written] = b'\n'; written += 1;
+                        buf[written] = b'\n';
+                        written += 1;
                     }
                 }
                 State::Slash => match x {
-                    b'/' => { self.state = State::Comment; }
-                    b'*' => { self.state = State::MultilineComment; }
+                    b'/' => {
+                        self.state = State::Comment;
+                    }
+                    b'*' => {
+                        self.state = State::MultilineComment;
+                    }
                     _ => {
                         // Not a comment: emit '/' and the current byte
-                        buf[written] = b'/'; written += 1;
+                        buf[written] = b'/';
+                        written += 1;
                         if written < buf.len() {
-                            buf[written] = x; written += 1;
+                            buf[written] = x;
+                            written += 1;
                         }
                     }
                 },
                 State::MultilineComment => match x {
-                    b'*' => { self.state = State::MultilineCommentStar; }
-                    b'\n' => { buf[written] = b'\n'; written += 1; }
+                    b'*' => {
+                        self.state = State::MultilineCommentStar;
+                    }
+                    b'\n' => {
+                        buf[written] = b'\n';
+                        written += 1;
+                    }
                     _ => {}
                 },
                 State::MultilineCommentStar => match x {
-                    b'/' => { self.state = State::Content; }
+                    b'/' => {
+                        self.state = State::Content;
+                    }
                     b'*' => {}
-                    b'\n' => { buf[written] = b'\n'; written += 1; }
-                    _ => { self.state = State::MultilineComment; }
+                    b'\n' => {
+                        buf[written] = b'\n';
+                        written += 1;
+                    }
+                    _ => {
+                        self.state = State::MultilineComment;
+                    }
                 },
             }
         }
-        if written == 0 { return Ok(0); }
+        if written == 0 {
+            return Ok(0);
+        }
         Ok(written)
     }
 }
@@ -156,7 +222,10 @@ mod tests {
 
     #[test]
     fn test_string_preserved() {
-        assert_eq!(strip(r#"{"key": "value // not comment"}"#), r#"{"key": "value // not comment"}"#);
+        assert_eq!(
+            strip(r#"{"key": "value // not comment"}"#),
+            r#"{"key": "value // not comment"}"#
+        );
     }
 
     #[test]

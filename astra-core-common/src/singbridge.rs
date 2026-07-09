@@ -1,16 +1,15 @@
 /// Sing-box compatibility bridge.
 /// Go equivalent: `common/singbridge`
 /// Provides adapter types for interoperating with sing-box.
-
 use std::net::SocketAddr;
 
 /// Convert an internal Address+Port to a sing-box compatible socket address.
 pub fn to_socksaddr(address: &str, port: u16) -> SocketAddr {
     format!("{}:{}", address, port).parse().unwrap_or_else(|_| {
         if address.contains(':') {
-            format!("[{}]:{}", address, port).parse().unwrap_or_else(|_| {
-                SocketAddr::from(([0, 0, 0, 0], port))
-            })
+            format!("[{}]:{}", address, port)
+                .parse()
+                .unwrap_or_else(|_| SocketAddr::from(([0, 0, 0, 0], port)))
         } else {
             SocketAddr::from(([0, 0, 0, 0], port))
         }

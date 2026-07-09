@@ -52,7 +52,10 @@ pub enum AuthType {
 }
 
 pub async fn read_exact<R: AsyncRead + Unpin>(r: &mut R, buf: &mut [u8]) -> Result<(), String> {
-    r.read_exact(buf).await.map(|_| ()).map_err(|e| format!("read error: {}", e))
+    r.read_exact(buf)
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("read error: {}", e))
 }
 
 pub async fn read_u8<R: AsyncRead + Unpin>(r: &mut R) -> Result<u8, String> {
@@ -64,7 +67,9 @@ pub async fn read_u16<R: AsyncRead + Unpin>(r: &mut R) -> Result<u16, String> {
 }
 
 pub async fn write_all<W: AsyncWrite + Unpin>(w: &mut W, buf: &[u8]) -> Result<(), String> {
-    w.write_all(buf).await.map_err(|e| format!("write error: {}", e))
+    w.write_all(buf)
+        .await
+        .map_err(|e| format!("write error: {}", e))
 }
 
 pub async fn read_until_null<R: AsyncRead + Unpin>(r: &mut R) -> Result<String, String> {
@@ -137,7 +142,18 @@ pub fn socks5_response(addr: &Address, port: Port) -> Vec<u8> {
 }
 
 pub fn socks5_error(code: u8) -> Vec<u8> {
-    let buf = vec![SOCKS5_VERSION, code, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+    let buf = vec![
+        SOCKS5_VERSION,
+        code,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+    ];
     buf
 }
 

@@ -1,7 +1,7 @@
 use astra_core_crypto::aes::AesCipher;
 
-use crate::aead::kdf::KDF16;
 use crate::aead::consts::KDF_SALT_AUTH_ID_ENCRYPTION_KEY;
+use crate::aead::kdf::KDF16;
 
 /// VMess Auth ID length (16 bytes).
 pub const AUTH_ID_LEN: usize = 16;
@@ -27,15 +27,24 @@ pub fn CreateAuthID(cmd_key: &[u8], time: i64) -> [u8; AUTH_ID_LEN] {
 }
 
 /// Decode an AuthID, returning (timestamp, rand, crc, plaintext).
-pub fn DecodeAuthID(cmd_key: &[u8], auth_id: &[u8; AUTH_ID_LEN]) -> Result<(i64, u32, u32, [u8; AUTH_ID_LEN]), String> {
+pub fn DecodeAuthID(
+    cmd_key: &[u8],
+    auth_id: &[u8; AUTH_ID_LEN],
+) -> Result<(i64, u32, u32, [u8; AUTH_ID_LEN]), String> {
     let aes_key = KDF16(cmd_key, &[KDF_SALT_AUTH_ID_ENCRYPTION_KEY]);
     let cipher = AesCipher::new(&aes_key);
     let mut plaintext = *auth_id;
     cipher.decrypt(&mut plaintext);
 
     let time = i64::from_be_bytes([
-        plaintext[0], plaintext[1], plaintext[2], plaintext[3],
-        plaintext[4], plaintext[5], plaintext[6], plaintext[7],
+        plaintext[0],
+        plaintext[1],
+        plaintext[2],
+        plaintext[3],
+        plaintext[4],
+        plaintext[5],
+        plaintext[6],
+        plaintext[7],
     ]);
     let rand_val = u32::from_be_bytes([plaintext[8], plaintext[9], plaintext[10], plaintext[11]]);
     let crc = u32::from_be_bytes([plaintext[12], plaintext[13], plaintext[14], plaintext[15]]);

@@ -10,15 +10,13 @@ pub struct Config {
     pub min_upload_interval: std::time::Duration,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SplitMode {
     #[default]
     PacketUp,
     StreamUp,
     StreamOne,
 }
-
 
 impl Config {
     pub fn from_stream_config(stream: &astra_core_config::transport::SplitHTTPConfig) -> Self {

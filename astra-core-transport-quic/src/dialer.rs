@@ -6,10 +6,7 @@ use crate::config::QuicConfig;
 use crate::connection::QuicStream;
 
 /// Dial a QUIC connection to the given destination.
-pub async fn dial_quic(
-    dest: &Destination,
-    _config: &QuicConfig,
-) -> Result<QuicStream, String> {
+pub async fn dial_quic(dest: &Destination, _config: &QuicConfig) -> Result<QuicStream, String> {
     let remote_addr: SocketAddr = format!("{}:{}", dest.address, dest.port.value())
         .parse()
         .map_err(|e| format!("invalid address: {}", e))?;
@@ -20,8 +17,8 @@ pub async fn dial_quic(
         "[::]:0".parse().unwrap()
     };
 
-    let endpoint = quinn::Endpoint::client(bind_addr)
-        .map_err(|e| format!("create endpoint: {}", e))?;
+    let endpoint =
+        quinn::Endpoint::client(bind_addr).map_err(|e| format!("create endpoint: {}", e))?;
 
     let server_name = dest.address.to_string();
 

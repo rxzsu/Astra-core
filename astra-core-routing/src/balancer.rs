@@ -68,9 +68,17 @@ pub struct Balancer {
 }
 
 impl Balancer {
-    pub fn new(tag: String, selector: Vec<String>, strategy: BalancerStrategy, fallback_tag: Option<String>) -> Self {
+    pub fn new(
+        tag: String,
+        selector: Vec<String>,
+        strategy: BalancerStrategy,
+        fallback_tag: Option<String>,
+    ) -> Self {
         Balancer {
-            tag, selector, strategy, fallback_tag,
+            tag,
+            selector,
+            strategy,
+            fallback_tag,
             counter: Arc::new(AtomicUsize::new(0)),
             alive: None,
             metrics: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -118,7 +126,11 @@ impl Balancer {
         let candidates: Vec<&str> = match self.alive {
             Some(ref alive) => {
                 let alive_set = alive.read().unwrap();
-                self.selector.iter().filter(|t| alive_set.contains(*t)).map(|s| s.as_str()).collect()
+                self.selector
+                    .iter()
+                    .filter(|t| alive_set.contains(*t))
+                    .map(|s| s.as_str())
+                    .collect()
             }
             None => self.selector.iter().map(|s| s.as_str()).collect(),
         };
@@ -129,7 +141,10 @@ impl Balancer {
 
         match self.strategy {
             BalancerStrategy::Random => {
-                let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().subsec_nanos();
+                let nanos = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .subsec_nanos();
                 let idx = (nanos as usize) % candidates.len();
                 Some(candidates[idx])
             }
@@ -184,6 +199,4 @@ impl Balancer {
             }
         }
     }
-
-
 }

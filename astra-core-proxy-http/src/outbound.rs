@@ -1,5 +1,5 @@
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use base64::Engine;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use astra_core_net::{Address, Destination, Network, Port};
 use astra_core_proxy::{async_trait, AsyncConn, Dialer, OutboundHandler, ProxyResult};
@@ -32,9 +32,12 @@ impl OutboundHandler for Handler {
         link: &mut Link,
         dialer: &dyn Dialer,
     ) -> ProxyResult<()> {
-        let target = session.outbound.as_ref()
+        let target = session
+            .outbound
+            .as_ref()
             .ok_or_else(|| "no target".to_string())?
-            .target.clone();
+            .target
+            .clone();
 
         if target.network == Network::Udp {
             return Err("UDP not supported by HTTP outbound".into());
@@ -61,14 +64,18 @@ impl OutboundHandler for Handler {
         }
         req.push_str("Proxy-Connection: Keep-Alive\r\n\r\n");
 
-        remote.write_all(req.as_bytes()).await
+        remote
+            .write_all(req.as_bytes())
+            .await
             .map_err(|e| format!("http connect write: {}", e))?;
 
         // Read response line + headers manually
         let mut buf = [0u8; 4096];
         let mut pos = 0;
         loop {
-            let n = remote.read(&mut buf[pos..]).await
+            let n = remote
+                .read(&mut buf[pos..])
+                .await
                 .map_err(|e| format!("http read response: {}", e))?;
             if n == 0 {
                 return Err("connection closed during handshake".into());
@@ -77,8 +84,13 @@ impl OutboundHandler for Handler {
 
             let data = &buf[..pos];
             if let Some(hdr_end) = data.windows(4).position(|w| w == b"\r\n\r\n") {
-                let status_line = std::str::from_utf8(&data[..data[..hdr_end].iter().position(|&b| b == b'\r').unwrap_or(hdr_end)])
-                    .map_err(|_| "invalid status line".to_string())?;
+                let status_line = std::str::from_utf8(
+                    &data[..data[..hdr_end]
+                        .iter()
+                        .position(|&b| b == b'\r')
+                        .unwrap_or(hdr_end)],
+                )
+                .map_err(|_| "invalid status line".to_string())?;
                 if !status_line.contains("200") {
                     return Err("proxy rejected CONNECT request".into());
                 }
@@ -96,7 +108,9 @@ impl OutboundHandler for Handler {
 
         // Write any buffered remaining data to link writer
         if pos > 0 {
-            link.writer.write_all(&buf[..pos]).await
+            link.writer
+                .write_all(&buf[..pos])
+                .await
                 .map_err(|e| format!("write buffered data: {}", e))?;
         }
 

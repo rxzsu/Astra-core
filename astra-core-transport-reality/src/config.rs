@@ -69,7 +69,10 @@ impl RealityServerConfig {
             let decoded = hex::decode(&cfg.private_key)
                 .map_err(|e| format!("hex decode private_key: {}", e))?;
             if decoded.len() != 32 {
-                return Err(format!("private_key must be 32 bytes, got {}", decoded.len()));
+                return Err(format!(
+                    "private_key must be 32 bytes, got {}",
+                    decoded.len()
+                ));
             }
             let mut arr = [0u8; 32];
             arr.copy_from_slice(&decoded);

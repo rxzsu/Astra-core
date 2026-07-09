@@ -143,7 +143,9 @@ async fn send_post(
     let url = format!("{}?session_id={}&seq={}", path, session_id, seq);
     let req = format!(
         "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        url, host, data.len()
+        url,
+        host,
+        data.len()
     );
     writer
         .write_all(req.as_bytes())
@@ -153,10 +155,7 @@ async fn send_post(
         .write_all(data)
         .await
         .map_err(|e| format!("write body: {}", e))?;
-    writer
-        .flush()
-        .await
-        .map_err(|e| format!("flush: {}", e))?;
+    writer.flush().await.map_err(|e| format!("flush: {}", e))?;
 
     let mut buf = [0u8; 4096];
     let _ = reader.read(&mut buf).await;
@@ -238,7 +237,9 @@ async fn read_http_response_line(
     })
 }
 
-async fn skip_headers(reader: &mut BufReader<tokio::io::ReadHalf<TcpStream>>) -> Result<(), String> {
+async fn skip_headers(
+    reader: &mut BufReader<tokio::io::ReadHalf<TcpStream>>,
+) -> Result<(), String> {
     let mut line = String::new();
     loop {
         line.clear();

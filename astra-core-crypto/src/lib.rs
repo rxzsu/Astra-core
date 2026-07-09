@@ -12,12 +12,12 @@ pub use aes::{AesCfbStream, AesCipher, AesCtrStream, AesGcmCipher};
 pub use auth::{AeadAuthenticator, Authenticator};
 pub use chacha20::ChaCha20Stream;
 pub use chunk::{
-    AeadChunkSizeParser, ChunkSizeDecoder, ChunkSizeEncoder, ChunkStreamReader,
-    ChunkStreamWriter, PaddingLengthGenerator, PlainChunkSizeParser,
+    AeadChunkSizeParser, ChunkSizeDecoder, ChunkSizeEncoder, ChunkStreamReader, ChunkStreamWriter,
+    PaddingLengthGenerator, PlainChunkSizeParser,
 };
 pub use cipher::{AeadCipher, StreamCipher};
 pub use generator::BytesGenerator;
 pub use rand::{rand_between, rand_bytes_between};
-pub use sha2::{Sha256, Digest};
+pub use sha2::{Digest, Sha256};
 pub use sha256::{Sha256_hash, hmac_sha256};
 pub use stream::{CryptionReader, CryptionWriter};

@@ -9,7 +9,6 @@ use astra_core_proto::{RequestCommand, RequestHeader, SecurityType};
 use crate::aead::encrypt::OpenVMessAEADHeader;
 use crate::aead::kdf::{KDF, KDF16};
 
-
 use crate::aead::consts::*;
 use crate::encoding::auth::Authenticate;
 
@@ -133,7 +132,10 @@ impl ServerSession {
                 offset += consumed;
                 (addr, astra_core_net::Port::from(port_val))
             }
-            _ => (astra_core_net::Address::Ipv4([0; 4]), astra_core_net::Port::from(0)),
+            _ => (
+                astra_core_net::Address::Ipv4([0; 4]),
+                astra_core_net::Port::from(0),
+            ),
         };
 
         // Padding
@@ -220,20 +222,28 @@ fn decode_address(data: &[u8]) -> Result<(astra_core_net::Address, usize), Strin
     let addr_type = data[0];
     match addr_type {
         1 => {
-            if data.len() < 5 { return Err("truncated IPv4".to_string()); }
+            if data.len() < 5 {
+                return Err("truncated IPv4".to_string());
+            }
             let mut o = [0u8; 4];
             o.copy_from_slice(&data[1..5]);
             Ok((astra_core_net::Address::Ipv4(o), 5))
         }
         2 => {
-            if data.len() < 2 { return Err("truncated domain len".to_string()); }
+            if data.len() < 2 {
+                return Err("truncated domain len".to_string());
+            }
             let dlen = data[1] as usize;
-            if data.len() < 2 + dlen { return Err("truncated domain".to_string()); }
+            if data.len() < 2 + dlen {
+                return Err("truncated domain".to_string());
+            }
             let domain = String::from_utf8_lossy(&data[2..2 + dlen]).to_string();
             Ok((astra_core_net::Address::Domain(domain), 2 + dlen))
         }
         3 => {
-            if data.len() < 17 { return Err("truncated IPv6".to_string()); }
+            if data.len() < 17 {
+                return Err("truncated IPv6".to_string());
+            }
             let mut o = [0u8; 16];
             o.copy_from_slice(&data[1..17]);
             Ok((astra_core_net::Address::Ipv6(o), 17))
@@ -287,7 +297,9 @@ mod tests {
         auth_id_arr.copy_from_slice(auth_id);
 
         let mut server = ServerSession::new(SessionHistory::new());
-        let decoded = server.DecodeRequestHeader(&auth_id_arr, &encoded[16..], &cmd_key).unwrap();
+        let decoded = server
+            .DecodeRequestHeader(&auth_id_arr, &encoded[16..], &cmd_key)
+            .unwrap();
         assert_eq!(decoded.version, 1);
         assert_eq!(decoded.command, RequestCommand::Tcp);
         assert_eq!(decoded.port.value(), 443);

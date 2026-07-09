@@ -5,8 +5,10 @@ pub mod protocol;
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::{key_from_password, read_address, write_address, write_tcp_header, COMMAND_TCP};
     use crate::config::{Account, ClientConfig, ServerConfig};
+    use crate::protocol::{
+        COMMAND_TCP, key_from_password, read_address, write_address, write_tcp_header,
+    };
     use astra_core_net::Address;
 
     #[test]
@@ -102,7 +104,10 @@ mod tests {
     #[test]
     fn test_server_config() {
         let users = vec![Account::new("user1".into()), Account::new("user2".into())];
-        let cfg = ServerConfig { users: users.clone(), fallbacks: vec![] };
+        let cfg = ServerConfig {
+            users: users.clone(),
+            fallbacks: vec![],
+        };
         assert_eq!(cfg.users.len(), 2);
     }
 }

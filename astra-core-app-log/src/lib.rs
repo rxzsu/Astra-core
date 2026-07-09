@@ -1,8 +1,8 @@
 use std::sync::RwLock;
 
-use astra_core_common::log::{AccessMessage, LogHandler, LogMessage, Severity};
 #[allow(unused_imports)]
 use astra_core_common::log::AccessStatus;
+use astra_core_common::log::{AccessMessage, LogHandler, LogMessage, Severity};
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -58,12 +58,16 @@ fn parse_mask_address(c: &str) -> (usize, usize) {
         "" => (32, 128),
         _ => {
             let parts: Vec<&str> = c.split('+').collect();
-            let m4 = parts.first().and_then(|p| {
-                p.trim_start_matches('/').parse::<usize>().ok()
-            }).unwrap_or(32).min(32);
-            let m6 = parts.get(1).and_then(|p| {
-                p.trim_start_matches('/').parse::<usize>().ok()
-            }).unwrap_or(128).min(128);
+            let m4 = parts
+                .first()
+                .and_then(|p| p.trim_start_matches('/').parse::<usize>().ok())
+                .unwrap_or(32)
+                .min(32);
+            let m6 = parts
+                .get(1)
+                .and_then(|p| p.trim_start_matches('/').parse::<usize>().ok())
+                .unwrap_or(128)
+                .min(128);
             (m4, m6)
         }
     }
@@ -73,39 +77,52 @@ fn mask_ipv4(s: &str, mask_bits: usize) -> String {
     if mask_bits >= 32 {
         return s.to_string();
     }
-    IPV4_RE.replace_all(s, |caps: &regex_lite::Captures| {
-        let ip = caps.get(0).unwrap().as_str();
-        if mask_bits == 0 {
-            return "[Masked IPv4]".to_string();
-        }
-        let parts: Vec<&str> = ip.split('.').collect();
-        let keep = mask_bits / 8;
-        parts.iter().enumerate().map(|(i, p)| {
-            if i < keep { (*p).to_string() } else { "*".to_string() }
-        }).collect::<Vec<_>>().join(".")
-    }).into_owned()
+    IPV4_RE
+        .replace_all(s, |caps: &regex_lite::Captures| {
+            let ip = caps.get(0).unwrap().as_str();
+            if mask_bits == 0 {
+                return "[Masked IPv4]".to_string();
+            }
+            let parts: Vec<&str> = ip.split('.').collect();
+            let keep = mask_bits / 8;
+            parts
+                .iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    if i < keep {
+                        (*p).to_string()
+                    } else {
+                        "*".to_string()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(".")
+        })
+        .into_owned()
 }
 
 fn mask_ipv6(s: &str, mask_bits: usize) -> String {
     if mask_bits >= 128 {
         return s.to_string();
     }
-    IPV6_RE.replace_all(s, |caps: &regex_lite::Captures| {
-        let ip_str = caps.get(0).unwrap().as_str();
-        if mask_bits == 0 {
-            return "[Masked IPv6]".to_string();
-        }
-        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-            if let std::net::IpAddr::V6(v6) = ip {
-                let masked = v6.mask(mask_bits as u32).unwrap_or(v6);
-                format!("{}/{}", masked, mask_bits)
+    IPV6_RE
+        .replace_all(s, |caps: &regex_lite::Captures| {
+            let ip_str = caps.get(0).unwrap().as_str();
+            if mask_bits == 0 {
+                return "[Masked IPv6]".to_string();
+            }
+            if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                if let std::net::IpAddr::V6(v6) = ip {
+                    let masked = v6.mask(mask_bits as u32).unwrap_or(v6);
+                    format!("{}/{}", masked, mask_bits)
+                } else {
+                    ip_str.to_string()
+                }
             } else {
                 ip_str.to_string()
             }
-        } else {
-            ip_str.to_string()
-        }
-    }).into_owned()
+        })
+        .into_owned()
 }
 
 fn mask_message(msg: &str, mask4: usize, mask6: usize) -> String {
@@ -146,8 +163,10 @@ impl LoggerInstance {
         }
         *active = true;
 
-        self.access_logger = create_handler(self.config.access_log_type, &self.config.access_log_path)?;
-        self.error_logger = create_handler(self.config.error_log_type, &self.config.error_log_path)?;
+        self.access_logger =
+            create_handler(self.config.access_log_type, &self.config.access_log_path)?;
+        self.error_logger =
+            create_handler(self.config.error_log_type, &self.config.error_log_path)?;
 
         Ok(())
     }
@@ -227,7 +246,9 @@ fn create_handler(log_type: LogType, path: &str) -> Result<Option<Box<dyn LogHan
             if path.is_empty() {
                 return Err("file log type requires a path".into());
             }
-            Ok(Some(Box::new(FileHandler { path: path.to_string() })))
+            Ok(Some(Box::new(FileHandler {
+                path: path.to_string(),
+            })))
         }
     }
 }
@@ -236,7 +257,13 @@ struct ConsoleHandler;
 
 impl LogHandler for ConsoleHandler {
     fn handle_access(&self, msg: &AccessMessage) {
-        println!("[Access] {} {} -> {} {}", msg.status.as_str(), msg.from, msg.to, msg.reason);
+        println!(
+            "[Access] {} {} -> {} {}",
+            msg.status.as_str(),
+            msg.from,
+            msg.to,
+            msg.reason
+        );
     }
 
     fn handle_log(&self, msg: &LogMessage) {

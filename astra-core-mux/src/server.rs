@@ -1,11 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time;
 
-use crate::frame::{read_frame, write_frame, FrameMetadata, SessionStatus};
+use crate::frame::{FrameMetadata, SessionStatus, read_frame, write_frame};
 use crate::session::{Session, SessionManager};
 
 /// A mux server that accepts sessions from a single mux connection.
@@ -58,7 +58,11 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
         &self.session_manager
     }
 
-    pub async fn write_frame(&self, meta: &FrameMetadata, data: Option<&[u8]>) -> Result<(), String> {
+    pub async fn write_frame(
+        &self,
+        meta: &FrameMetadata,
+        data: Option<&[u8]>,
+    ) -> Result<(), String> {
         let mut writer = self.writer.lock().await;
         write_frame(&mut *writer, meta, data).await
     }
@@ -84,9 +88,10 @@ impl<R: AsyncRead + Unpin + Send + 'static, W: AsyncWrite + Unpin + Send + 'stat
                 SessionStatus::Keep => {
                     if let Some(session) = self.session_manager.get(meta.session_id).await
                         && let Some(ch) = session.channels.lock().await.as_ref()
-                            && let Some(data) = &data {
-                                let _ = ch.data_tx.send(data.clone());
-                            }
+                        && let Some(data) = &data
+                    {
+                        let _ = ch.data_tx.send(data.clone());
+                    }
                 }
                 SessionStatus::End => {
                     if let Some(session) = self.session_manager.get(meta.session_id).await {

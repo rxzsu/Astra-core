@@ -31,7 +31,8 @@ impl SimpleStack {
 #[async_trait::async_trait]
 impl Stack for SimpleStack {
     async fn start(&self) -> Result<(), String> {
-        self.running.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.running
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let tun = self.tun.clone();
         let running = self.running.clone();
 
@@ -61,7 +62,8 @@ impl Stack for SimpleStack {
     }
 
     async fn close(&self) -> Result<(), String> {
-        self.running.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.running
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 }

@@ -83,7 +83,9 @@ pub fn ParseDestination(dest: &str) -> Result<Destination, String> {
 
 fn split_host_port(s: &str) -> Result<(&str, &str), String> {
     if s.starts_with('[') {
-        let closing = s.find(']').ok_or_else(|| "missing closing bracket".to_string())?;
+        let closing = s
+            .find(']')
+            .ok_or_else(|| "missing closing bracket".to_string())?;
         let addr = &s[1..closing];
         let rest = &s[closing + 1..];
         if let Some(port_str) = rest.strip_prefix(':') {
@@ -94,7 +96,9 @@ fn split_host_port(s: &str) -> Result<(&str, &str), String> {
             Err(format!("unexpected characters after bracket: {}", rest))
         }
     } else {
-        let colon = s.rfind(':').ok_or_else(|| format!("missing port in {}", s))?;
+        let colon = s
+            .rfind(':')
+            .ok_or_else(|| format!("missing port in {}", s))?;
         Ok((&s[..colon], &s[colon + 1..]))
     }
 }

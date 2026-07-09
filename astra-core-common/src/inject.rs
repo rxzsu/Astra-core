@@ -12,20 +12,26 @@ lazy_static::lazy_static! {
 /// Register a feature by type name.
 pub fn register_feature<T: Send + Sync + 'static>(feature: T) {
     let type_name = std::any::type_name::<T>().to_string();
-    FEATURES.write().unwrap().insert(type_name, Arc::new(feature));
+    FEATURES
+        .write()
+        .unwrap()
+        .insert(type_name, Arc::new(feature));
 }
 
 /// Get a feature by type. Returns `None` if not registered.
 pub fn get_feature<T: Send + Sync + 'static>() -> Option<Arc<T>> {
     let type_name = std::any::type_name::<T>().to_string();
-    FEATURES.read().unwrap()
+    FEATURES
+        .read()
+        .unwrap()
         .get(type_name.as_str())
         .and_then(|f| f.clone().downcast::<T>().ok())
 }
 
 /// Require a feature, returning an error if not found (Go: `core.RequireFeatures`).
 pub fn require_feature<T: Send + Sync + 'static>() -> Result<Arc<T>, String> {
-    get_feature::<T>().ok_or_else(|| format!("feature {} not registered", std::any::type_name::<T>()))
+    get_feature::<T>()
+        .ok_or_else(|| format!("feature {} not registered", std::any::type_name::<T>()))
 }
 
 /// Remove a feature from the registry.

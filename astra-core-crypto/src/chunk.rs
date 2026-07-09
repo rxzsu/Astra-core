@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::io::{self, Read};
 
-use astra_core_buf::{Buffer, BufferedReader, MultiBuffer, Reader as BufReader, Writer as BufWriter};
+use astra_core_buf::{
+    Buffer, BufferedReader, MultiBuffer, Reader as BufReader, Writer as BufWriter,
+};
 
 use crate::auth::Authenticator;
 
@@ -61,9 +63,7 @@ impl ChunkSizeDecoder for AeadChunkSizeParser {
     fn decode(&self, b: &[u8]) -> io::Result<u16> {
         let mut auth = self.auth.borrow_mut();
         let mut tmp = Vec::new();
-        let decrypted = auth
-            .open(&mut tmp, b)
-            .map_err(io::Error::other)?;
+        let decrypted = auth.open(&mut tmp, b).map_err(io::Error::other)?;
         let size = u16::from_be_bytes([decrypted[0], decrypted[1]]);
         Ok(size + auth.overhead() as u16)
     }
@@ -98,10 +98,7 @@ pub struct ChunkStreamReader {
 }
 
 impl ChunkStreamReader {
-    pub fn new(
-        size_decoder: Box<dyn ChunkSizeDecoder>,
-        reader: impl BufReader + 'static,
-    ) -> Self {
+    pub fn new(size_decoder: Box<dyn ChunkSizeDecoder>, reader: impl BufReader + 'static) -> Self {
         ChunkStreamReader::with_chunk_count(size_decoder, reader, 0)
     }
 
@@ -130,11 +127,17 @@ impl ChunkStreamReader {
         let size = if self.leftover_size == 0 {
             self.num_chunk += 1;
             if self.max_chunk > 0 && self.num_chunk > self.max_chunk {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "max chunk count reached"));
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "max chunk count reached",
+                ));
             }
             let next_size = self.read_size()?;
             if next_size == 0 {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "zero size chunk"));
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "zero size chunk",
+                ));
             }
             next_size as i32
         } else {
@@ -156,10 +159,7 @@ pub struct ChunkStreamWriter {
 }
 
 impl ChunkStreamWriter {
-    pub fn new(
-        size_encoder: Box<dyn ChunkSizeEncoder>,
-        writer: impl BufWriter + 'static,
-    ) -> Self {
+    pub fn new(size_encoder: Box<dyn ChunkSizeEncoder>, writer: impl BufWriter + 'static) -> Self {
         ChunkStreamWriter {
             size_encoder,
             writer: Box::new(writer),

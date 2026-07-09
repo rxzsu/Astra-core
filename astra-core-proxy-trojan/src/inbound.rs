@@ -1,10 +1,10 @@
+use astra_core_transport::new_link_stream;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use astra_core_transport::new_link_stream;
 
 use astra_core_net::Network;
-use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{Conn, Dispatcher, InboundHandler, ProxyResult, async_trait};
 use astra_core_session::{Content, Inbound, Outbound, Session};
 
 use crate::config::{Fallback, ServerConfig};
@@ -58,7 +58,9 @@ impl Handler {
             return false; // Need at least 56 (key) + 2 (\r\n) = 58 bytes
         }
         // In Go: the first 56 bytes should be lowercase hex
-        data[..56].iter().all(|&b| b.is_ascii_hexdigit() || b.is_ascii_lowercase())
+        data[..56]
+            .iter()
+            .all(|&b| b.is_ascii_hexdigit() || b.is_ascii_lowercase())
             && data[56] == b'\r'
             && data[57] == b'\n'
     }
@@ -199,28 +201,38 @@ fn extract_sni_from_client_hello(data: &[u8]) -> String {
     }
     // Skip record header (5 bytes) + handshake header (4 bytes) + version (2) + random (32)
     let mut pos = 43; // 5 + 4 + 2 + 32
-    if pos >= data.len() { return String::new(); }
+    if pos >= data.len() {
+        return String::new();
+    }
 
     // Session ID length
     let sid_len = data[pos] as usize;
     pos += 1 + sid_len;
-    if pos + 1 >= data.len() { return String::new(); }
+    if pos + 1 >= data.len() {
+        return String::new();
+    }
 
     // Cipher suites length
     let cs_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
     pos += 2 + cs_len;
-    if pos >= data.len() { return String::new(); }
+    if pos >= data.len() {
+        return String::new();
+    }
 
     // Compression methods length
     let comp_len = data[pos] as usize;
     pos += 1 + comp_len;
-    if pos + 1 >= data.len() { return String::new(); }
+    if pos + 1 >= data.len() {
+        return String::new();
+    }
 
     // Extensions length
     let ext_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
     pos += 2;
     let ext_end = pos + ext_len;
-    if ext_end > data.len() { return String::new(); }
+    if ext_end > data.len() {
+        return String::new();
+    }
 
     while pos + 4 <= ext_end {
         let ext_type = u16::from_be_bytes([data[pos], data[pos + 1]]);
@@ -235,9 +247,10 @@ fn extract_sni_from_client_hello(data: &[u8]) -> String {
                 let name_len = u16::from_be_bytes([data[pos + 1], data[pos + 2]]) as usize;
                 pos += 3;
                 if pos + name_len <= data.len()
-                    && let Ok(name) = std::str::from_utf8(&data[pos..pos + name_len]) {
-                        return name.to_string();
-                    }
+                    && let Ok(name) = std::str::from_utf8(&data[pos..pos + name_len])
+                {
+                    return name.to_string();
+                }
             }
         }
         pos += ext_data_len;
@@ -258,11 +271,13 @@ fn extract_http_path(data: &[u8]) -> String {
     }
     // Extract path from GET/POST line
     if let Some(line) = s.lines().next()
-        && (line.starts_with("GET ") || line.starts_with("POST ")) && line.len() > 5 {
-            let parts: Vec<&str> = line.splitn(3, ' ').collect();
-            if parts.len() >= 2 {
-                return parts[1].to_string();
-            }
+        && (line.starts_with("GET ") || line.starts_with("POST "))
+        && line.len() > 5
+    {
+        let parts: Vec<&str> = line.splitn(3, ' ').collect();
+        if parts.len() >= 2 {
+            return parts[1].to_string();
         }
+    }
     String::new()
 }

@@ -104,8 +104,12 @@ impl WebhookNotifier {
     }
 
     fn build_event(&self, ctx: &crate::RoutingContext, outbound_tag: &str) -> WebhookEvent {
-        let source = ctx.source_ip.map(|ip| format!("{}:{}", ip, ctx.source_port));
-        let destination = ctx.target_domain.clone()
+        let source = ctx
+            .source_ip
+            .map(|ip| format!("{}:{}", ip, ctx.source_port));
+        let destination = ctx
+            .target_domain
+            .clone()
             .or_else(|| ctx.target_ip.map(|ip| ip.to_string()))
             .map(|host| format!("{}:{}", host, ctx.target_port));
         let network = Some(ctx.network.clone());
@@ -138,9 +142,10 @@ impl WebhookNotifier {
         let mut seen = self.seen.lock().unwrap();
         let now = Instant::now();
         if let Some(last) = seen.get(email)
-            && now.duration_since(*last) < Duration::from_secs(self.deduplication_secs as u64) {
-                return true;
-            }
+            && now.duration_since(*last) < Duration::from_secs(self.deduplication_secs as u64)
+        {
+            return true;
+        }
         seen.insert(email.to_string(), now);
         false
     }

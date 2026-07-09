@@ -7,7 +7,7 @@ use boringtun::noise::{Tunn, TunnResult};
 use boringtun::x25519::{PublicKey, StaticSecret};
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{Dialer, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::{Link, UdpPacket};
 
@@ -28,17 +28,17 @@ pub struct DeviceConfig {
 }
 
 impl DeviceConfig {
-fn resolve_endpoint(endpoint: &str) -> Result<String, String> {
-    if let Some((host, port)) = endpoint.rsplit_once(':') {
-        if host.parse::<IpAddr>().is_ok() {
-            Ok(endpoint.to_string())
+    fn resolve_endpoint(endpoint: &str) -> Result<String, String> {
+        if let Some((host, port)) = endpoint.rsplit_once(':') {
+            if host.parse::<IpAddr>().is_ok() {
+                Ok(endpoint.to_string())
+            } else {
+                Err(format!("async resolution needed for {}", endpoint))
+            }
         } else {
-            Err(format!("async resolution needed for {}", endpoint))
+            Err(format!("invalid endpoint: {}", endpoint))
         }
-    } else {
-        Err(format!("invalid endpoint: {}", endpoint))
     }
-}
 }
 
 pub struct WireGuardTunnel {
@@ -57,12 +57,22 @@ impl WireGuardTunnel {
         } else {
             "0.0.0.0:0".to_string()
         };
-        let udp = Arc::new(tokio::net::UdpSocket::bind(&bind).await.map_err(|e| format!("bind: {}", e))?);
-        udp.connect(&endpoint).await.map_err(|e| format!("connect: {}", e))?;
+        let udp = Arc::new(
+            tokio::net::UdpSocket::bind(&bind)
+                .await
+                .map_err(|e| format!("bind: {}", e))?,
+        );
+        udp.connect(&endpoint)
+            .await
+            .map_err(|e| format!("connect: {}", e))?;
 
         let private = StaticSecret::from(config.private_key);
         let public = PublicKey::from(peer.public_key);
-        let keepalive = if peer.persistent_keepalive > 0 { Some(peer.persistent_keepalive as u16) } else { None };
+        let keepalive = if peer.persistent_keepalive > 0 {
+            Some(peer.persistent_keepalive as u16)
+        } else {
+            None
+        };
 
         let tunn = Tunn::new(private, public, peer.pre_shared_key, keepalive, 0, None);
 
@@ -84,11 +94,18 @@ impl WireGuardTunnel {
     async fn run_loop(&self) {
         let mut dst = [0u8; 2000];
         loop {
-            if !self.running.load(Ordering::Relaxed) { break; }
+            if !self.running.load(Ordering::Relaxed) {
+                break;
+            }
             let mut tunn = self.tunn.lock().await;
             match tunn.encapsulate(&[], &mut dst) {
-                TunnResult::WriteToNetwork(data) => { let _ = self.udp.send(data).await; }
-                TunnResult::Done => { drop(tunn); tokio::time::sleep(Duration::from_millis(100)).await; }
+                TunnResult::WriteToNetwork(data) => {
+                    let _ = self.udp.send(data).await;
+                }
+                TunnResult::Done => {
+                    drop(tunn);
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
                 TunnResult::Err(_) => break,
                 _ => {}
             }
@@ -177,7 +194,10 @@ impl OutboundHandler for Handler {
                     _ => break,
                 };
                 if let Ok(dec) = tunnel.decapsulate(&buf[..n]).await
-                    && link.writer.write_all(&dec).await.is_err() { break; }
+                    && link.writer.write_all(&dec).await.is_err()
+                {
+                    break;
+                }
             }
             Ok::<_, String>(())
         };
@@ -203,11 +223,21 @@ impl OutboundHandler for Handler {
                 };
                 if let Ok(dec) = t.decapsulate(&buf[..n]).await {
                     let pkt = UdpPacket::new(
-                        Destination { address: Address::Ipv4([0;4]), port: Port(0), network: Network::Udp },
-                        Destination { address: Address::Ipv4([0;4]), port: Port(0), network: Network::Udp },
+                        Destination {
+                            address: Address::Ipv4([0; 4]),
+                            port: Port(0),
+                            network: Network::Udp,
+                        },
+                        Destination {
+                            address: Address::Ipv4([0; 4]),
+                            port: Port(0),
+                            network: Network::Udp,
+                        },
                         dec,
                     );
-                    if writer.send(pkt).is_err() { break; }
+                    if writer.send(pkt).is_err() {
+                        break;
+                    }
                 }
             }
         });
@@ -251,15 +281,13 @@ mod tests {
         let cfg = DeviceConfig {
             private_key: [1u8; 32],
             listen_port: 51820,
-            peers: vec![
-                PeerConfig {
-                    endpoint: "192.168.1.1:51820".into(),
-                    public_key: [2u8; 32],
-                    pre_shared_key: None,
-                    persistent_keepalive: 0,
-                    allowed_ips: vec!["10.0.0.0/8".into()],
-                }
-            ],
+            peers: vec![PeerConfig {
+                endpoint: "192.168.1.1:51820".into(),
+                public_key: [2u8; 32],
+                pre_shared_key: None,
+                persistent_keepalive: 0,
+                allowed_ips: vec!["10.0.0.0/8".into()],
+            }],
         };
         assert_eq!(cfg.peers.len(), 1);
         assert_eq!(cfg.peers[0].allowed_ips[0], "10.0.0.0/8");

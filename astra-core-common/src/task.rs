@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tokio::sync::Semaphore;
@@ -67,7 +67,8 @@ where
 /// Go equivalent: `task.Periodic`
 pub struct Periodic {
     interval: Duration,
-    execute: Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>,
+    execute:
+        Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<(), String>> + Send>> + Send + Sync>,
     running: Arc<AtomicBool>,
     join_handle: tokio::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
@@ -121,7 +122,11 @@ impl Periodic {
 
 /// Run `fn(i)` for `i in 0..n` in parallel with bounded workers.
 /// Go equivalent: `task.ParallelForN`
-pub async fn parallel_for_n<F, Fut>(n: usize, workers: Option<usize>, f: Arc<F>) -> Result<(), String>
+pub async fn parallel_for_n<F, Fut>(
+    n: usize,
+    workers: Option<usize>,
+    f: Arc<F>,
+) -> Result<(), String>
 where
     F: Fn(usize) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<(), String>> + Send + 'static,
@@ -130,7 +135,9 @@ where
         return Ok(());
     }
     let max_workers = workers.unwrap_or_else(|| {
-        std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4)
+        std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
     });
     let num_workers = max_workers.min(n);
     let chunk = n.div_ceil(num_workers);
@@ -182,32 +189,29 @@ mod tests {
 
     #[test]
     fn test_on_success_ok() {
-        let result = on_success(
-            || Ok(()),
-            || Ok(()),
-        )();
+        let result = on_success(|| Ok(()), || Ok(()))();
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_on_success_fail_first() {
-        let result = on_success(
-            || Err("first fail".into()),
-            || Ok(()),
-        )();
+        let result = on_success(|| Err("first fail".into()), || Ok(()))();
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "first fail");
     }
 
     #[tokio::test]
     async fn test_run_empty() {
-        let result: Result<(), String> = run(vec![] as Vec<std::future::Ready<Result<(), String>>>).await;
+        let result: Result<(), String> =
+            run(vec![] as Vec<std::future::Ready<Result<(), String>>>).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_run_all_ok() {
-        async fn ok_task() -> Result<(), String> { Ok(()) }
+        async fn ok_task() -> Result<(), String> {
+            Ok(())
+        }
         let result = run(vec![ok_task(), ok_task()]).await;
         assert!(result.is_ok());
     }

@@ -226,7 +226,8 @@ fn decode_address(data: &[u8]) -> Result<(Address, usize), String> {
             if data.len() < consumed + domain_len {
                 return Err("truncated domain".to_string());
             }
-            let domain = String::from_utf8_lossy(&data[consumed..consumed + domain_len]).to_string();
+            let domain =
+                String::from_utf8_lossy(&data[consumed..consumed + domain_len]).to_string();
             consumed += domain_len;
             Address::Domain(domain)
         }
@@ -304,10 +305,18 @@ mod tests {
     struct MemoryValidator;
 
     impl Validator for MemoryValidator {
-        fn get(&self, _id: UUID) -> Option<MemoryUser> { None }
-        fn add(&mut self, _u: MemoryUser) -> Result<(), String> { Ok(()) }
-        fn del(&mut self, _email: &str) -> bool { true }
-        fn get_count(&self) -> usize { 0 }
+        fn get(&self, _id: UUID) -> Option<MemoryUser> {
+            None
+        }
+        fn add(&mut self, _u: MemoryUser) -> Result<(), String> {
+            Ok(())
+        }
+        fn del(&mut self, _email: &str) -> bool {
+            true
+        }
+        fn get_count(&self) -> usize {
+            0
+        }
     }
 
     #[test]
@@ -351,7 +360,9 @@ mod tests {
 
     #[test]
     fn test_encode_decode_address_ipv6() {
-        let addr = Address::Ipv6([0x20, 0x01, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x68]);
+        let addr = Address::Ipv6([
+            0x20, 0x01, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x68,
+        ]);
         let mut buf = Vec::new();
         encode_address(&addr, &mut buf);
         let (decoded, consumed) = decode_address(&buf).unwrap();

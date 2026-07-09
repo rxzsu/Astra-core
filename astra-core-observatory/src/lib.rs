@@ -49,11 +49,7 @@ impl ProbeMethod {
             let full = if url.is_empty() {
                 default.to_string()
             } else if !url.starts_with("http://") && !url.starts_with("https://") {
-                format!(
-                    "{}://{}",
-                    if t == "https" { "https" } else { "http" },
-                    url
-                )
+                format!("{}://{}", if t == "https" { "https" } else { "http" }, url)
             } else {
                 url.to_string()
             };

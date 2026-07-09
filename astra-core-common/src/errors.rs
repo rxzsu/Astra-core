@@ -83,14 +83,18 @@ impl fmt::Display for XrayError {
 
 impl std::error::Error for XrayError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.cause.as_ref().map(|c| c.as_ref() as &(dyn std::error::Error + 'static))
+        self.cause
+            .as_ref()
+            .map(|c| c.as_ref() as &(dyn std::error::Error + 'static))
     }
 }
 
 /// Combine multiple errors into one.
 pub fn combine(errors: Vec<XrayError>) -> XrayError {
     let mut iter = errors.into_iter();
-    let first = iter.next().unwrap_or_else(|| XrayError::new("unknown error"));
+    let first = iter
+        .next()
+        .unwrap_or_else(|| XrayError::new("unknown error"));
     iter.fold(first, |acc, e| acc.base(e))
 }
 
@@ -113,10 +117,7 @@ mod tests {
 
     #[test]
     fn test_combine_errors() {
-        let errs = vec![
-            XrayError::new("err1"),
-            XrayError::new("err2"),
-        ];
+        let errs = vec![XrayError::new("err1"), XrayError::new("err2")];
         let combined = combine(errs);
         assert!(combined.full_message().contains("err1"));
     }

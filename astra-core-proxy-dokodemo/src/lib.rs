@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use astra_core_net::{Address, Destination, Network, Port};
-use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{Conn, Dispatcher, InboundHandler, ProxyResult, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::new_link_stream;
 
@@ -25,11 +25,7 @@ impl Handler {
         Handler { config }
     }
 
-    fn resolve_dest(
-        &self,
-        local_addr: &str,
-        session: &Session,
-    ) -> Result<Destination, String> {
+    fn resolve_dest(&self, local_addr: &str, session: &Session) -> Result<Destination, String> {
         // FollowRedirect: use session outbound target
         if self.config.follow_redirect {
             if let Some(ref ob) = session.outbound {
@@ -107,11 +103,15 @@ impl InboundHandler for Handler {
         conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
-        let local_str = session.inbound.as_ref()
+        let local_str = session
+            .inbound
+            .as_ref()
             .and_then(|i| i.local.as_ref())
             .map(|d| d.address.to_string())
             .unwrap_or_else(|| "0.0.0.0:0".to_string());
-        let port_str = session.inbound.as_ref()
+        let port_str = session
+            .inbound
+            .as_ref()
             .and_then(|i| i.local.as_ref())
             .map(|d| d.port.value().to_string())
             .unwrap_or_else(|| "0".to_string());
@@ -135,8 +135,8 @@ impl InboundHandler for Handler {
 
 #[cfg(target_os = "linux")]
 pub fn fake_udp(addr: &std::net::SocketAddrV4) -> Result<tokio::net::UdpSocket, String> {
-    use std::os::unix::io::AsRawFd;
     use socket2::{Domain, Protocol, Socket, Type};
+    use std::os::unix::io::AsRawFd;
 
     let domain = if addr.ip().is_ipv4() {
         Domain::IPV4
@@ -166,10 +166,10 @@ pub fn fake_udp(addr: &std::net::SocketAddrV4) -> Result<tokio::net::UdpSocket, 
         .map_err(|e| format!("fake_udp bind: {}", e))?;
 
     let std_udp: std::net::UdpSocket = sock.into();
-    std_udp.set_nonblocking(true)
+    std_udp
+        .set_nonblocking(true)
         .map_err(|e| format!("fake_udp nonblock: {}", e))?;
-    tokio::net::UdpSocket::from_std(std_udp)
-        .map_err(|e| format!("fake_udp to tokio: {}", e))
+    tokio::net::UdpSocket::from_std(std_udp).map_err(|e| format!("fake_udp to tokio: {}", e))
 }
 
 #[cfg(not(target_os = "linux"))]

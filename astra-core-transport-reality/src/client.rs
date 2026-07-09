@@ -7,10 +7,7 @@ use astra_core_proxy::{Conn, ProxyResult};
 
 use crate::config::RealityConfig;
 
-pub async fn dial_reality(
-    tcp: TcpStream,
-    config: &RealityConfig,
-) -> ProxyResult<Conn> {
+pub async fn dial_reality(tcp: TcpStream, config: &RealityConfig) -> ProxyResult<Conn> {
     let server_name_str = if config.server_name.is_empty() {
         let addr = tcp.peer_addr().map_err(|e| format!("peer_addr: {}", e))?;
         addr.to_string()
@@ -38,20 +35,16 @@ pub async fn dial_reality(
     Ok(Box::new(tls_stream))
 }
 
-pub async fn dial_tls(
-    tcp: Conn,
-    server_name: &str,
-    allow_insecure: bool,
-) -> ProxyResult<Conn> {
+pub async fn dial_tls(tcp: Conn, server_name: &str, allow_insecure: bool) -> ProxyResult<Conn> {
     let sn = rustls::pki_types::ServerName::try_from(server_name.to_string())
         .map_err(|e| format!("invalid server name '{}': {}", server_name, e))?;
 
     let config = if allow_insecure {
         rustls::ClientConfig::builder()
             .dangerous()
-            .with_custom_certificate_verifier(Arc::new(
-                crate::cert::RealityCertVerifier::new([0u8; 32], true),
-            ))
+            .with_custom_certificate_verifier(Arc::new(crate::cert::RealityCertVerifier::new(
+                [0u8; 32], true,
+            )))
             .with_no_client_auth()
     } else {
         let root_store = rustls::RootCertStore {

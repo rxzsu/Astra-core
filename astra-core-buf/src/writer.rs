@@ -10,9 +10,7 @@ pub struct SequentialWriter {
 
 impl SequentialWriter {
     pub fn new(w: impl Write + 'static) -> Self {
-        SequentialWriter {
-            inner: Box::new(w),
-        }
+        SequentialWriter { inner: Box::new(w) }
     }
 }
 
@@ -46,7 +44,8 @@ impl BufferedWriter {
     pub fn flush(&mut self) -> io::Result<()> {
         if !self.buffer.is_empty() {
             let buf = std::mem::take(&mut self.buffer);
-            self.writer.write_multi_buffer(MultiBuffer::with_buffer(buf))?;
+            self.writer
+                .write_multi_buffer(MultiBuffer::with_buffer(buf))?;
         }
         Ok(())
     }

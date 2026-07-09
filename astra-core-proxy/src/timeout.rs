@@ -47,7 +47,10 @@ impl tokio::io::AsyncRead for TimeoutConn {
         let this = unsafe { self.get_unchecked_mut() };
         if this.read_deadline.as_mut().poll(cx).is_ready() {
             this.bump_read();
-            return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "read idle timeout")));
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "read idle timeout",
+            )));
         }
         let result = Pin::new(&mut this.inner).poll_read(cx, buf);
         if result.is_ready() {
@@ -66,7 +69,10 @@ impl tokio::io::AsyncWrite for TimeoutConn {
         let this = unsafe { self.get_unchecked_mut() };
         if this.write_deadline.as_mut().poll(cx).is_ready() {
             this.bump_write();
-            return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "write idle timeout")));
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "write idle timeout",
+            )));
         }
         let result = Pin::new(&mut this.inner).poll_write(cx, buf);
         if result.is_ready() {
@@ -80,7 +86,10 @@ impl tokio::io::AsyncWrite for TimeoutConn {
         Pin::new(&mut this.inner).poll_flush(cx)
     }
 
-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         let this = unsafe { self.get_unchecked_mut() };
         Pin::new(&mut this.inner).poll_shutdown(cx)
     }

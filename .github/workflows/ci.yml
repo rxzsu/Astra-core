@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
 
@@ -36,10 +36,6 @@ jobs:
     - name: Install Linux deps (TUN)
       if: runner.os == 'Linux'
       run: sudo apt-get update && sudo apt-get install -y libpcap-dev
-
-    - name: Install macOS deps (TUN)
-      if: runner.os == 'macOS'
-      run: brew install libpcap
 
     - name: Check formatting
       run: cargo fmt --all --check

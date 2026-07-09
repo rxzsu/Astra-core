@@ -1,4 +1,4 @@
-use crate::mask::{Tcpmask, Udpmask, AsyncReadWrite, UdpPacketConn};
+use crate::mask::{AsyncReadWrite, Tcpmask, UdpPacketConn, Udpmask};
 
 /// Chains multiple TCP masks together.
 /// Wraps connections inside-out: the last mask is applied first.
@@ -11,7 +11,10 @@ impl TcpmaskManager {
         TcpmaskManager { masks }
     }
 
-    pub fn wrap_client(&self, conn: Box<dyn AsyncReadWrite>) -> Result<Box<dyn AsyncReadWrite>, String> {
+    pub fn wrap_client(
+        &self,
+        conn: Box<dyn AsyncReadWrite>,
+    ) -> Result<Box<dyn AsyncReadWrite>, String> {
         let mut wrapped = conn;
         for mask in self.masks.iter().rev() {
             wrapped = mask.wrap_client(wrapped)?;
@@ -19,7 +22,10 @@ impl TcpmaskManager {
         Ok(wrapped)
     }
 
-    pub fn wrap_server(&self, conn: Box<dyn AsyncReadWrite>) -> Result<Box<dyn AsyncReadWrite>, String> {
+    pub fn wrap_server(
+        &self,
+        conn: Box<dyn AsyncReadWrite>,
+    ) -> Result<Box<dyn AsyncReadWrite>, String> {
         let mut wrapped = conn;
         for mask in self.masks.iter().rev() {
             wrapped = mask.wrap_server(wrapped)?;
@@ -45,7 +51,8 @@ impl UdpmaskManager {
     ) -> Result<Box<dyn UdpPacketConn>, String> {
         let mut wrapped = conn;
         for mask in self.masks.iter().rev() {
-            wrapped = mask.wrap_packet_conn_client(wrapped, 0, self.masks.len().saturating_sub(1))?;
+            wrapped =
+                mask.wrap_packet_conn_client(wrapped, 0, self.masks.len().saturating_sub(1))?;
         }
         Ok(wrapped)
     }
@@ -56,7 +63,8 @@ impl UdpmaskManager {
     ) -> Result<Box<dyn UdpPacketConn>, String> {
         let mut wrapped = conn;
         for mask in self.masks.iter().rev() {
-            wrapped = mask.wrap_packet_conn_server(wrapped, 0, self.masks.len().saturating_sub(1))?;
+            wrapped =
+                mask.wrap_packet_conn_server(wrapped, 0, self.masks.len().saturating_sub(1))?;
         }
         Ok(wrapped)
     }

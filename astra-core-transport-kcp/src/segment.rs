@@ -224,7 +224,12 @@ impl CmdOnlySegment {
         buf.extend_from_slice(&self.peer_rto.to_be_bytes());
     }
 
-    pub fn parse(conv: u16, cmd: Command, opt: SegmentOption, data: &[u8]) -> Option<(Self, &[u8])> {
+    pub fn parse(
+        conv: u16,
+        cmd: Command,
+        opt: SegmentOption,
+        data: &[u8],
+    ) -> Option<(Self, &[u8])> {
         if data.len() < 12 {
             return None;
         }

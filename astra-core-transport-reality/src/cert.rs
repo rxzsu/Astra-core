@@ -43,7 +43,9 @@ impl rustls::client::danger::ServerCertVerifier for RealityCertVerifier {
         if self.allow_insecure || self.public_key == [0u8; 32] {
             return Ok(rustls::client::danger::ServerCertVerified::assertion());
         }
-        Err(rustls::Error::General("REALITY: AuthKey from TLS 1.3 handshake required for full verification".into()))
+        Err(rustls::Error::General(
+            "REALITY: AuthKey from TLS 1.3 handshake required for full verification".into(),
+        ))
     }
 
     fn verify_tls12_signature(

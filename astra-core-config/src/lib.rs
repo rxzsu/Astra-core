@@ -1,8 +1,8 @@
 pub mod dns;
 pub mod json_reader;
-pub mod protobuf;
 pub mod log;
 pub mod policy;
+pub mod protobuf;
 pub mod proxy;
 pub mod router;
 pub mod transport;
@@ -69,7 +69,9 @@ pub struct ObservatoryConfig {
     pub enable: bool,
 }
 
-fn default_probe_interval() -> u32 { 10 }
+fn default_probe_interval() -> u32 {
+    10
+}
 
 /// Reverse proxy config.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -260,7 +262,8 @@ impl Config {
     pub fn from_yaml(yaml: &str) -> Result<Self, String> {
         let json_value: serde_json::Value =
             serde_yaml::from_str(yaml).map_err(|e| format!("yaml parse error: {}", e))?;
-        serde_json::from_value(json_value).map_err(|e| format!("config parse from yaml error: {}", e))
+        serde_json::from_value(json_value)
+            .map_err(|e| format!("config parse from yaml error: {}", e))
     }
 
     /// Parse Xray config from a YAML reader (with comment stripping).
@@ -276,13 +279,16 @@ impl Config {
     pub fn from_toml(toml_str: &str) -> Result<Self, String> {
         let config_map: serde_json::Value =
             toml::from_str(toml_str).map_err(|e| format!("toml parse error: {}", e))?;
-        serde_json::from_value(config_map).map_err(|e| format!("config parse from toml error: {}", e))
+        serde_json::from_value(config_map)
+            .map_err(|e| format!("config parse from toml error: {}", e))
     }
 
     /// Parse Xray config from a TOML reader.
     pub fn from_toml_reader<R: Read>(mut reader: R) -> Result<Self, String> {
         let mut raw = String::new();
-        reader.read_to_string(&mut raw).map_err(|e| format!("read toml: {}", e))?;
+        reader
+            .read_to_string(&mut raw)
+            .map_err(|e| format!("read toml: {}", e))?;
         Self::from_toml(&raw)
     }
 
@@ -291,19 +297,41 @@ impl Config {
     /// - Inbounds: matched by tag → replace; unmatched → append
     /// - Outbounds: matched by tag → replace; unmatched → prepend (unless filename has "tail" → append)
     pub fn override_with(&mut self, other: &Config, filename: &str) {
-        if other.log.is_some() { self.log = other.log.clone(); }
-        if other.routing.is_some() { self.routing = other.routing.clone(); }
-        if other.dns.is_some() { self.dns = other.dns.clone(); }
-        if other.policy.is_some() { self.policy = other.policy.clone(); }
-        if other.api.is_some() { self.api = other.api.clone(); }
-        if other.stats.is_some() { self.stats = other.stats.clone(); }
-        if other.reverse.is_some() { self.reverse = other.reverse.clone(); }
-        if other.observatory.is_some() { self.observatory = other.observatory.clone(); }
-        if other.fake_dns.is_some() { self.fake_dns = other.fake_dns.clone(); }
+        if other.log.is_some() {
+            self.log = other.log.clone();
+        }
+        if other.routing.is_some() {
+            self.routing = other.routing.clone();
+        }
+        if other.dns.is_some() {
+            self.dns = other.dns.clone();
+        }
+        if other.policy.is_some() {
+            self.policy = other.policy.clone();
+        }
+        if other.api.is_some() {
+            self.api = other.api.clone();
+        }
+        if other.stats.is_some() {
+            self.stats = other.stats.clone();
+        }
+        if other.reverse.is_some() {
+            self.reverse = other.reverse.clone();
+        }
+        if other.observatory.is_some() {
+            self.observatory = other.observatory.clone();
+        }
+        if other.fake_dns.is_some() {
+            self.fake_dns = other.fake_dns.clone();
+        }
 
         // Inbounds: match by tag → replace; else append
         for ob in &other.inbounds {
-            if let Some(idx) = self.inbounds.iter().position(|x| x.tag == ob.tag && !ob.tag.is_empty()) {
+            if let Some(idx) = self
+                .inbounds
+                .iter()
+                .position(|x| x.tag == ob.tag && !ob.tag.is_empty())
+            {
                 self.inbounds[idx] = ob.clone();
             } else {
                 self.inbounds.push(ob.clone());
@@ -313,7 +341,11 @@ impl Config {
         // Outbounds: match by tag → replace; else prepend (default) or append (if "tail" in filename)
         let is_tail = filename.to_lowercase().contains("tail");
         for ob in &other.outbounds {
-            if let Some(idx) = self.outbounds.iter().position(|x| x.tag == ob.tag && !ob.tag.is_empty()) {
+            if let Some(idx) = self
+                .outbounds
+                .iter()
+                .position(|x| x.tag == ob.tag && !ob.tag.is_empty())
+            {
                 self.outbounds[idx] = ob.clone();
             } else if is_tail {
                 self.outbounds.push(ob.clone());

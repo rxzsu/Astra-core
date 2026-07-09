@@ -152,17 +152,27 @@ impl FrameMetadata {
 
             if let Some(ref inbound) = self.inbound {
                 if let Some(ref source) = inbound.source
-                    && (source.network == Network::Tcp || source.network == Network::Udp) {
-                        let net_byte = if source.network == Network::Tcp { 0u8 } else { 1u8 };
-                        buf.put_u8(net_byte);
-                        encode_address_port(source, buf);
-                    }
+                    && (source.network == Network::Tcp || source.network == Network::Udp)
+                {
+                    let net_byte = if source.network == Network::Tcp {
+                        0u8
+                    } else {
+                        1u8
+                    };
+                    buf.put_u8(net_byte);
+                    encode_address_port(source, buf);
+                }
                 if let Some(ref local) = inbound.local
-                    && (local.network == Network::Tcp || local.network == Network::Udp) {
-                        let net_byte = if local.network == Network::Tcp { 0u8 } else { 1u8 };
-                        buf.put_u8(net_byte);
-                        encode_address_port(local, buf);
-                    }
+                    && (local.network == Network::Tcp || local.network == Network::Udp)
+                {
+                    let net_byte = if local.network == Network::Tcp {
+                        0u8
+                    } else {
+                        1u8
+                    };
+                    buf.put_u8(net_byte);
+                    encode_address_port(local, buf);
+                }
             } else if target_is_udp(self.target.as_ref()) && self.global_id != [0u8; 8] {
                 buf.put_slice(&self.global_id);
             }
@@ -238,7 +248,10 @@ impl FrameMetadata {
                 }
             }
 
-            if meta.target.as_ref().is_some_and(|t| t.network == Network::Udp)
+            if meta
+                .target
+                .as_ref()
+                .is_some_and(|t| t.network == Network::Udp)
                 && meta.option.has(FrameOption::DATA)
                 && buf.len() >= offset + 8
             {
@@ -250,12 +263,13 @@ impl FrameMetadata {
         } else if status == SessionStatus::Keep && offset < buf.len() {
             let net_byte = buf[offset];
             if let Some(tn) = TargetNetwork::from_byte(net_byte)
-                && tn == TargetNetwork::Udp {
-                    offset += 1;
-                    let (dest, consumed) = decode_address_port(&buf[offset..], tn)?;
-                    meta.target = Some(dest);
-                    offset += consumed;
-                }
+                && tn == TargetNetwork::Udp
+            {
+                offset += 1;
+                let (dest, consumed) = decode_address_port(&buf[offset..], tn)?;
+                meta.target = Some(dest);
+                offset += consumed;
+            }
         }
 
         Ok((meta, offset))
@@ -290,7 +304,10 @@ fn encode_address_port(target: &Destination, buf: &mut BytesMut) {
 }
 
 /// Decode address+port from mux format: port(2) + addr_type(1) + addr_bytes.
-fn decode_address_port(data: &[u8], network: TargetNetwork) -> Result<(Destination, usize), String> {
+fn decode_address_port(
+    data: &[u8],
+    network: TargetNetwork,
+) -> Result<(Destination, usize), String> {
     if data.len() < 3 {
         return Err("truncated: need at least port(2) + addr_type(1)".into());
     }
@@ -529,8 +546,7 @@ mod tests {
 
         let data_offset = 2 + meta_len;
         assert!(frame.len() >= data_offset + 2);
-        let data_len =
-            u16::from_be_bytes([frame[data_offset], frame[data_offset + 1]]) as usize;
+        let data_len = u16::from_be_bytes([frame[data_offset], frame[data_offset + 1]]) as usize;
         assert_eq!(data_len, data.len());
         assert_eq!(&frame[data_offset + 2..data_offset + 2 + data_len], data);
     }

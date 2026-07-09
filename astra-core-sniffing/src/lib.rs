@@ -41,12 +41,20 @@ pub struct SniffedStream<S> {
 
 impl<S: AsyncRead + AsyncWrite + Unpin + Send> SniffedStream<S> {
     pub fn new(inner: S, peek_buf: Vec<u8>) -> Self {
-        SniffedStream { inner, peek_buf, peek_pos: 0 }
+        SniffedStream {
+            inner,
+            peek_buf,
+            peek_pos: 0,
+        }
     }
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for SniffedStream<S> {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
         if self.peek_pos < self.peek_buf.len() {
             let n = std::cmp::min(buf.remaining(), self.peek_buf.len() - self.peek_pos);
             buf.put_slice(&self.peek_buf[self.peek_pos..self.peek_pos + n]);
@@ -59,7 +67,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for SniffedStream<S> {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for SniffedStream<S> {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
@@ -78,7 +90,10 @@ pub fn sniff(data: &[u8]) -> SniffResult {
 
     // Try BitTorrent
     if data.len() >= 20 && data[0] == 19 && &data[1..20] == b"BitTorrent protocol" {
-        return SniffResult { protocol: SniffProtocol::BitTorrent, domain: None };
+        return SniffResult {
+            protocol: SniffProtocol::BitTorrent,
+            domain: None,
+        };
     }
 
     // Try DNS
@@ -88,7 +103,10 @@ pub fn sniff(data: &[u8]) -> SniffResult {
         if qr == 0 && opcode == 0 {
             let qdcount = u16::from_be_bytes([data[4], data[5]]);
             if (1..=10).contains(&qdcount) {
-                return SniffResult { protocol: SniffProtocol::Dns, domain: None };
+                return SniffResult {
+                    protocol: SniffProtocol::Dns,
+                    domain: None,
+                };
             }
         }
     }
@@ -96,12 +114,21 @@ pub fn sniff(data: &[u8]) -> SniffResult {
     // Try HTTP
     if data.len() >= 4 {
         let start = &data[..4];
-        if start == b"GET " || start == b"POST" || start == b"PUT " || start == b"HEAD"
-            || start == b"PATC" || start == b"DELE" || start == b"OPTI"
-            || start == b"TRAC" || start == b"CONN"
+        if start == b"GET "
+            || start == b"POST"
+            || start == b"PUT "
+            || start == b"HEAD"
+            || start == b"PATC"
+            || start == b"DELE"
+            || start == b"OPTI"
+            || start == b"TRAC"
+            || start == b"CONN"
         {
             let host = sniff_http_host(data);
-            return SniffResult { protocol: SniffProtocol::Http, domain: host };
+            return SniffResult {
+                protocol: SniffProtocol::Http,
+                domain: host,
+            };
         }
     }
 
@@ -110,7 +137,10 @@ pub fn sniff(data: &[u8]) -> SniffResult {
         let version = u16::from_be_bytes([data[1], data[2]]);
         if version == 0x0301 || version == 0x0302 || version == 0x0303 || version == 0x0304 {
             let sni = sniff_tls_sni(data);
-            return SniffResult { protocol: SniffProtocol::Tls, domain: sni };
+            return SniffResult {
+                protocol: SniffProtocol::Tls,
+                domain: sni,
+            };
         }
     }
 
@@ -124,20 +154,28 @@ pub fn sniff_tls_sni(data: &[u8]) -> Option<String> {
     }
 
     let mut pos: usize = 5 + 4 + 2 + 32;
-    if pos >= data.len() { return None; }
+    if pos >= data.len() {
+        return None;
+    }
 
     let session_len = data[pos] as usize;
     pos += 1 + session_len;
 
-    if pos + 1 >= data.len() { return None; }
+    if pos + 1 >= data.len() {
+        return None;
+    }
     let cs_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
     pos += 2 + cs_len;
 
-    if pos >= data.len() { return None; }
+    if pos >= data.len() {
+        return None;
+    }
     let comp_len = data[pos] as usize;
     pos += 1 + comp_len;
 
-    if pos + 1 >= data.len() { return None; }
+    if pos + 1 >= data.len() {
+        return None;
+    }
     let ext_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
     pos += 2;
 
@@ -148,11 +186,15 @@ pub fn sniff_tls_sni(data: &[u8]) -> Option<String> {
         pos += 4;
 
         if ext_type == 0x0000 {
-            if pos + 2 > data.len() { return None; }
+            if pos + 2 > data.len() {
+                return None;
+            }
             let _list_len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
             pos += 2;
 
-            if pos + 3 > data.len() { return None; }
+            if pos + 3 > data.len() {
+                return None;
+            }
             let name_type = data[pos];
             let name_len = u16::from_be_bytes([data[pos + 1], data[pos + 2]]) as usize;
             pos += 3;
@@ -230,9 +272,12 @@ mod tests {
         query.extend_from_slice(&[0x00, 0x00]);
         query.extend_from_slice(&[0x00, 0x00]);
         query.extend_from_slice(&[0x00, 0x00]);
-        query.push(3); query.extend_from_slice(b"www");
-        query.push(7); query.extend_from_slice(b"example");
-        query.push(3); query.extend_from_slice(b"com");
+        query.push(3);
+        query.extend_from_slice(b"www");
+        query.push(7);
+        query.extend_from_slice(b"example");
+        query.push(3);
+        query.extend_from_slice(b"com");
         query.push(0);
         query.extend_from_slice(&[0x00, 0x01]);
         query.extend_from_slice(&[0x00, 0x01]);
@@ -254,7 +299,8 @@ mod tests {
         hello.extend_from_slice(&[0u8; 32]);
         hello.push(0x00);
         hello.extend_from_slice(&[0x00, 0x00]);
-        hello.push(0x01); hello.push(0x00);
+        hello.push(0x01);
+        hello.push(0x00);
 
         hello.extend_from_slice(&(ext_data_len as u16).to_be_bytes());
         hello.extend_from_slice(&[0x00, 0x00]);

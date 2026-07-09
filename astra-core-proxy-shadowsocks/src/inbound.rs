@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rand::Rng;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use astra_core_proxy::{async_trait, Conn, Dispatcher, InboundHandler, ProxyResult};
+use astra_core_proxy::{Conn, Dispatcher, InboundHandler, ProxyResult, async_trait};
 use astra_core_session::{Content, Inbound, Outbound, Session};
 
 use crate::config::ServerConfig;
@@ -39,14 +39,10 @@ impl InboundHandler for Handler {
             .await
             .map_err(|e| format!("ss inbound: read iv: {}", e))?;
 
-        let (dest, mut decrypting_reader) = protocol::read_tcp_session(
-            reader,
-            user.cipher_type,
-            &user.key,
-            &iv,
-        )
-        .await
-        .map_err(|e| format!("ss inbound: read session: {}", e))?;
+        let (dest, mut decrypting_reader) =
+            protocol::read_tcp_session(reader, user.cipher_type, &user.key, &iv)
+                .await
+                .map_err(|e| format!("ss inbound: read session: {}", e))?;
 
         let target = dest;
         let session = Session {

@@ -37,7 +37,10 @@ pub struct OcspRequest {
 
 impl OcspRequest {
     pub fn new(issuer_hash: Vec<u8>, serial_number: Vec<u8>) -> Self {
-        OcspRequest { issuer_hash, serial_number }
+        OcspRequest {
+            issuer_hash,
+            serial_number,
+        }
     }
 }
 

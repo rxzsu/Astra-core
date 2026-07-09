@@ -12,12 +12,18 @@ pub struct User {
 
 impl User {
     pub fn new(level: u32, email: String, account: Option<Arc<dyn Account>>) -> Self {
-        User { level, email, account }
+        User {
+            level,
+            email,
+            account,
+        }
     }
 
     /// Try to get a typed account reference.
     pub fn get_typed_account<T: Account + 'static>(&self) -> Option<&T> {
-        self.account.as_ref().and_then(|a| a.as_any().downcast_ref::<T>())
+        self.account
+            .as_ref()
+            .and_then(|a| a.as_any().downcast_ref::<T>())
     }
 
     /// Convert to in-memory (cached) representation.

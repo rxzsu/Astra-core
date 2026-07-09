@@ -25,7 +25,9 @@ fn generate_tokenish_padding(target_huffman_bytes: usize) -> String {
     if n < 1 {
         return "X".to_string();
     }
-    let mut s: Vec<u8> = (0..n).map(|_| CHARSET_BASE62[fastrand::usize(..CHARSET_BASE62.len())]).collect();
+    let mut s: Vec<u8> = (0..n)
+        .map(|_| CHARSET_BASE62[fastrand::usize(..CHARSET_BASE62.len())])
+        .collect();
     let mut iter = 0u32;
     loop {
         let current_len = approx_hpack_len(&s);
@@ -37,7 +39,10 @@ fn generate_tokenish_padding(target_huffman_bytes: usize) -> String {
             s.push(b'X');
         } else {
             s.pop();
-            if s.is_empty() { s.push(b'X'); break; }
+            if s.is_empty() {
+                s.push(b'X');
+                break;
+            }
         }
         iter += 1;
     }
@@ -64,7 +69,10 @@ pub fn apply_padding_to_query(url: &str, key: &str, value: &str) -> String {
             })
             .collect();
         params.insert(key.to_string(), value.to_string());
-        let new_query: Vec<String> = params.into_iter().map(|(k, v)| format!("{k}={v}")).collect();
+        let new_query: Vec<String> = params
+            .into_iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect();
         format!("{}?{}", base, new_query.join("&"))
     } else {
         format!("{}?{}={}", url, key, value)

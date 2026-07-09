@@ -36,11 +36,13 @@ impl MetricsServer {
                     let body = render_metrics(&stats);
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                        body.len(), body
+                        body.len(),
+                        body
                     );
                     let _ = stream.write_all(response.as_bytes()).await;
                 } else {
-                    let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+                    let response =
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
                     let _ = stream.write_all(response.as_bytes()).await;
                 }
             });

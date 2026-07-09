@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use astra_core_net::{Destination, Network};
-use astra_core_proxy::{async_trait, Dialer, Dispatcher, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{Dialer, Dispatcher, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::{Inbound, Outbound, Session};
 use astra_core_transport::Link;
 
@@ -16,7 +16,10 @@ pub struct Handler {
 
 impl Handler {
     pub fn new(inbound_tag: String, dispatcher_cell: DispatcherCell) -> Self {
-        Handler { inbound_tag, dispatcher_cell }
+        Handler {
+            inbound_tag,
+            dispatcher_cell,
+        }
     }
 }
 
@@ -29,11 +32,13 @@ impl OutboundHandler for Handler {
         _dialer: &dyn Dialer,
     ) -> ProxyResult<()> {
         let dispatcher = {
-            let guard = self.dispatcher_cell
+            let guard = self
+                .dispatcher_cell
                 .lock()
                 .map_err(|_| "loopback: mutex poisoned".to_string())?;
             guard.as_ref().cloned()
-        }.ok_or_else(|| "loopback: dispatcher not set".to_string())?;
+        }
+        .ok_or_else(|| "loopback: dispatcher not set".to_string())?;
 
         let target = session
             .outbound
@@ -44,7 +49,11 @@ impl OutboundHandler for Handler {
 
         let mut loopback_session = session.clone();
         let mut inbound = session.inbound.clone().unwrap_or(Inbound {
-            source: Destination { address: target.address.clone(), port: target.port, network: Network::Tcp },
+            source: Destination {
+                address: target.address.clone(),
+                port: target.port,
+                network: Network::Tcp,
+            },
             local: None,
             gateway: None,
             tag: String::new(),
@@ -58,7 +67,9 @@ impl OutboundHandler for Handler {
             tag: String::new(),
         });
 
-        dispatcher.dispatch_link(loopback_session, target, link).await
+        dispatcher
+            .dispatch_link(loopback_session, target, link)
+            .await
     }
 
     async fn process_udp(&self, _session: Session, link: &mut UdpLink) -> ProxyResult<()> {
@@ -66,4 +77,3 @@ impl OutboundHandler for Handler {
         Ok(())
     }
 }
-

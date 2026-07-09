@@ -64,10 +64,7 @@ pub async fn listen_kcp(
         }
 
         let conv = segments[0].conv();
-        let id = SessionId {
-            remote,
-            conv,
-        };
+        let id = SessionId { remote, conv };
 
         let conn = {
             let lock = sessions.lock().await;

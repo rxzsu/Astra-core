@@ -55,11 +55,7 @@ pub struct AlwaysOnInboundHandler {
 }
 
 impl AlwaysOnInboundHandler {
-    pub fn new(
-        tag: String,
-        proxy: Arc<dyn InboundHandler>,
-        listen_addr: String,
-    ) -> Self {
+    pub fn new(tag: String, proxy: Arc<dyn InboundHandler>, listen_addr: String) -> Self {
         AlwaysOnInboundHandler {
             tag,
             proxy,
@@ -116,7 +112,9 @@ impl AlwaysOnInboundHandler {
             .map_err(|e| format!("tls config: {}", e))?;
 
         let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
-        let tls_stream = acceptor.accept(conn).await
+        let tls_stream = acceptor
+            .accept(conn)
+            .await
             .map_err(|e| format!("tls accept: {}", e))?;
         Ok(Box::new(tls_stream))
     }
@@ -124,11 +122,15 @@ impl AlwaysOnInboundHandler {
     /// Start a hysteria QUIC server. Called from `start()` when hysteria_password is set.
     async fn start_hysteria(&self, dispatcher: Arc<dyn Dispatcher>) -> ProxyResult<()> {
         let listen = self.listen_addr.clone();
-        info!("inbound {} listening on {} (hysteria/quic)", self.tag, listen);
+        info!(
+            "inbound {} listening on {} (hysteria/quic)",
+            self.tag, listen
+        );
 
-        let tls_cfg = self.tls.as_ref().ok_or_else(|| {
-            "hysteria inbound requires TLS config with certificates".to_string()
-        })?;
+        let tls_cfg = self
+            .tls
+            .as_ref()
+            .ok_or_else(|| "hysteria inbound requires TLS config with certificates".to_string())?;
 
         let cert = rustls::pki_types::CertificateDer::from(tls_cfg.cert_data.clone());
         let key = rustls::pki_types::PrivateKeyDer::try_from(tls_cfg.key_data.clone())
@@ -169,9 +171,12 @@ impl AlwaysOnInboundHandler {
                         match connecting.await {
                             Ok(conn) => {
                                 // Auth on first stream
-                                if let Err(e) = astra_core_proxy_hysteria::hysteria_auth_first_stream(
-                                    &conn, &password,
-                                ).await {
+                                if let Err(e) =
+                                    astra_core_proxy_hysteria::hysteria_auth_first_stream(
+                                        &conn, &password,
+                                    )
+                                    .await
+                                {
                                     tracing::error!("hysteria auth error: {}", e);
                                     return;
                                 }
@@ -200,7 +205,9 @@ impl AlwaysOnInboundHandler {
                                                 }
                                             });
                                         }
-                                        Err(quinn::ConnectionError::ApplicationClosed { .. })
+                                        Err(quinn::ConnectionError::ApplicationClosed {
+                                            ..
+                                        })
                                         | Err(quinn::ConnectionError::Reset) => break,
                                         Err(e) => {
                                             tracing::error!("hysteria accept stream: {}", e);
@@ -282,7 +289,9 @@ impl AlwaysOnInboundHandler {
                                 network: Network::Udp,
                             };
                             let pkt = astra_core_transport::UdpPacket::new(
-                                placeholder.clone(), placeholder, data,
+                                placeholder.clone(),
+                                placeholder,
+                                data,
                             );
                             let _ = udp_link.send(pkt);
 
@@ -335,29 +344,30 @@ impl AlwaysOnInboundHandler {
 
                         // Sniff initial bytes for protocol detection
                         let mut sniff_buf = vec![0u8; 8192];
-                        let (sniff_result, conn) = match tokio::io::AsyncReadExt::read(&mut conn, &mut sniff_buf).await {
-                            Ok(0) | Err(_) => {
-                                (astra_core_sniffing::SniffResult::default(), Box::new(conn) as Conn)
-                            }
-                            Ok(n) => {
-                                let data = sniff_buf[..n].to_vec();
-                                let result = astra_core_sniffing::sniff(&data);
-                                let wrapped = astra_core_sniffing::SniffedStream::new(conn, data);
-                                (result, Box::new(wrapped) as Conn)
-                            }
-                        };
+                        let (sniff_result, conn) =
+                            match tokio::io::AsyncReadExt::read(&mut conn, &mut sniff_buf).await {
+                                Ok(0) | Err(_) => (
+                                    astra_core_sniffing::SniffResult::default(),
+                                    Box::new(conn) as Conn,
+                                ),
+                                Ok(n) => {
+                                    let data = sniff_buf[..n].to_vec();
+                                    let result = astra_core_sniffing::sniff(&data);
+                                    let wrapped =
+                                        astra_core_sniffing::SniffedStream::new(conn, data);
+                                    (result, Box::new(wrapped) as Conn)
+                                }
+                            };
 
                         // Wrap in TLS if configured
                         let conn = match tls {
-                            Some(ref tls_cfg) => {
-                                match Self::tls_wrap(conn, tls_cfg).await {
-                                    Ok(c) => c,
-                                    Err(e) => {
-                                        tracing::error!("tls wrap error: {}", e);
-                                        return;
-                                    }
+                            Some(ref tls_cfg) => match Self::tls_wrap(conn, tls_cfg).await {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    tracing::error!("tls wrap error: {}", e);
+                                    return;
                                 }
-                            }
+                            },
                             None => conn,
                         };
 
@@ -414,13 +424,13 @@ impl AlwaysOnInboundHandler {
                     .with_single_cert(vec![cert], key)
                     .map_err(|e| format!("tls config: {}", e))?;
 
-                let quic_tls: quinn::crypto::rustls::QuicServerConfig = tls_config
-                    .try_into()
-                    .map_err(|e: quinn::crypto::rustls::NoInitialCipherSuite| format!("QUIC TLS: {}", e))?;
+                let quic_tls: quinn::crypto::rustls::QuicServerConfig =
+                    tls_config.try_into().map_err(
+                        |e: quinn::crypto::rustls::NoInitialCipherSuite| format!("QUIC TLS: {}", e),
+                    )?;
 
-                let mut quic_server = quinn::ServerConfig::with_crypto(
-                    std::sync::Arc::new(quic_tls)
-                );
+                let mut quic_server =
+                    quinn::ServerConfig::with_crypto(std::sync::Arc::new(quic_tls));
                 let mut transport_cfg = quinn::TransportConfig::default();
                 transport_cfg.max_concurrent_bidi_streams(100u32.into());
                 quic_server.transport_config(std::sync::Arc::new(transport_cfg));
@@ -462,7 +472,10 @@ impl AlwaysOnInboundHandler {
                                                 content: None,
                                             };
 
-                                            if let Err(e) = proxy.process(session, Box::new(stream), dispatcher).await {
+                                            if let Err(e) = proxy
+                                                .process(session, Box::new(stream), dispatcher)
+                                                .await
+                                            {
                                                 tracing::error!("inbound process error: {}", e);
                                             }
                                         }
@@ -520,13 +533,8 @@ impl AlwaysOnInboundHandler {
                     });
                 });
 
-                astra_core_transport_h2::listener::serve_h2(
-                    &listen,
-                    cert_data,
-                    key_data,
-                    on_conn,
-                )
-                .await?;
+                astra_core_transport_h2::listener::serve_h2(&listen, cert_data, key_data, on_conn)
+                    .await?;
 
                 Ok(())
             }

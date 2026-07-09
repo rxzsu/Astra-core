@@ -25,14 +25,38 @@ pub fn SealVMessAEADHeader(key: &[u8; 16], data: &[u8]) -> Vec<u8> {
     let conn_nonce = rand_8_bytes();
 
     // Length AEAD
-    let len_key = KDF16(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_KEY, &auth_id, &conn_nonce]);
-    let len_iv = KDF(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_IV, &auth_id, &conn_nonce]);
+    let len_key = KDF16(
+        key,
+        &[
+            KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_KEY,
+            &auth_id,
+            &conn_nonce,
+        ],
+    );
+    let len_iv = KDF(
+        key,
+        &[
+            KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_IV,
+            &auth_id,
+            &conn_nonce,
+        ],
+    );
     let len_plain = (data.len() as u16).to_be_bytes();
     let len_cipher = aes_gcm_seal(&len_key, &len_iv[..12], &len_plain, &auth_id);
 
     // Payload AEAD
-    let payload_key = KDF16(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_KEY, &auth_id, &conn_nonce]);
-    let payload_iv = KDF(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_IV, &auth_id, &conn_nonce]);
+    let payload_key = KDF16(
+        key,
+        &[
+            KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_KEY,
+            &auth_id,
+            &conn_nonce,
+        ],
+    );
+    let payload_iv = KDF(
+        key,
+        &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_IV, &auth_id, &conn_nonce],
+    );
     let payload_cipher = aes_gcm_seal(&payload_key, &payload_iv[..12], data, &auth_id);
 
     let mut out = Vec::with_capacity(16 + 18 + 8 + payload_cipher.len());
@@ -67,8 +91,22 @@ pub fn OpenVMessAEADHeader(
     offset += 8;
 
     // Decrypt length
-    let len_key = KDF16(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_KEY, auth_id, conn_nonce]);
-    let len_iv = KDF(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_IV, auth_id, conn_nonce]);
+    let len_key = KDF16(
+        key,
+        &[
+            KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_KEY,
+            auth_id,
+            conn_nonce,
+        ],
+    );
+    let len_iv = KDF(
+        key,
+        &[
+            KDF_SALT_VMESS_HEADER_PAYLOAD_LENGTH_AEAD_IV,
+            auth_id,
+            conn_nonce,
+        ],
+    );
     let len_plain = aes_gcm_open(&len_key, &len_iv[..12], len_ct, auth_id)?;
     let payload_len = u16::from_be_bytes([len_plain[0], len_plain[1]]) as usize;
 
@@ -77,8 +115,14 @@ pub fn OpenVMessAEADHeader(
         return Err("truncated payload".to_string());
     }
     let payload_ct = &data[offset..offset + payload_len + 16];
-    let payload_key = KDF16(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_KEY, auth_id, conn_nonce]);
-    let payload_iv = KDF(key, &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_IV, auth_id, conn_nonce]);
+    let payload_key = KDF16(
+        key,
+        &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_KEY, auth_id, conn_nonce],
+    );
+    let payload_iv = KDF(
+        key,
+        &[KDF_SALT_VMESS_HEADER_PAYLOAD_AEAD_IV, auth_id, conn_nonce],
+    );
     let payload = aes_gcm_open(&payload_key, &payload_iv[..12], payload_ct, auth_id)?;
 
     let total_read = offset + payload_len + 16;
@@ -92,7 +136,12 @@ fn aes_gcm_seal(key: &[u8; 16], iv: &[u8], plaintext: &[u8], aad: &[u8]) -> Vec<
         .unwrap_or_else(|_| plaintext.to_vec())
 }
 
-fn aes_gcm_open(key: &[u8; 16], iv: &[u8], ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>, String> {
+fn aes_gcm_open(
+    key: &[u8; 16],
+    iv: &[u8],
+    ciphertext: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>, String> {
     let cipher = AesGcmCipher::new(key);
     cipher.open_with_nonce(&mut vec![], ciphertext, iv, aad)
 }
@@ -116,7 +165,8 @@ mod tests {
         let mut auth_id_arr = [0u8; 16];
         auth_id_arr.copy_from_slice(auth_id);
 
-        let (opened, _drain, _read) = OpenVMessAEADHeader(&key, &auth_id_arr, &sealed[16..]).unwrap();
+        let (opened, _drain, _read) =
+            OpenVMessAEADHeader(&key, &auth_id_arr, &sealed[16..]).unwrap();
         assert_eq!(opened, data);
     }
 

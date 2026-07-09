@@ -2,28 +2,37 @@ use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 
 use astra_core_config::Config;
-use astra_core_stats::StatsManager;
-use hex;
-use astra_core_config::proxy::{DokodemoConfig, FreedomConfig, VLessOutboundConfig, VLessInboundConfig, VMessOutboundConfig, VMessInboundConfig, ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig, HTTPInboundConfig, HTTPOutboundConfig, TrojanInboundConfig, TrojanOutboundConfig, DNSOutboundConfig};
+use astra_core_config::proxy::{
+    DNSOutboundConfig, DokodemoConfig, FreedomConfig, HTTPInboundConfig, HTTPOutboundConfig,
+    ShadowsocksInboundConfig, ShadowsocksOutboundConfig, SocksInboundConfig, SocksOutboundConfig,
+    TrojanInboundConfig, TrojanOutboundConfig, VLessInboundConfig, VLessOutboundConfig,
+    VMessInboundConfig, VMessOutboundConfig,
+};
 use astra_core_dispatcher::{DefaultDispatcher, DispatchHandler, HandlerProvider};
-use astra_core_dns::{DnsResolver, UdpDnsResolver, TcpDnsResolver, SimpleDnsResolver, FakeDnsResolver, DoHResolver, DoQResolver, NameServer, QueryStrategy, StaticHosts, parse_hosts};
-use astra_core_proxy_shadowsocks_2022 as ss2022;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::Engine;
+use astra_core_dns::{
+    DnsResolver, DoHResolver, DoQResolver, FakeDnsResolver, NameServer, QueryStrategy,
+    SimpleDnsResolver, StaticHosts, TcpDnsResolver, UdpDnsResolver, parse_hosts,
+};
+use astra_core_geodata::GeoDataManager;
 use astra_core_net::{self, Address, Destination, ParseAddress};
 use astra_core_proto::{ID, MemoryUser, SecurityType, UUID};
 use astra_core_proxy::{InboundHandler, OutboundHandler as OutboundHandlerTrait};
-use astra_core_proxyman::inbound::AlwaysOnInboundHandler;
+use astra_core_proxy_shadowsocks_2022 as ss2022;
+use astra_core_proxy_vless::Validator as VLessValidator;
 use astra_core_proxyman::inbound;
+use astra_core_proxyman::inbound::AlwaysOnInboundHandler;
 use astra_core_proxyman::outbound;
 use astra_core_proxyman::outbound::{MuxConfig, TlsConfig};
 use astra_core_proxyman::transport;
-use astra_core_proxy_vless::Validator as VLessValidator;
-use astra_core_geodata::GeoDataManager;
-use astra_core_routing::{Balancer, BalancerStrategy, DomainStrategy, DomainMatcher, IpMatcher, PortMatcher, InboundTagMatcher,
-    ProtocolMatcher, SourceIpMatcher, SourcePortMatcher, UserMatcher, NetworkMatcher,
-    ProcessNameMatcher, AttributeMatcher,
-    RouteRule, Router};
+use astra_core_routing::{
+    AttributeMatcher, Balancer, BalancerStrategy, DomainMatcher, DomainStrategy, InboundTagMatcher,
+    IpMatcher, NetworkMatcher, PortMatcher, ProcessNameMatcher, ProtocolMatcher, RouteRule, Router,
+    SourceIpMatcher, SourcePortMatcher, UserMatcher,
+};
+use astra_core_stats::StatsManager;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use hex;
 
 pub struct AppRuntime {
     pub dispatcher: Arc<DefaultDispatcher>,
@@ -65,8 +74,12 @@ fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
 
 fn parse_endpoint(s: &str) -> Result<(Address, u16), String> {
     let parts: Vec<&str> = s.rsplitn(2, ':').collect();
-    if parts.len() != 2 { return Err(format!("invalid endpoint: {}", s)); }
-    let port: u16 = parts[0].parse().map_err(|_| format!("invalid port in: {}", s))?;
+    if parts.len() != 2 {
+        return Err(format!("invalid endpoint: {}", s));
+    }
+    let port: u16 = parts[0]
+        .parse()
+        .map_err(|_| format!("invalid port in: {}", s))?;
     let host = parts[1];
     let addr = if let Ok(ip) = host.parse::<std::net::IpAddr>() {
         match ip {
@@ -88,7 +101,9 @@ fn parse_security(s: &str) -> SecurityType {
     }
 }
 
-fn parse_ss_cipher_type(method: &str) -> Result<astra_core_proxy_shadowsocks::protocol::CipherType, String> {
+fn parse_ss_cipher_type(
+    method: &str,
+) -> Result<astra_core_proxy_shadowsocks::protocol::CipherType, String> {
     match method {
         "aes-128-gcm" => Ok(astra_core_proxy_shadowsocks::protocol::CipherType::Aes128Gcm),
         "aes-256-gcm" => Ok(astra_core_proxy_shadowsocks::protocol::CipherType::Aes256Gcm),
@@ -117,15 +132,26 @@ pub fn build_outbound_handler(
                 .map_err(|e| format!("freedom config: {}", e))?
                 .unwrap_or_default();
 
-            use astra_core_proxy_freedom::{parse_packets, FragmentConfig};
+            use astra_core_proxy_freedom::{FragmentConfig, parse_packets};
             let fragment = cfg.fragment.as_ref().map(|f| {
                 let (pf, pt) = parse_packets(&f.packets);
-                let (lmin, lmax) = f.length.as_ref().map(|r| (r.from as u64, r.to as u64)).unwrap_or((1, 1));
-                let (imin, imax) = f.interval.as_ref().map(|r| (r.from as u64, r.to as u64)).unwrap_or((0, 0));
+                let (lmin, lmax) = f
+                    .length
+                    .as_ref()
+                    .map(|r| (r.from as u64, r.to as u64))
+                    .unwrap_or((1, 1));
+                let (imin, imax) = f
+                    .interval
+                    .as_ref()
+                    .map(|r| (r.from as u64, r.to as u64))
+                    .unwrap_or((0, 0));
                 FragmentConfig {
-                    packets_from: pf, packets_to: pt,
-                    length_min: lmin, length_max: lmax,
-                    interval_min: imin, interval_max: imax,
+                    packets_from: pf,
+                    packets_to: pt,
+                    length_min: lmin,
+                    length_max: lmax,
+                    interval_min: imin,
+                    interval_max: imax,
                     max_split_min: f.max_split_min.max(1),
                     max_split_max: f.max_split_max.max(1),
                 }
@@ -155,14 +181,19 @@ pub fn build_outbound_handler(
                 .map_err(|e| format!("vless config: {}", e))?
                 .ok_or_else(|| "vless outbound requires settings".to_string())?;
 
-            let vnext = cfg.vnext.first()
+            let vnext = cfg
+                .vnext
+                .first()
                 .ok_or_else(|| "vless outbound requires at least one vnext".to_string())?;
 
-            let user = vnext.users.first()
+            let user = vnext
+                .users
+                .first()
                 .ok_or_else(|| "vless outbound requires at least one user in vnext".to_string())?;
 
             let server_addr = convert_address(&vnext.address);
-            let server_dest = astra_core_net::TcpDestination(server_addr, astra_core_net::Port(vnext.port));
+            let server_dest =
+                astra_core_net::TcpDestination(server_addr, astra_core_net::Port(vnext.port));
 
             Arc::new(astra_core_proxy_vless::OutboundProxyHandler::new(
                 server_dest,
@@ -181,24 +212,37 @@ pub fn build_outbound_handler(
                 .map_err(|e| format!("vmess config: {}", e))?
                 .ok_or_else(|| "vmess outbound requires settings".to_string())?;
 
-            let vnext = cfg.vnext.first()
+            let vnext = cfg
+                .vnext
+                .first()
                 .ok_or_else(|| "vmess outbound requires at least one vnext".to_string())?;
 
-            let user_cfg = vnext.users.first()
+            let user_cfg = vnext
+                .users
+                .first()
                 .ok_or_else(|| "vmess outbound requires at least one user".to_string())?;
 
             let uuid = parse_uuid(&user_cfg.id)?;
             let id = ID::new(uuid);
             let security = parse_security(&user_cfg.security);
-            let account = Arc::new(astra_core_proxy_vmess::account::MemoryAccount::new(id, security, false, false));
+            let account = Arc::new(astra_core_proxy_vmess::account::MemoryAccount::new(
+                id, security, false, false,
+            ));
             let user = MemoryUser::new(user_cfg.level, user_cfg.email.clone(), Some(account));
 
             let server_addr = convert_address(&vnext.address);
-            let server_dest = astra_core_net::TcpDestination(server_addr.clone(), astra_core_net::Port(vnext.port));
+            let server_dest = astra_core_net::TcpDestination(
+                server_addr.clone(),
+                astra_core_net::Port(vnext.port),
+            );
 
             Arc::new(astra_core_proxy_vmess::outbound::Handler::new(
                 server_dest,
-                astra_core_proxy_vmess::outbound::OutboundConfig { user, address: server_addr, port: astra_core_net::Port(vnext.port) },
+                astra_core_proxy_vmess::outbound::OutboundConfig {
+                    user,
+                    address: server_addr,
+                    port: astra_core_net::Port(vnext.port),
+                },
             ))
         }
         "shadowsocks" => {
@@ -223,18 +267,30 @@ pub fn build_outbound_handler(
                 key,
             };
 
-            Arc::new(astra_core_proxy_shadowsocks::outbound::Handler::new(client_cfg))
+            Arc::new(astra_core_proxy_shadowsocks::outbound::Handler::new(
+                client_cfg,
+            ))
         }
         "shadowsocks-2022" => {
-            let settings = config.settings.as_ref().ok_or("ss2022 outbound requires settings")?;
-            let addr_str = settings.get("address").and_then(|v| v.as_str()).unwrap_or("");
+            let settings = config
+                .settings
+                .as_ref()
+                .ok_or("ss2022 outbound requires settings")?;
+            let addr_str = settings
+                .get("address")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let port = settings.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
-            let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("");
+            let method = settings
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let key_b64 = settings.get("key").and_then(|v| v.as_str()).unwrap_or("");
 
             let cipher = ss2022::protocol::CipherType::from_str(method)
                 .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
-            let key_raw = BASE64.decode(key_b64.as_bytes())
+            let key_raw = BASE64
+                .decode(key_b64.as_bytes())
                 .map_err(|e| format!("ss2022 key decode: {}", e))?;
             let key = ss2022::protocol::derive_master_key(&key_raw, cipher.key_size());
             let server_addr = match addr_str.parse::<std::net::IpAddr>() {
@@ -248,7 +304,8 @@ pub fn build_outbound_handler(
             Arc::new(ss2022::outbound::Handler::new(
                 server_addr,
                 astra_core_net::Port(port),
-                cipher, key,
+                cipher,
+                key,
             ))
         }
         "trojan" => {
@@ -319,9 +376,7 @@ pub fn build_outbound_handler(
 
             Arc::new(astra_core_proxy_dns::Handler::new(address, cfg.port)?)
         }
-        "blackhole" => {
-            Arc::new(astra_core_proxy_blackhole::Handler::new())
-        }
+        "blackhole" => Arc::new(astra_core_proxy_blackhole::Handler::new()),
         "loopback" => {
             let cfg: astra_core_config::proxy::LoopbackConfig = config
                 .settings
@@ -333,10 +388,8 @@ pub fn build_outbound_handler(
             if cfg.inbound_tag.is_empty() {
                 return Err("loopback outbound requires inbound_tag".into());
             }
-            let handler = astra_core_proxy_loopback::Handler::new(
-                cfg.inbound_tag,
-                dispatcher_cell.clone(),
-            );
+            let handler =
+                astra_core_proxy_loopback::Handler::new(cfg.inbound_tag, dispatcher_cell.clone());
             Arc::new(handler)
         }
         "reverse" => {
@@ -347,18 +400,30 @@ pub fn build_outbound_handler(
                 .transpose()
                 .map_err(|e| format!("reverse config: {}", e))?
                 .unwrap_or_default();
-            let portal = cfg.portals.first().ok_or("reverse outbound requires portal config")?;
+            let portal = cfg
+                .portals
+                .first()
+                .ok_or("reverse outbound requires portal config")?;
             Arc::new(astra_core_app_reverse::PortalHandler::new(
                 portal.tag.clone(),
                 portal.domain.clone(),
             ))
         }
         "wireguard" => {
-            let settings = config.settings.as_ref().ok_or("wireguard requires settings")?;
-            let private_key_b64 = settings.get("private_key").and_then(|v| v.as_str()).unwrap_or("");
-            let private_key = BASE64.decode(private_key_b64.as_bytes())
+            let settings = config
+                .settings
+                .as_ref()
+                .ok_or("wireguard requires settings")?;
+            let private_key_b64 = settings
+                .get("private_key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let private_key = BASE64
+                .decode(private_key_b64.as_bytes())
                 .map_err(|e| format!("wg key: {}", e))?;
-            if private_key.len() != 32 { return Err("wg private key must be 32 bytes".into()); }
+            if private_key.len() != 32 {
+                return Err("wg private key must be 32 bytes".into());
+            }
             let mut pk_arr = [0u8; 32];
             pk_arr.copy_from_slice(&private_key);
 
@@ -367,20 +432,32 @@ pub fn build_outbound_handler(
                 for p in peers_arr {
                     let ep = p.get("endpoint").and_then(|v| v.as_str()).unwrap_or("");
                     let pubkey_b64 = p.get("public_key").and_then(|v| v.as_str()).unwrap_or("");
-                    let pubkey_bytes = BASE64.decode(pubkey_b64.as_bytes())
+                    let pubkey_bytes = BASE64
+                        .decode(pubkey_b64.as_bytes())
                         .map_err(|e| format!("wg pubkey: {}", e))?;
-                    if pubkey_bytes.len() != 32 { return Err("wg pubkey must be 32 bytes".into()); }
+                    if pubkey_bytes.len() != 32 {
+                        return Err("wg pubkey must be 32 bytes".into());
+                    }
                     let mut public_key = [0u8; 32];
                     public_key.copy_from_slice(&pubkey_bytes);
 
-                    let psk_b64 = p.get("pre_shared_key").and_then(|v| v.as_str()).unwrap_or("");
+                    let psk_b64 = p
+                        .get("pre_shared_key")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
                     let pre_shared_key = if !psk_b64.is_empty() {
-                        let psk_bytes = BASE64.decode(psk_b64.as_bytes()).map_err(|e| format!("wg psk: {}", e))?;
-                        if psk_bytes.len() != 32 { return Err("wg psk must be 32 bytes".into()); }
+                        let psk_bytes = BASE64
+                            .decode(psk_b64.as_bytes())
+                            .map_err(|e| format!("wg psk: {}", e))?;
+                        if psk_bytes.len() != 32 {
+                            return Err("wg psk must be 32 bytes".into());
+                        }
                         let mut psk = [0u8; 32];
                         psk.copy_from_slice(&psk_bytes);
                         Some(psk)
-                    } else { None };
+                    } else {
+                        None
+                    };
 
                     let (ep_addr, ep_port) = parse_endpoint(ep)?;
                     let endpoint = format!("{}:{}", ep_addr, ep_port);
@@ -399,19 +476,48 @@ pub fn build_outbound_handler(
                     private_key: pk_arr,
                     listen_port: 0,
                     peers,
-                }
+                },
             ))
         }
         "hysteria" => {
-            let settings = config.settings.as_ref().ok_or("hysteria requires settings")?;
-            let password = settings.get("password").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let up = settings.get("up").and_then(|v| v.as_str()).unwrap_or("10 mbps").to_string();
-            let down = settings.get("down").and_then(|v| v.as_str()).unwrap_or("10 mbps").to_string();
-            let server = settings.get("server").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let server_name = settings.get("serverName").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let obfs = settings.get("obfs").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let settings = config
+                .settings
+                .as_ref()
+                .ok_or("hysteria requires settings")?;
+            let password = settings
+                .get("password")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let up = settings
+                .get("up")
+                .and_then(|v| v.as_str())
+                .unwrap_or("10 mbps")
+                .to_string();
+            let down = settings
+                .get("down")
+                .and_then(|v| v.as_str())
+                .unwrap_or("10 mbps")
+                .to_string();
+            let server = settings
+                .get("server")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let server_name = settings
+                .get("serverName")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let obfs = settings
+                .get("obfs")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let config = astra_core_proxy_hysteria::HysteriaConfig {
-                server: server.or_else(|| settings.get("address").and_then(|v| v.as_str()).map(|s| s.to_string())),
+                server: server.or_else(|| {
+                    settings
+                        .get("address")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                }),
                 server_name,
                 password,
                 up,
@@ -440,41 +546,48 @@ pub fn build_outbound_handler(
         if stream.security == "tls" {
             if let Some(ref tls_cfg) = stream.tls_settings {
                 let server_name = if tls_cfg.server_name.is_empty() {
-                    stream.address.as_ref().map(|a| a.0.clone()).unwrap_or_default()
+                    stream
+                        .address
+                        .as_ref()
+                        .map(|a| a.0.clone())
+                        .unwrap_or_default()
                 } else {
                     tls_cfg.server_name.clone()
                 };
-                ob_handler = ob_handler.with_tls(TlsConfig { server_name, allow_insecure: tls_cfg.allow_insecure });
-            }
-        } else if stream.security == "reality"
-            && let Some(ref _reality_cfg) = stream.reality_settings {
-                let server_name = if _reality_cfg.server_name.is_empty() {
-                    stream.address.as_ref().map(|a| a.0.clone()).unwrap_or_default()
-                } else {
-                    _reality_cfg.server_name.clone()
-                };
-                ob_handler = ob_handler.with_reality(outbound::RealityConfig {
+                ob_handler = ob_handler.with_tls(TlsConfig {
                     server_name,
-                    fingerprint: _reality_cfg.fingerprint.clone(),
-                    public_key: {
-                        
-                        hex::decode(&_reality_cfg.public_key).unwrap_or_default()
-                    },
-                    short_id: {
-                        
-                        hex::decode(&_reality_cfg.short_id).unwrap_or_default()
-                    },
+                    allow_insecure: tls_cfg.allow_insecure,
                 });
             }
+        } else if stream.security == "reality"
+            && let Some(ref _reality_cfg) = stream.reality_settings
+        {
+            let server_name = if _reality_cfg.server_name.is_empty() {
+                stream
+                    .address
+                    .as_ref()
+                    .map(|a| a.0.clone())
+                    .unwrap_or_default()
+            } else {
+                _reality_cfg.server_name.clone()
+            };
+            ob_handler = ob_handler.with_reality(outbound::RealityConfig {
+                server_name,
+                fingerprint: _reality_cfg.fingerprint.clone(),
+                public_key: { hex::decode(&_reality_cfg.public_key).unwrap_or_default() },
+                short_id: { hex::decode(&_reality_cfg.short_id).unwrap_or_default() },
+            });
+        }
     }
 
     if let Some(ref mux_cfg) = config.mux
-        && mux_cfg.enabled {
-            ob_handler = ob_handler.with_mux(MuxConfig {
-                enabled: true,
-                concurrency: mux_cfg.concurrency,
-            });
-        }
+        && mux_cfg.enabled
+    {
+        ob_handler = ob_handler.with_mux(MuxConfig {
+            enabled: true,
+            concurrency: mux_cfg.concurrency,
+        });
+    }
 
     Ok(Arc::new(ob_handler))
 }
@@ -483,9 +596,7 @@ fn get_listen_addr(ib: &astra_core_config::InboundDetourConfig) -> String {
     let port = ib
         .port
         .as_ref()
-        .and_then(|p| {
-            p.0.first().map(|r| r.from.to_string())
-        })
+        .and_then(|p| p.0.first().map(|r| r.from.to_string()))
         .unwrap_or_else(|| "0".to_string());
 
     if let Some(addr) = &ib.listen {
@@ -537,9 +648,14 @@ pub fn build_inbound_handler(
             for client in &cfg.clients {
                 let uuid = parse_uuid(&client.id)?;
                 let id = ID::new(uuid);
-                let account = Arc::new(astra_core_proxy_vless::MemoryAccount::new(id, client.flow.clone()));
+                let account = Arc::new(astra_core_proxy_vless::MemoryAccount::new(
+                    id,
+                    client.flow.clone(),
+                ));
                 let user = MemoryUser::new(client.level, client.email.clone(), Some(account));
-                validator.add(user).map_err(|e| format!("add vless user: {}", e))?;
+                validator
+                    .add(user)
+                    .map_err(|e| format!("add vless user: {}", e))?;
             }
 
             let getter: Arc<dyn astra_core_proxy_vless::UserGetter> = Arc::new(validator);
@@ -559,8 +675,14 @@ pub fn build_inbound_handler(
                 let uuid = parse_uuid(&client.id)?;
                 let id = ID::new(uuid);
                 let security = parse_security(&client.security);
-                let account = Arc::new(astra_core_proxy_vmess::account::MemoryAccount::new(id, security, false, false));
-                users.push(MemoryUser::new(client.level, client.email.clone(), Some(account)));
+                let account = Arc::new(astra_core_proxy_vmess::account::MemoryAccount::new(
+                    id, security, false, false,
+                ));
+                users.push(MemoryUser::new(
+                    client.level,
+                    client.email.clone(),
+                    Some(account),
+                ));
             }
 
             Arc::new(astra_core_proxy_vmess::inbound::Handler::new(
@@ -618,80 +740,137 @@ pub fn build_inbound_handler(
                 .map_err(|e| format!("shadowsocks inbound config: {}", e))?
                 .ok_or_else(|| "shadowsocks inbound requires settings".to_string())?;
 
-            let accounts: Vec<astra_core_proxy_shadowsocks::config::Account> = if cfg.users.is_empty() {
-                let method = if cfg.method.is_empty() { "aes-256-gcm" } else { &cfg.method };
-                let cipher_type = parse_ss_cipher_type(method)?;
-                let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
-                    cfg.password.as_bytes(),
-                    cipher_type.key_size(),
-                );
-                vec![astra_core_proxy_shadowsocks::config::Account {
-                    cipher_type,
-                    password: cfg.password.clone(),
-                    key,
-                }]
-            } else {
-                cfg.users
-                    .iter()
-                    .map(|u| {
-                        let method = if u.method.is_empty() { &cfg.method } else { &u.method };
-                        let method = if method.is_empty() { "aes-256-gcm" } else { method };
-                        let password = if u.password.is_empty() { &cfg.password } else { &u.password };
-                        let cipher_type = parse_ss_cipher_type(method)?;
-                        let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
-                            password.as_bytes(),
-                            cipher_type.key_size(),
-                        );
-                        Ok(astra_core_proxy_shadowsocks::config::Account {
-                            cipher_type,
-                            password: password.clone(),
-                            key,
+            let accounts: Vec<astra_core_proxy_shadowsocks::config::Account> =
+                if cfg.users.is_empty() {
+                    let method = if cfg.method.is_empty() {
+                        "aes-256-gcm"
+                    } else {
+                        &cfg.method
+                    };
+                    let cipher_type = parse_ss_cipher_type(method)?;
+                    let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
+                        cfg.password.as_bytes(),
+                        cipher_type.key_size(),
+                    );
+                    vec![astra_core_proxy_shadowsocks::config::Account {
+                        cipher_type,
+                        password: cfg.password.clone(),
+                        key,
+                    }]
+                } else {
+                    cfg.users
+                        .iter()
+                        .map(|u| {
+                            let method = if u.method.is_empty() {
+                                &cfg.method
+                            } else {
+                                &u.method
+                            };
+                            let method = if method.is_empty() {
+                                "aes-256-gcm"
+                            } else {
+                                method
+                            };
+                            let password = if u.password.is_empty() {
+                                &cfg.password
+                            } else {
+                                &u.password
+                            };
+                            let cipher_type = parse_ss_cipher_type(method)?;
+                            let key = astra_core_proxy_shadowsocks::protocol::password_to_key(
+                                password.as_bytes(),
+                                cipher_type.key_size(),
+                            );
+                            Ok(astra_core_proxy_shadowsocks::config::Account {
+                                cipher_type,
+                                password: password.clone(),
+                                key,
+                            })
                         })
-                    })
-                    .collect::<Result<Vec<_>, String>>()?
-            };
+                        .collect::<Result<Vec<_>, String>>()?
+                };
 
             let server_cfg = astra_core_proxy_shadowsocks::config::ServerConfig {
                 users: accounts,
                 network: cfg.network.map(|n| n.0).unwrap_or_default(),
             };
 
-            Arc::new(astra_core_proxy_shadowsocks::inbound::Handler::new(server_cfg))
+            Arc::new(astra_core_proxy_shadowsocks::inbound::Handler::new(
+                server_cfg,
+            ))
         }
         "shadowsocks-2022" => {
-            let settings = config.settings.as_ref().ok_or("ss2022 inbound requires settings")?;
+            let settings = config
+                .settings
+                .as_ref()
+                .ok_or("ss2022 inbound requires settings")?;
 
             // Check for relay config (destinations array)
             if let Some(dests) = settings.get("destinations").and_then(|v| v.as_array()) {
-                let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("2022-blake3-aes-256-gcm");
-                let cipher = astra_core_proxy_shadowsocks_2022::protocol::CipherType::from_str(method)
-                    .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
+                let method = settings
+                    .get("method")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("2022-blake3-aes-256-gcm");
+                let cipher =
+                    astra_core_proxy_shadowsocks_2022::protocol::CipherType::from_str(method)
+                        .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
                 use base64::Engine;
                 let mut destinations = Vec::new();
                 for d in dests {
                     let key_b64 = d.get("key").and_then(|v| v.as_str()).unwrap_or("");
-                    let key_raw = base64::engine::general_purpose::STANDARD.decode(key_b64.as_bytes())
+                    let key_raw = base64::engine::general_purpose::STANDARD
+                        .decode(key_b64.as_bytes())
                         .map_err(|e| format!("dest key decode: {}", e))?;
-                    let key = astra_core_proxy_shadowsocks_2022::protocol::derive_master_key(&key_raw, cipher.key_size());
-                    let address = d.get("address").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let key = astra_core_proxy_shadowsocks_2022::protocol::derive_master_key(
+                        &key_raw,
+                        cipher.key_size(),
+                    );
+                    let address = d
+                        .get("address")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     let port = d.get("port").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
-                    destinations.push(astra_core_proxy_shadowsocks_2022::inbound::RelayDestination {
-                        key, address, port,
-                        email: d.get("email").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    });
+                    destinations.push(
+                        astra_core_proxy_shadowsocks_2022::inbound::RelayDestination {
+                            key,
+                            address,
+                            port,
+                            email: d
+                                .get("email")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                        },
+                    );
                 }
-                Arc::new(astra_core_proxy_shadowsocks_2022::inbound::RelayInbound::new(cipher, destinations))
+                Arc::new(
+                    astra_core_proxy_shadowsocks_2022::inbound::RelayInbound::new(
+                        cipher,
+                        destinations,
+                    ),
+                )
             } else {
                 // Single user inbound
-                let method = settings.get("method").and_then(|v| v.as_str()).unwrap_or("2022-blake3-aes-256-gcm");
+                let method = settings
+                    .get("method")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("2022-blake3-aes-256-gcm");
                 let key_b64 = settings.get("key").and_then(|v| v.as_str()).unwrap_or("");
-                let cipher = astra_core_proxy_shadowsocks_2022::protocol::CipherType::from_str(method)
-                    .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
+                let cipher =
+                    astra_core_proxy_shadowsocks_2022::protocol::CipherType::from_str(method)
+                        .ok_or_else(|| format!("unsupported ss2022 method: {}", method))?;
                 use base64::Engine;
-                let key_raw = base64::engine::general_purpose::STANDARD.decode(key_b64.as_bytes())
+                let key_raw = base64::engine::general_purpose::STANDARD
+                    .decode(key_b64.as_bytes())
                     .map_err(|e| format!("ss2022 key decode: {}", e))?;
-                let key = astra_core_proxy_shadowsocks_2022::protocol::derive_master_key(&key_raw, cipher.key_size());
-                Arc::new(astra_core_proxy_shadowsocks_2022::inbound::Handler::new(cipher, key))
+                let key = astra_core_proxy_shadowsocks_2022::protocol::derive_master_key(
+                    &key_raw,
+                    cipher.key_size(),
+                );
+                Arc::new(astra_core_proxy_shadowsocks_2022::inbound::Handler::new(
+                    cipher, key,
+                ))
             }
         }
         "trojan" => {
@@ -716,23 +895,33 @@ pub fn build_inbound_handler(
                     name: f.name.clone(),
                     alpn: f.alpn.clone(),
                     path: f.path.clone(),
-                    dest: f.dest.as_ref().and_then(|d| d.as_str()).map(|s| s.to_string()).unwrap_or_default(),
+                    dest: f
+                        .dest
+                        .as_ref()
+                        .and_then(|d| d.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_default(),
                     xver: f.xver,
                 })
                 .collect();
 
-            let server_cfg = astra_core_proxy_trojan::config::ServerConfig { users: accounts, fallbacks };
+            let server_cfg = astra_core_proxy_trojan::config::ServerConfig {
+                users: accounts,
+                fallbacks,
+            };
 
             Arc::new(astra_core_proxy_trojan::inbound::Handler::new(server_cfg))
         }
         "hysteria" => {
-            let password = config.settings
+            let password = config
+                .settings
                 .as_ref()
                 .and_then(|s| s.get("password"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let obfs = config.settings
+            let obfs = config
+                .settings
                 .as_ref()
                 .and_then(|s| s.get("obfs"))
                 .and_then(|v| v.as_str())
@@ -751,13 +940,15 @@ pub fn build_inbound_handler(
 
     // If hysteria, set up hysteria-specific config
     if config.protocol == "hysteria" {
-        let password = config.settings
+        let password = config
+            .settings
             .as_ref()
             .and_then(|s| s.get("password"))
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let obfs = config.settings
+        let obfs = config
+            .settings
             .as_ref()
             .and_then(|s| s.get("obfs"))
             .and_then(|v| v.as_str())
@@ -768,14 +959,19 @@ pub fn build_inbound_handler(
     // Determine listen network from protocol config
     if let Some(settings) = config.settings.as_ref() {
         if let Some(network_str) = settings.get("network").and_then(|v| v.as_str()) {
-            handler = handler.with_network(astra_core_proxyman::inbound::ListenNetwork::from_str(network_str));
+            handler = handler.with_network(astra_core_proxyman::inbound::ListenNetwork::from_str(
+                network_str,
+            ));
         } else if let Some(networks) = settings.get("network").and_then(|v| v.as_array()) {
-            let joined: String = networks.iter()
+            let joined: String = networks
+                .iter()
                 .filter_map(|v| v.as_str())
                 .collect::<Vec<_>>()
                 .join(",");
             if !joined.is_empty() {
-                handler = handler.with_network(astra_core_proxyman::inbound::ListenNetwork::from_str(&joined));
+                handler = handler.with_network(
+                    astra_core_proxyman::inbound::ListenNetwork::from_str(&joined),
+                );
             }
         }
     }
@@ -788,24 +984,33 @@ pub fn build_inbound_handler(
 
         if (stream.security == "tls" || stream.security == "reality")
             && let Some(ref tls_cfg) = stream.tls_settings
-                && let Some(cert) = tls_cfg.certificates.first() {
-                    let cert_data = if !cert.certificate.is_empty() {
-                        cert.certificate.join("\n").into_bytes()
-                    } else {
-                        Vec::new()
-                    };
-                    let key_data = if !cert.key.is_empty() {
-                        cert.key.join("\n").into_bytes()
-                    } else {
-                        Vec::new()
-                    };
-                    handler = handler.with_tls(inbound::TlsConfig {
-                        cert_file: if cert.certificate_file.is_empty() { None } else { Some(cert.certificate_file.clone()) },
-                        key_file: if cert.key_file.is_empty() { None } else { Some(cert.key_file.clone()) },
-                        cert_data,
-                        key_data,
-                    });
-                }
+            && let Some(cert) = tls_cfg.certificates.first()
+        {
+            let cert_data = if !cert.certificate.is_empty() {
+                cert.certificate.join("\n").into_bytes()
+            } else {
+                Vec::new()
+            };
+            let key_data = if !cert.key.is_empty() {
+                cert.key.join("\n").into_bytes()
+            } else {
+                Vec::new()
+            };
+            handler = handler.with_tls(inbound::TlsConfig {
+                cert_file: if cert.certificate_file.is_empty() {
+                    None
+                } else {
+                    Some(cert.certificate_file.clone())
+                },
+                key_file: if cert.key_file.is_empty() {
+                    None
+                } else {
+                    Some(cert.key_file.clone())
+                },
+                cert_data,
+                key_data,
+            });
+        }
     }
 
     Ok(handler)
@@ -822,11 +1027,17 @@ fn expand_geoip_entry(code: &str, geo: &GeoDataManager) -> Result<Vec<String>, S
             "fd00::/8".into(),
         ]);
     }
-    let entry = geo.geoip.get(&uc).ok_or_else(|| format!("geoip code not found: {}", code))?;
+    let entry = geo
+        .geoip
+        .get(&uc)
+        .ok_or_else(|| format!("geoip code not found: {}", code))?;
     let mut cidrs = Vec::with_capacity(entry.cidr.len());
     for c in &entry.cidr {
         if c.ip.len() == 4 {
-            cidrs.push(format!("{}.{}.{}.{}/{}", c.ip[0], c.ip[1], c.ip[2], c.ip[3], c.prefix));
+            cidrs.push(format!(
+                "{}.{}.{}.{}/{}",
+                c.ip[0], c.ip[1], c.ip[2], c.ip[3], c.prefix
+            ));
         } else if c.ip.len() == 16 {
             let ip = std::net::Ipv6Addr::new(
                 ((c.ip[0] as u16) << 8) | c.ip[1] as u16,
@@ -846,7 +1057,10 @@ fn expand_geoip_entry(code: &str, geo: &GeoDataManager) -> Result<Vec<String>, S
 
 fn expand_geosite_entry(code: &str, geo: &GeoDataManager) -> Result<Vec<String>, String> {
     let uc = code.to_uppercase();
-    let site = geo.geosite.get(&uc).ok_or_else(|| format!("geosite code not found: {}", code))?;
+    let site = geo
+        .geosite
+        .get(&uc)
+        .ok_or_else(|| format!("geosite code not found: {}", code))?;
     let mut patterns = Vec::with_capacity(site.domains.len());
     for d in &site.domains {
         let val = &d.value;
@@ -870,7 +1084,11 @@ fn build_router(config: &Config, geo: &GeoDataManager) -> Result<Router, String>
     let mut rules: Vec<RouteRule> = Vec::new();
     for (i, rule_cfg) in rules_cfg.iter().enumerate() {
         let tag = format!("rule-{}", i);
-        let mut rule = RouteRule::new(tag, rule_cfg.outbound_tag.clone(), rule_cfg.balancer_tag.clone());
+        let mut rule = RouteRule::new(
+            tag,
+            rule_cfg.outbound_tag.clone(),
+            rule_cfg.balancer_tag.clone(),
+        );
 
         let domain_list = rule_cfg.domain.as_ref().or(rule_cfg.domains.as_ref());
         if let Some(domains) = domain_list {
@@ -934,15 +1152,16 @@ fn build_router(config: &Config, geo: &GeoDataManager) -> Result<Router, String>
 
         // Attribute matching (Go: app/router/condition.go AttributeMatcher)
         if let Some(attrs) = &rule_cfg.attrs
-            && let Some(obj) = attrs.as_object() {
-                let mut attr_map = std::collections::HashMap::new();
-                for (k, v) in obj {
-                    if let Some(s) = v.as_str() {
-                        attr_map.insert(k.clone(), s.to_string());
-                    }
+            && let Some(obj) = attrs.as_object()
+        {
+            let mut attr_map = std::collections::HashMap::new();
+            for (k, v) in obj {
+                if let Some(s) = v.as_str() {
+                    attr_map.insert(k.clone(), s.to_string());
                 }
-                rule.add_condition(Box::new(AttributeMatcher::new(&attr_map)));
             }
+            rule.add_condition(Box::new(AttributeMatcher::new(&attr_map)));
+        }
 
         if !rule.conditions.is_empty() {
             rules.push(rule);
@@ -956,10 +1175,14 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let mut geo_manager = GeoDataManager::new();
     if let Some(ref routing) = config.routing {
         if !routing.geoip_dat_path.is_empty() {
-            geo_manager.load(&routing.geoip_dat_path).map_err(|e| format!("load geoip: {}", e))?;
+            geo_manager
+                .load(&routing.geoip_dat_path)
+                .map_err(|e| format!("load geoip: {}", e))?;
         }
         if !routing.geosite_dat_path.is_empty() {
-            geo_manager.load(&routing.geosite_dat_path).map_err(|e| format!("load geosite: {}", e))?;
+            geo_manager
+                .load(&routing.geosite_dat_path)
+                .map_err(|e| format!("load geosite: {}", e))?;
         }
     }
     let router = Arc::new(build_router(config, &geo_manager)?);
@@ -986,17 +1209,24 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
         }
     }
 
-    let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider { manager: ob_manager.clone() });
+    let handler_provider: Arc<dyn HandlerProvider> = Arc::new(Provider {
+        manager: ob_manager.clone(),
+    });
 
     let dns_cfg = config.dns.as_ref();
-    let hosts = dns_cfg.map(|d| parse_hosts(d.hosts.as_ref())).transpose()?.unwrap_or(StaticHosts::new());
+    let hosts = dns_cfg
+        .map(|d| parse_hosts(d.hosts.as_ref()))
+        .transpose()?
+        .unwrap_or(StaticHosts::new());
     let query_strategy = dns_cfg
         .map(|d| QueryStrategy::from_str(&d.query_strategy))
         .unwrap_or_default();
     let disable_cache = dns_cfg.map(|d| d.disable_cache).unwrap_or(false);
     let enable_parallel = dns_cfg.map(|d| d.enable_parallel_query).unwrap_or(false);
     let disable_fallback = dns_cfg.map(|d| d.disable_fallback).unwrap_or(false);
-    let disable_fallback_if_match = dns_cfg.map(|d| d.disable_fallback_if_match).unwrap_or(false);
+    let disable_fallback_if_match = dns_cfg
+        .map(|d| d.disable_fallback_if_match)
+        .unwrap_or(false);
 
     let dns_resolver: Option<Arc<dyn DnsResolver>> = if let Some(dns) = dns_cfg {
         if !dns.servers.is_empty() {
@@ -1014,7 +1244,12 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                         expected_ips.push(ip);
                     }
                 }
-                let client_ip = sv.client_ip.as_ref().map(|a| a.0.parse::<std::net::IpAddr>()).transpose().map_err(|e| format!("invalid client_ip: {}", e))?;
+                let client_ip = sv
+                    .client_ip
+                    .as_ref()
+                    .map(|a| a.0.parse::<std::net::IpAddr>())
+                    .transpose()
+                    .map_err(|e| format!("invalid client_ip: {}", e))?;
                 let raw = sv.address.0.clone();
                 let (protocol, addr) = if let Some(rest) = raw.strip_prefix("https://") {
                     use_doh = true;
@@ -1052,7 +1287,11 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
                     addr
                 };
                 nameservers.push(NameServer {
-                    address: if protocol == "doh" || protocol == "doq" { addr_with_port } else { format!("{}:{}", addr_with_port, port) },
+                    address: if protocol == "doh" || protocol == "doq" {
+                        addr_with_port
+                    } else {
+                        format!("{}:{}", addr_with_port, port)
+                    },
                     port,
                     protocol,
                     domains: sv.domains.0.clone(),
@@ -1065,21 +1304,38 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
             }
             if use_doq {
                 Some(Arc::new(DoQResolver::new(
-                    doq_endpoint, hosts, query_strategy, disable_cache,
+                    doq_endpoint,
+                    hosts,
+                    query_strategy,
+                    disable_cache,
                 )) as Arc<dyn DnsResolver>)
             } else if use_doh {
                 Some(Arc::new(DoHResolver::new(
-                    doh_url, nameservers, hosts, query_strategy, disable_cache,
+                    doh_url,
+                    nameservers,
+                    hosts,
+                    query_strategy,
+                    disable_cache,
                 )) as Arc<dyn DnsResolver>)
             } else if use_tcp {
                 Some(Arc::new(TcpDnsResolver::new(
-                    nameservers, hosts, query_strategy,
-                    disable_cache, enable_parallel, disable_fallback, disable_fallback_if_match,
+                    nameservers,
+                    hosts,
+                    query_strategy,
+                    disable_cache,
+                    enable_parallel,
+                    disable_fallback,
+                    disable_fallback_if_match,
                 )) as Arc<dyn DnsResolver>)
             } else {
                 Some(Arc::new(UdpDnsResolver::new(
-                    nameservers, hosts, query_strategy,
-                    disable_cache, enable_parallel, disable_fallback, disable_fallback_if_match,
+                    nameservers,
+                    hosts,
+                    query_strategy,
+                    disable_cache,
+                    enable_parallel,
+                    disable_fallback,
+                    disable_fallback_if_match,
                 )) as Arc<dyn DnsResolver>)
             }
         } else {
@@ -1093,12 +1349,20 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let mut balancers = std::collections::HashMap::new();
     if let Some(ref routing) = config.routing {
         for br in &routing.balancers {
-            let strategy = br.strategy.r#type.parse::<BalancerStrategy>().unwrap_or_default();
+            let strategy = br
+                .strategy
+                .r#type
+                .parse::<BalancerStrategy>()
+                .unwrap_or_default();
             let balancer = Balancer::new(
                 br.tag.clone(),
                 br.selector.0.clone(),
                 strategy,
-                if br.fallback_tag.is_empty() { None } else { Some(br.fallback_tag.clone()) },
+                if br.fallback_tag.is_empty() {
+                    None
+                } else {
+                    Some(br.fallback_tag.clone())
+                },
             );
             balancers.insert(br.tag.clone(), balancer);
         }
@@ -1106,34 +1370,40 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
 
     // Start observatory if configured — injects alive tracking into each balancer
     if let Some(ref obs_cfg) = config.observatory
-        && obs_cfg.enable && !obs_cfg.selector.is_empty() {
-            let alive_tags: Arc<RwLock<HashSet<String>>> = Arc::new(RwLock::new(HashSet::new()));
-            for tag in &obs_cfg.selector {
-                alive_tags.write().unwrap().insert(tag.clone());
-            }
-
-            let interval = if obs_cfg.probe_interval > 0 { obs_cfg.probe_interval as u64 } else { 10 };
-            let probe = astra_core_observatory::ProbeMethod::from_config(
-                &obs_cfg.probe_type,
-                obs_cfg.probe_url.as_deref(),
-            );
-
-            // Attach alive set to each balancer whose selector overlaps
-            for b in balancers.values_mut() {
-                if obs_cfg.selector.iter().any(|t| b.selector.contains(t)) {
-                    *b = b.clone().with_alive(alive_tags.clone());
-                }
-            }
-
-            let observatory = astra_core_observatory::Observatory::with_probe(
-                obs_cfg.selector.clone(),
-                alive_tags,
-                probe,
-                interval,
-            );
-
-            observatory.start();
+        && obs_cfg.enable
+        && !obs_cfg.selector.is_empty()
+    {
+        let alive_tags: Arc<RwLock<HashSet<String>>> = Arc::new(RwLock::new(HashSet::new()));
+        for tag in &obs_cfg.selector {
+            alive_tags.write().unwrap().insert(tag.clone());
         }
+
+        let interval = if obs_cfg.probe_interval > 0 {
+            obs_cfg.probe_interval as u64
+        } else {
+            10
+        };
+        let probe = astra_core_observatory::ProbeMethod::from_config(
+            &obs_cfg.probe_type,
+            obs_cfg.probe_url.as_deref(),
+        );
+
+        // Attach alive set to each balancer whose selector overlaps
+        for b in balancers.values_mut() {
+            if obs_cfg.selector.iter().any(|t| b.selector.contains(t)) {
+                *b = b.clone().with_alive(alive_tags.clone());
+            }
+        }
+
+        let observatory = astra_core_observatory::Observatory::with_probe(
+            obs_cfg.selector.clone(),
+            alive_tags,
+            probe,
+            interval,
+        );
+
+        observatory.start();
+    }
 
     let mut dispatcher = DefaultDispatcher::new(router, handler_provider);
     if let Some(resolver) = dns_resolver {
@@ -1156,10 +1426,8 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     // Initialize reverse proxy bridges
     if let Some(ref rev) = config.reverse {
         for b_cfg in &rev.bridges {
-            let _bridge = astra_core_app_reverse::Bridge::new(
-                b_cfg.tag.clone(),
-                b_cfg.domain.clone(),
-            );
+            let _bridge =
+                astra_core_app_reverse::Bridge::new(b_cfg.tag.clone(), b_cfg.domain.clone());
             // Bridge will be started when AppRuntime runs
         }
     }
@@ -1173,17 +1441,30 @@ pub fn build_config(config: &Config) -> Result<AppRuntime, String> {
     let stats_manager = Arc::new(StatsManager::new());
 
     let metrics_addr = if config.stats.is_some() {
-        if config.api.as_ref().map(|a| !a.listen.is_empty()).unwrap_or(false) {
+        if config
+            .api
+            .as_ref()
+            .map(|a| !a.listen.is_empty())
+            .unwrap_or(false)
+        {
             // Derive metrics port from API port + 1
             let api_addr = config.api.as_ref().unwrap();
             if let Some(port_end) = api_addr.listen.rfind(':') {
                 let base = &api_addr.listen[..port_end + 1];
                 if let Ok(port) = api_addr.listen[port_end + 1..].parse::<u16>() {
                     Some(format!("{}{}", base, port + 1))
-                } else { Some("0.0.0.0:8080".into()) }
-            } else { Some("0.0.0.0:8080".into()) }
-        } else { Some("0.0.0.0:8080".into()) }
-    } else { None };
+                } else {
+                    Some("0.0.0.0:8080".into())
+                }
+            } else {
+                Some("0.0.0.0:8080".into())
+            }
+        } else {
+            Some("0.0.0.0:8080".into())
+        }
+    } else {
+        None
+    };
 
     Ok(AppRuntime {
         dispatcher,

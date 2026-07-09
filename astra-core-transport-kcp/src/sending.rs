@@ -227,7 +227,9 @@ impl SendingWorker {
         }
 
         let mut cwnd = config.sending_in_flight_size();
-        let window_gap = self.remote_next_number.wrapping_sub(self.first_unacknowledged);
+        let window_gap = self
+            .remote_next_number
+            .wrapping_sub(self.first_unacknowledged);
         if cwnd > window_gap {
             cwnd = window_gap;
         }

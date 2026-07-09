@@ -79,7 +79,9 @@ impl OnlineMap {
         let now = Instant::now();
         map.retain(|_, e| now.duration_since(e.last_seen) < self.ttl);
         for entry in map.values_mut() {
-            entry.ips.retain(|ip| now.duration_since(ip.last_access) < self.ttl);
+            entry
+                .ips
+                .retain(|ip| now.duration_since(ip.last_access) < self.ttl);
         }
     }
 
@@ -99,14 +101,14 @@ mod tests {
         let addr: SocketAddr = "1.2.3.4:56789".parse().unwrap();
         map.record_access("user@test.com", addr, 100, 50);
         assert_eq!(map.count(), 1);
-        
+
         let ips = map.get_user_ips("user@test.com");
         assert_eq!(ips.len(), 1);
         assert_eq!(ips[0].uplink, 100);
-        
+
         let all = map.get_all_users();
         assert_eq!(all.len(), 1);
-        
+
         map.cleanup();
         assert_eq!(map.count(), 1); // still within TTL
     }

@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 
 use crate::buffer::{Buffer, SIZE};
-use crate::io::{read_one_buffer, Reader};
+use crate::io::{Reader, read_one_buffer};
 use crate::multi_buffer::MultiBuffer;
 
 pub struct SingleReader {
@@ -10,9 +10,7 @@ pub struct SingleReader {
 
 impl SingleReader {
     pub fn new(r: impl Read + 'static) -> Self {
-        SingleReader {
-            inner: Box::new(r),
-        }
+        SingleReader { inner: Box::new(r) }
     }
 }
 
@@ -37,7 +35,10 @@ pub struct ReadVReader {
 
 impl ReadVReader {
     pub fn new(r: impl Read + 'static) -> Self {
-        ReadVReader { inner: Box::new(r), alloc_level: 1 }
+        ReadVReader {
+            inner: Box::new(r),
+            alloc_level: 1,
+        }
     }
 
     fn adjust(&mut self, n_bufs: u32) {
@@ -143,7 +144,9 @@ fn platform_readv(reader: &mut dyn Read, bufs: &mut [Buffer]) -> io::Result<usiz
         };
         bufs[i].set_end(len);
         total += len;
-        if len < bufs[i].writable_mut().len() { break; }
+        if len < bufs[i].writable_mut().len() {
+            break;
+        }
     }
     Ok(total)
 }
@@ -154,9 +157,7 @@ pub struct PacketReader {
 
 impl PacketReader {
     pub fn new(r: impl Read + 'static) -> Self {
-        PacketReader {
-            inner: Box::new(r),
-        }
+        PacketReader { inner: Box::new(r) }
     }
 
     fn read_one_udp(&mut self) -> io::Result<Option<MultiBuffer>> {
@@ -176,7 +177,9 @@ impl Reader for PacketReader {
                     }
                     continue;
                 }
-                result => return result.ok_or_else(|| io::Error::from(io::ErrorKind::UnexpectedEof)),
+                result => {
+                    return result.ok_or_else(|| io::Error::from(io::ErrorKind::UnexpectedEof));
+                }
             }
         }
     }

@@ -1,7 +1,7 @@
 use astra_core_net::{Address, Destination, Port};
 use astra_core_proto::{MemoryUser, RequestCommand, RequestHeader, SecurityType};
-use astra_core_proxy::{async_trait, OutboundHandler as OutboundHandlerTrait, ProxyResult};
 use astra_core_proxy::Dialer;
+use astra_core_proxy::{OutboundHandler as OutboundHandlerTrait, ProxyResult, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -83,7 +83,11 @@ impl OutboundHandlerTrait for Handler {
         let mut remote = dialer.dial(session, self.server.clone()).await?;
         let (mut remote_reader, mut remote_writer) = tokio::io::split(&mut *remote);
 
-        let cmd_key = self.config.user.account.as_ref()
+        let cmd_key = self
+            .config
+            .user
+            .account
+            .as_ref()
             .and_then(|a| a.as_any().downcast_ref::<crate::account::MemoryAccount>())
             .map(|acc| *acc.id.cmd_key())
             .unwrap_or([0u8; 16]);
@@ -95,11 +99,15 @@ impl OutboundHandlerTrait for Handler {
             port: self.config.port,
         });
         let request_bytes = inner.build_request(&cmd_key, &target);
-        remote_writer.write_all(&request_bytes).await
+        remote_writer
+            .write_all(&request_bytes)
+            .await
             .map_err(|e| format!("write vmess header: {}", e))?;
 
         let mut resp_buf = vec![0u8; 1024];
-        let n = remote_reader.read(&mut resp_buf).await
+        let n = remote_reader
+            .read(&mut resp_buf)
+            .await
             .map_err(|e| format!("read vmess response: {}", e))?;
         resp_buf.truncate(n);
         client.DecodeResponseHeader(&resp_buf)?;

@@ -28,11 +28,7 @@ impl Default for Config {
 impl Config {
     pub fn sending_in_flight_size(&self) -> u32 {
         let size = self.uplink_capacity * 1024 * 1024 / self.mtu / (1000 / self.tti);
-        if size < 8 {
-            8
-        } else {
-            size
-        }
+        if size < 8 { 8 } else { size }
     }
 
     pub fn sending_buffer_size(&self) -> u32 {
@@ -41,11 +37,7 @@ impl Config {
 
     pub fn receiving_in_flight_size(&self) -> u32 {
         let size = self.downlink_capacity * 1024 * 1024 / self.mtu / (1000 / self.tti);
-        if size < 8 {
-            8
-        } else {
-            size
-        }
+        if size < 8 { 8 } else { size }
     }
 
     pub fn mss(&self) -> u32 {

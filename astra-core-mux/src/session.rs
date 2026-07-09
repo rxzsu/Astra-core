@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
-use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
+use tokio::sync::mpsc;
 
 /// Configuration for mux client strategy.
 #[derive(Debug, Clone)]

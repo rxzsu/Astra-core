@@ -40,7 +40,9 @@ pub struct PeerTracker {
 
 impl PeerTracker {
     pub fn new() -> Self {
-        PeerTracker { peers: Arc::new(Mutex::new(HashMap::new())) }
+        PeerTracker {
+            peers: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     pub fn add(&self, addr: SocketAddr) {

@@ -14,10 +14,7 @@ pub struct SplitConn {
 }
 
 impl SplitConn {
-    pub fn new(
-        read_rx: mpsc::Receiver<Vec<u8>>,
-        write_tx: mpsc::Sender<Vec<u8>>,
-    ) -> Self {
+    pub fn new(read_rx: mpsc::Receiver<Vec<u8>>, write_tx: mpsc::Sender<Vec<u8>>) -> Self {
         Self {
             read_rx,
             write_tx,
@@ -59,9 +56,7 @@ impl AsyncRead for SplitConn {
                 cx.waker().wake_by_ref();
                 Poll::Pending
             }
-            Err(mpsc::error::TryRecvError::Disconnected) => {
-                Poll::Ready(Ok(()))
-            }
+            Err(mpsc::error::TryRecvError::Disconnected) => Poll::Ready(Ok(())),
         }
     }
 }
@@ -79,12 +74,10 @@ impl AsyncWrite for SplitConn {
                 cx.waker().wake_by_ref();
                 Poll::Pending
             }
-            Err(mpsc::error::TrySendError::Closed(_)) => {
-                Poll::Ready(Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "write channel closed",
-                )))
-            }
+            Err(mpsc::error::TrySendError::Closed(_)) => Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "write channel closed",
+            ))),
         }
     }
 

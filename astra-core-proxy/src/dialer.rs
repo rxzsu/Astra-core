@@ -10,9 +10,5 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncConn for T {}
 
 #[async_trait::async_trait]
 pub trait Dialer: Send + Sync {
-    async fn dial(
-        &self,
-        session: Session,
-        dest: Destination,
-    ) -> ProxyResult<Box<dyn AsyncConn>>;
+    async fn dial(&self, session: Session, dest: Destination) -> ProxyResult<Box<dyn AsyncConn>>;
 }

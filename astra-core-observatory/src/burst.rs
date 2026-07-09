@@ -54,7 +54,10 @@ impl HealthPingRTTS {
     pub fn new(cap: usize, validity: Duration) -> Self {
         let mut rtts = Vec::with_capacity(cap);
         for _ in 0..cap {
-            rtts.push(PingRTT { time: Instant::now(), value: RttValue::Untested });
+            rtts.push(PingRTT {
+                time: Instant::now(),
+                value: RttValue::Untested,
+            });
         }
         HealthPingRTTS {
             idx: 0,
@@ -68,13 +71,19 @@ impl HealthPingRTTS {
 
     pub fn put(&mut self, value: Duration) {
         self.idx = (self.idx + 1) % self.cap;
-        self.rtts[self.idx] = PingRTT { time: Instant::now(), value: RttValue::Success(value) };
+        self.rtts[self.idx] = PingRTT {
+            time: Instant::now(),
+            value: RttValue::Success(value),
+        };
         self.stats_cache = None;
     }
 
     pub fn put_fail(&mut self) {
         self.idx = (self.idx + 1) % self.cap;
-        self.rtts[self.idx] = PingRTT { time: Instant::now(), value: RttValue::Failed };
+        self.rtts[self.idx] = PingRTT {
+            time: Instant::now(),
+            value: RttValue::Failed,
+        };
         self.stats_cache = None;
     }
 
@@ -116,8 +125,12 @@ impl HealthPingRTTS {
                     let ms = d.as_secs_f64() * 1000.0;
                     sum_ms += ms;
                     valid_rtts.push(ms);
-                    if ms > max_ms { max_ms = ms; }
-                    if ms < min_ms { min_ms = ms; }
+                    if ms > max_ms {
+                        max_ms = ms;
+                    }
+                    if ms < min_ms {
+                        min_ms = ms;
+                    }
                     count += 1;
                 }
             }
@@ -125,18 +138,36 @@ impl HealthPingRTTS {
 
         let all = count + fail;
         if count == 0 {
-            return HealthPingStats { all, fail, deviation_ms: 0.0, average_ms: 0.0, max_ms: 0.0, min_ms: 0.0 };
+            return HealthPingStats {
+                all,
+                fail,
+                deviation_ms: 0.0,
+                average_ms: 0.0,
+                max_ms: 0.0,
+                min_ms: 0.0,
+            };
         }
 
         let average_ms = sum_ms / count as f64;
         let deviation_ms = if count < 2 {
             average_ms / 2.0
         } else {
-            let variance: f64 = valid_rtts.iter().map(|v| (v - average_ms).powi(2)).sum::<f64>() / count as f64;
+            let variance: f64 = valid_rtts
+                .iter()
+                .map(|v| (v - average_ms).powi(2))
+                .sum::<f64>()
+                / count as f64;
             variance.sqrt()
         };
 
-        HealthPingStats { all, fail, deviation_ms, average_ms, max_ms, min_ms }
+        HealthPingStats {
+            all,
+            fail,
+            deviation_ms,
+            average_ms,
+            max_ms,
+            min_ms,
+        }
     }
 }
 
@@ -150,7 +181,11 @@ struct PingClient {
 
 impl PingClient {
     fn new(dispatcher_config: ProbeMethod, tag: String, timeout: Duration) -> Self {
-        PingClient { dispatcher_config, tag, connect_timeout: timeout }
+        PingClient {
+            dispatcher_config,
+            tag,
+            connect_timeout: timeout,
+        }
     }
 
     async fn measure_delay(&self) -> Result<Duration, String> {
@@ -168,9 +203,15 @@ impl PingClient {
                 let start = Instant::now();
                 // Use the outbound tag for routing — this is a simplified version
                 // that directly connects to the URL via TCP
-                let stripped = url.trim_start_matches("https://").trim_start_matches("http://");
+                let stripped = url
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://");
                 let host_port = stripped.split('/').next().unwrap_or(stripped);
-                let addr = if host_port.contains(':') { host_port.to_string() } else { format!("{}:80", host_port) };
+                let addr = if host_port.contains(':') {
+                    host_port.to_string()
+                } else {
+                    format!("{}:80", host_port)
+                };
                 tokio::time::timeout(self.connect_timeout, TcpStream::connect(&addr))
                     .await
                     .map_err(|_| format!("timeout http ping {}", url))?
@@ -220,7 +261,10 @@ impl HealthPing {
             settings.interval
         };
         HealthPing {
-            settings: HealthPingSettings { interval, ..settings },
+            settings: HealthPingSettings {
+                interval,
+                ..settings
+            },
             results: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -296,7 +340,8 @@ impl HealthPing {
                         tag.clone(),
                         timeout,
                     );
-                    tokio::time::timeout(timeout, client.measure_delay()).await
+                    tokio::time::timeout(timeout, client.measure_delay())
+                        .await
                         .ok()
                         .and_then(|r| r.ok())
                         .map(|delay| {
@@ -317,10 +362,12 @@ impl HealthPing {
 
     pub async fn get_results(&self) -> Vec<(String, HealthPingStats)> {
         let mut res = self.results.lock().await;
-        res.iter_mut().map(|(tag, rtts)| {
-            let stats = rtts.get_stats();
-            (tag.clone(), stats)
-        }).collect()
+        res.iter_mut()
+            .map(|(tag, rtts)| {
+                let stats = rtts.get_stats();
+                (tag.clone(), stats)
+            })
+            .collect()
     }
 }
 
@@ -332,7 +379,9 @@ pub struct BurstObserver {
 
 impl BurstObserver {
     pub fn new(settings: Option<HealthPingSettings>) -> Self {
-        BurstObserver { health_ping: HealthPing::new(settings) }
+        BurstObserver {
+            health_ping: HealthPing::new(settings),
+        }
     }
 
     pub fn with_health_ping(hp: HealthPing) -> Self {
@@ -341,15 +390,20 @@ impl BurstObserver {
 
     pub async fn get_observation(&self) -> Vec<OutboundStatus> {
         let results = self.health_ping.get_results().await;
-        results.into_iter().map(|(tag, stats)| {
-            OutboundStatus {
+        results
+            .into_iter()
+            .map(|(tag, stats)| OutboundStatus {
                 tag: tag.clone(),
                 alive: stats.all != stats.fail,
                 delay_ms: stats.average_ms as u64,
-                last_error: if stats.fail > 0 { Some("ping failures".into()) } else { None },
+                last_error: if stats.fail > 0 {
+                    Some("ping failures".into())
+                } else {
+                    None
+                },
                 last_seen: Instant::now(),
-            }
-        }).collect()
+            })
+            .collect()
     }
 }
 
@@ -394,7 +448,10 @@ mod tests {
     #[test]
     fn test_health_ping_settings_default() {
         let settings = HealthPingSettings::default();
-        assert_eq!(settings.destination, "https://connectivitycheck.gstatic.com/generate_204");
+        assert_eq!(
+            settings.destination,
+            "https://connectivitycheck.gstatic.com/generate_204"
+        );
         assert_eq!(settings.sampling_count, 10);
         assert_eq!(settings.http_method, "HEAD");
     }

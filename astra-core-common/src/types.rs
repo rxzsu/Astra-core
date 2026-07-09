@@ -4,7 +4,9 @@
 /// Serializable interface (Go: `common.Serializable`).
 pub trait Serializable: Send + Sync {
     fn serialize(&self) -> Result<Vec<u8>, String>;
-    fn deserialize(data: &[u8]) -> Result<Self, String> where Self: Sized;
+    fn deserialize(data: &[u8]) -> Result<Self, String>
+    where
+        Self: Sized;
 }
 
 /// TypedMessage with type URL + value bytes (Go: `common/serial.TypedMessage`).

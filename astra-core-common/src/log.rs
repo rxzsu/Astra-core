@@ -80,7 +80,10 @@ impl LogHandler for DefaultLogHandler {
     fn handle_access(&self, msg: &AccessMessage) {
         tracing::info!(
             "[access] {} {} -> {} reason=\"{}\"",
-            msg.status.as_str(), msg.from, msg.to, msg.reason
+            msg.status.as_str(),
+            msg.from,
+            msg.to,
+            msg.reason
         );
     }
 
@@ -122,10 +125,18 @@ pub fn log(severity: Severity, message: &str) {
 }
 
 /// Convenience functions.
-pub fn debug(msg: &str) { log(Severity::Debug, msg); }
-pub fn info(msg: &str) { log(Severity::Info, msg); }
-pub fn warn(msg: &str) { log(Severity::Warning, msg); }
-pub fn error(msg: &str) { log(Severity::Error, msg); }
+pub fn debug(msg: &str) {
+    log(Severity::Debug, msg);
+}
+pub fn info(msg: &str) {
+    log(Severity::Info, msg);
+}
+pub fn warn(msg: &str) {
+    log(Severity::Warning, msg);
+}
+pub fn error(msg: &str) {
+    log(Severity::Error, msg);
+}
 
 // ─── IP address masking (kept from original) ────────────────────────────────
 
@@ -147,14 +158,18 @@ pub fn mask_ip(ip: &str, mode: &str) -> String {
                 } else {
                     format!("{}:xxxx", prefix)
                 }
-            } else { "xxx".into() }
+            } else {
+                "xxx".into()
+            }
         }
         "quarter" => {
             if let Some(pos) = ip.rfind('.') {
                 format!("{}.xxx", &ip[..pos])
             } else if let Some(pos) = ip.rfind(':') {
                 format!("{}:xxxx", &ip[..pos])
-            } else { "xxx".into() }
+            } else {
+                "xxx".into()
+            }
         }
         "full" => "xxx".into(),
         _ => ip.to_string(),
@@ -162,7 +177,9 @@ pub fn mask_ip(ip: &str, mode: &str) -> String {
 }
 
 pub fn mask_ips_in_message(msg: &str, mode: &str) -> String {
-    if mode.is_empty() || mode == "none" { return msg.to_string(); }
+    if mode.is_empty() || mode == "none" {
+        return msg.to_string();
+    }
     let mut result = msg.to_string();
     let ip_re = regex_lite::Regex::new(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b").unwrap();
     for ip in ip_re.find_iter(msg) {
@@ -205,22 +222,36 @@ mod tests {
         }
         impl LogHandler for TestHandler {
             fn handle_access(&self, msg: &AccessMessage) {
-                self.messages.lock().unwrap().push(format!("access: {}", msg.from));
+                self.messages
+                    .lock()
+                    .unwrap()
+                    .push(format!("access: {}", msg.from));
             }
             fn handle_log(&self, msg: &LogMessage) {
-                self.messages.lock().unwrap().push(format!("{}: {}", msg.severity.as_str(), msg.message));
+                self.messages.lock().unwrap().push(format!(
+                    "{}: {}",
+                    msg.severity.as_str(),
+                    msg.message
+                ));
             }
         }
 
-        let handler = Arc::new(TestHandler { messages: std::sync::Mutex::new(Vec::new()) });
+        let handler = Arc::new(TestHandler {
+            messages: std::sync::Mutex::new(Vec::new()),
+        });
         let handler_clone = handler.clone();
         set_handler(handler_clone);
 
         info("test message");
         access(&AccessMessage {
-            from: "1.2.3.4".into(), to: "5.6.7.8".into(),
-            status: AccessStatus::Accepted, reason: "ok".into(),
-            email: None, protocol: None, outbound_tag: None, timestamp: 0,
+            from: "1.2.3.4".into(),
+            to: "5.6.7.8".into(),
+            status: AccessStatus::Accepted,
+            reason: "ok".into(),
+            email: None,
+            protocol: None,
+            outbound_tag: None,
+            timestamp: 0,
         });
 
         let msgs = handler.messages.lock().unwrap();

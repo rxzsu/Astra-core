@@ -5,7 +5,7 @@ use prost::Message;
 
 pub mod download;
 pub use download::{
-    download_file, ensure_geo_files, DownloadOptions, DEFAULT_GEOIP_URL, DEFAULT_GEOSITE_URL,
+    DEFAULT_GEOIP_URL, DEFAULT_GEOSITE_URL, DownloadOptions, download_file, ensure_geo_files,
 };
 
 /// GeoIP protobuf definitions
@@ -112,35 +112,38 @@ impl GeoDataManager {
     }
 
     fn load_file(&mut self, path: &Path) -> Result<(), String> {
-        let data = std::fs::read(path).map_err(|e| {
-            format!("failed to read {}: {}", path.display(), e)
-        })?;
+        let data =
+            std::fs::read(path).map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
 
         let fname = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if fname.contains("geoip") || fname.contains("GeoIP") {
-            let list = GeoIPList::decode(data.as_slice()).map_err(|e| {
-                format!("failed to decode geoip {}: {}", path.display(), e)
-            })?;
+            let list = GeoIPList::decode(data.as_slice())
+                .map_err(|e| format!("failed to decode geoip {}: {}", path.display(), e))?;
             for entry in list.entry {
                 let code = entry.country_code.to_uppercase();
                 tracing::info!(country = %code, cidrs = entry.cidr.len(), "loaded geoip");
-                self.geoip.insert(code, CompiledGeoIP {
-                    country_code: entry.country_code,
-                    cidr: entry.cidr,
-                });
+                self.geoip.insert(
+                    code,
+                    CompiledGeoIP {
+                        country_code: entry.country_code,
+                        cidr: entry.cidr,
+                    },
+                );
             }
         } else if fname.contains("geosite") || fname.contains("GeoSite") {
-            let list = GeoSiteList::decode(data.as_slice()).map_err(|e| {
-                format!("failed to decode geosite {}: {}", path.display(), e)
-            })?;
+            let list = GeoSiteList::decode(data.as_slice())
+                .map_err(|e| format!("failed to decode geosite {}: {}", path.display(), e))?;
             for entry in list.entry {
                 let code = entry.country_code.to_uppercase();
                 tracing::info!(country = %code, domains = entry.domain.len(), "loaded geosite");
-                self.geosite.insert(code, CompiledGeoSite {
-                    country_code: entry.country_code,
-                    domains: entry.domain,
-                });
+                self.geosite.insert(
+                    code,
+                    CompiledGeoSite {
+                        country_code: entry.country_code,
+                        domains: entry.domain,
+                    },
+                );
             }
         } else {
             return Err(format!("unknown geo data file: {}", path.display()));
@@ -162,8 +165,14 @@ mod tests {
 
     #[test]
     fn test_geoip_roundtrip() {
-        let cidr = CIDR { ip: vec![10, 0, 0, 0], prefix: 8 };
-        let geoip = GeoIP { country_code: "CN".into(), cidr: vec![cidr] };
+        let cidr = CIDR {
+            ip: vec![10, 0, 0, 0],
+            prefix: 8,
+        };
+        let geoip = GeoIP {
+            country_code: "CN".into(),
+            cidr: vec![cidr],
+        };
         let list = GeoIPList { entry: vec![geoip] };
 
         let mut buf = Vec::new();
@@ -182,7 +191,10 @@ mod tests {
             r#type: DomainType::Domain as i32,
             value: "google.com".into(),
         };
-        let site = GeoSite { country_code: "GOOGLE".into(), domain: vec![domain] };
+        let site = GeoSite {
+            country_code: "GOOGLE".into(),
+            domain: vec![domain],
+        };
         let list = GeoSiteList { entry: vec![site] };
 
         let mut buf = Vec::new();

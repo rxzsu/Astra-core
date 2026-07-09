@@ -1,6 +1,5 @@
 /// Platform environment flags.
 /// Go equivalent: `common/platform`
-
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -47,7 +46,10 @@ fn normalize_env_name(name: &str) -> String {
 
 /// Set a platform flag programmatically (for testing).
 pub fn set_flag(name: &str, value: &str) {
-    FLAGS.write().unwrap().insert(name.to_string(), value.to_string());
+    FLAGS
+        .write()
+        .unwrap()
+        .insert(name.to_string(), value.to_string());
 }
 
 /// Get a platform flag value.
@@ -73,7 +75,11 @@ pub fn config_paths() -> Vec<String> {
     let flag = EnvFlag::new(CONFIG_LOCATION);
     let path = flag.get("");
     if path.is_empty() {
-        vec!["./config.json".into(), "./config.yaml".into(), "./config.toml".into()]
+        vec![
+            "./config.json".into(),
+            "./config.yaml".into(),
+            "./config.toml".into(),
+        ]
     } else {
         vec![path]
     }
@@ -92,7 +98,10 @@ mod tests {
 
     #[test]
     fn test_normalize_env_name() {
-        assert_eq!(normalize_env_name("xray.location.config"), "XRAY_LOCATION_CONFIG");
+        assert_eq!(
+            normalize_env_name("xray.location.config"),
+            "XRAY_LOCATION_CONFIG"
+        );
     }
 
     #[test]

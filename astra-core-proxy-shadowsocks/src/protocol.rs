@@ -112,23 +112,47 @@ impl AeadCipher {
         match self {
             AeadCipher::Aes128Gcm(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.encrypt(n, Payload { msg: plaintext, aad })
-                    .map_err(|e| e.to_string())
+                c.encrypt(
+                    n,
+                    Payload {
+                        msg: plaintext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
             AeadCipher::Aes256Gcm(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.encrypt(n, Payload { msg: plaintext, aad })
-                    .map_err(|e| e.to_string())
+                c.encrypt(
+                    n,
+                    Payload {
+                        msg: plaintext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
             AeadCipher::ChaCha20Poly1305(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.encrypt(n, Payload { msg: plaintext, aad })
-                    .map_err(|e| e.to_string())
+                c.encrypt(
+                    n,
+                    Payload {
+                        msg: plaintext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
             AeadCipher::XChaCha20Poly1305(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.encrypt(n, Payload { msg: plaintext, aad })
-                    .map_err(|e| e.to_string())
+                c.encrypt(
+                    n,
+                    Payload {
+                        msg: plaintext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
         }
     }
@@ -137,23 +161,47 @@ impl AeadCipher {
         match self {
             AeadCipher::Aes128Gcm(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.decrypt(n, Payload { msg: ciphertext, aad })
-                    .map_err(|e| e.to_string())
+                c.decrypt(
+                    n,
+                    Payload {
+                        msg: ciphertext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
             AeadCipher::Aes256Gcm(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.decrypt(n, Payload { msg: ciphertext, aad })
-                    .map_err(|e| e.to_string())
+                c.decrypt(
+                    n,
+                    Payload {
+                        msg: ciphertext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
             AeadCipher::ChaCha20Poly1305(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.decrypt(n, Payload { msg: ciphertext, aad })
-                    .map_err(|e| e.to_string())
+                c.decrypt(
+                    n,
+                    Payload {
+                        msg: ciphertext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
             AeadCipher::XChaCha20Poly1305(c) => {
                 let n = GenericArray::from_slice(nonce);
-                c.decrypt(n, Payload { msg: ciphertext, aad })
-                    .map_err(|e| e.to_string())
+                c.decrypt(
+                    n,
+                    Payload {
+                        msg: ciphertext,
+                        aad,
+                    },
+                )
+                .map_err(|e| e.to_string())
             }
         }
     }
@@ -321,9 +369,7 @@ impl Cipher for CipherType {
         let subkey = hkdf_sha1(key, iv, self.key_size());
         let cipher = create_aead(*self, &subkey).expect("create aead");
         let nonce = vec![0u8; self.nonce_size()];
-        cipher
-            .encrypt(&nonce, plaintext, b"")
-            .expect("encrypt")
+        cipher.encrypt(&nonce, plaintext, b"").expect("encrypt")
     }
 
     fn decrypt(&self, key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, String> {
@@ -363,7 +409,11 @@ impl SessionCipher {
         Ok(out)
     }
 
-    pub fn decrypt_chunk(&mut self, ciphertext: &[u8], size_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    pub fn decrypt_chunk(
+        &mut self,
+        ciphertext: &[u8],
+        size_bytes: &[u8],
+    ) -> Result<Vec<u8>, String> {
         let pt = self.cipher.decrypt(&self.nonce, ciphertext, size_bytes)?;
         next_nonce(&mut self.nonce);
         Ok(pt)
@@ -376,7 +426,11 @@ impl SessionCipher {
         self.encrypt_chunk(&addr_buf)
     }
 
-    pub fn decrypt_first_chunk(&mut self, data: &[u8], size_bytes: &[u8]) -> Result<Destination, String> {
+    pub fn decrypt_first_chunk(
+        &mut self,
+        data: &[u8],
+        size_bytes: &[u8],
+    ) -> Result<Destination, String> {
         let pt = self.decrypt_chunk(data, size_bytes)?;
         let (dest, _) = read_address(&pt)?;
         Ok(dest)
@@ -430,8 +484,7 @@ impl<R: AsyncRead + Unpin + Send> AsyncRead for DecryptingReader<R> {
                                 continue;
                             }
                             this.size_pos = 0;
-                            let total_len =
-                                u16::from_be_bytes(this.size_buf) as usize;
+                            let total_len = u16::from_be_bytes(this.size_buf) as usize;
                             if total_len == 0 {
                                 return Poll::Ready(Ok(()));
                             }
@@ -456,10 +509,11 @@ impl<R: AsyncRead + Unpin + Send> AsyncRead for DecryptingReader<R> {
                             }
                             let nonce_size = this.cipher_type.nonce_size();
                             let ct = &this.payload_buf[nonce_size..];
-                            match this
-                                .cipher
-                                .decrypt(&this.payload_buf[..nonce_size], ct, &this.size_buf)
-                            {
+                            match this.cipher.decrypt(
+                                &this.payload_buf[..nonce_size],
+                                ct,
+                                &this.size_buf,
+                            ) {
                                 Ok(pt) => {
                                     this.output.extend(pt);
                                     next_nonce(&mut this.nonce);
@@ -531,4 +585,3 @@ pub async fn read_tcp_session<R: AsyncRead + Unpin + Send + 'static>(
 
     Ok((dest, Box::new(decrypting_reader)))
 }
-

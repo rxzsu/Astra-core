@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::RwLock;
 
-
 /// Thread-safe map with typed keys and values.
 /// Go equivalent: `common/utils.TypedSyncMap`.
 pub struct SyncMap<K: Eq + Hash, V> {
@@ -11,10 +10,15 @@ pub struct SyncMap<K: Eq + Hash, V> {
 
 impl<K: Eq + Hash, V> SyncMap<K, V> {
     pub fn new() -> Self {
-        SyncMap { inner: RwLock::new(HashMap::new()) }
+        SyncMap {
+            inner: RwLock::new(HashMap::new()),
+        }
     }
 
-    pub fn get(&self, key: &K) -> Option<V> where V: Clone {
+    pub fn get(&self, key: &K) -> Option<V>
+    where
+        V: Clone,
+    {
         self.inner.read().unwrap().get(key).cloned()
     }
 
@@ -22,7 +26,10 @@ impl<K: Eq + Hash, V> SyncMap<K, V> {
         self.inner.write().unwrap().insert(key, value);
     }
 
-    pub fn remove(&self, key: &K) -> Option<V> where V: Clone {
+    pub fn remove(&self, key: &K) -> Option<V>
+    where
+        V: Clone,
+    {
         self.inner.write().unwrap().remove(key)
     }
 
@@ -34,12 +41,24 @@ impl<K: Eq + Hash, V> SyncMap<K, V> {
         self.inner.read().unwrap().is_empty()
     }
 
-    pub fn keys(&self) -> Vec<K> where K: Clone {
+    pub fn keys(&self) -> Vec<K>
+    where
+        K: Clone,
+    {
         self.inner.read().unwrap().keys().cloned().collect()
     }
 
-    pub fn iter(&self) -> Vec<(K, V)> where K: Clone, V: Clone {
-        self.inner.read().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    pub fn iter(&self) -> Vec<(K, V)>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        self.inner
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 }
 
@@ -67,17 +86,26 @@ pub mod http {
     /// Generate a random padding string for HTTP headers.
     /// Used to avoid traffic fingerprinting.
     pub fn random_padding(min: usize, max: usize) -> String {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos() as u64;
-        let len = if min >= max { min } else {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos() as u64;
+        let len = if min >= max {
+            min
+        } else {
             let range = max - min;
             min + (nanos as usize % (range + 1))
         };
-        let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars().collect();
+        let chars: Vec<char> = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+            .chars()
+            .collect();
         let chars_len = chars.len();
-        (0..len).map(|i| {
-            let idx = (nanos.wrapping_add(i as u64 * 7)) as usize % chars_len;
-            chars[idx]
-        }).collect()
+        (0..len)
+            .map(|i| {
+                let idx = (nanos.wrapping_add(i as u64 * 7)) as usize % chars_len;
+                chars[idx]
+            })
+            .collect()
     }
 }
 

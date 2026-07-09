@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 use std::time::Instant;
 
 use bytes::BytesMut;
 use tokio::sync::Mutex;
-use tokio::time::{interval, Duration, MissedTickBehavior};
+use tokio::time::{Duration, MissedTickBehavior, interval};
 
 use crate::config::Config;
 use crate::receiving::ReceivingWorker;
@@ -171,7 +171,11 @@ impl Connection {
             closer,
         });
 
-        let conn = Arc::new(Self { meta, config, inner });
+        let conn = Arc::new(Self {
+            meta,
+            config,
+            inner,
+        });
 
         let c = conn.clone();
         tokio::spawn(async move {
@@ -196,7 +200,9 @@ impl Connection {
     pub fn set_state(&self, state: State) {
         let current = self.elapsed();
         self.inner.state.store(state as i32, Ordering::Relaxed);
-        self.inner.state_begin_time.store(current, Ordering::Relaxed);
+        self.inner
+            .state_begin_time
+            .store(current, Ordering::Relaxed);
 
         match state {
             State::ReadyToClose => {
@@ -370,7 +376,9 @@ impl Connection {
 
     pub async fn input(&self, segments: Vec<Segment>) {
         let current = self.elapsed();
-        self.inner.last_incoming_time.store(current, Ordering::Relaxed);
+        self.inner
+            .last_incoming_time
+            .store(current, Ordering::Relaxed);
 
         for seg in &segments {
             match seg {
@@ -530,11 +538,7 @@ impl Connection {
             let rd = self.inner.rd.lock().await;
             rd.map(|d| {
                 let now = Instant::now();
-                if d <= now {
-                    Duration::ZERO
-                } else {
-                    d - now
-                }
+                if d <= now { Duration::ZERO } else { d - now }
             })
             .unwrap_or(Duration::from_secs(16))
         };
@@ -551,11 +555,7 @@ impl Connection {
             let wd = self.inner.wd.lock().await;
             wd.map(|d| {
                 let now = Instant::now();
-                if d <= now {
-                    Duration::ZERO
-                } else {
-                    d - now
-                }
+                if d <= now { Duration::ZERO } else { d - now }
             })
             .unwrap_or(Duration::from_secs(16))
         };

@@ -55,7 +55,9 @@ impl Done {
 
 impl Clone for Done {
     fn clone(&self) -> Self {
-        Done { inner: self.inner.clone() }
+        Done {
+            inner: self.inner.clone(),
+        }
     }
 }
 
@@ -76,7 +78,9 @@ pub struct Notifier {
 
 impl Notifier {
     pub fn new() -> Self {
-        Notifier { inner: Arc::new(Notify::new()) }
+        Notifier {
+            inner: Arc::new(Notify::new()),
+        }
     }
 
     /// Signal a change. Non-blocking — if no consumer is waiting the signal is lost.
@@ -94,7 +98,9 @@ impl Notifier {
 
 impl Clone for Notifier {
     fn clone(&self) -> Self {
-        Notifier { inner: self.inner.clone() }
+        Notifier {
+            inner: self.inner.clone(),
+        }
     }
 }
 
@@ -298,7 +304,9 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
             d2.close().unwrap();
         });
-        tokio::time::timeout(Duration::from_secs(1), d.wait()).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), d.wait())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -309,7 +317,9 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
             n2.signal();
         });
-        tokio::time::timeout(Duration::from_secs(1), n.wait()).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), n.wait())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -347,6 +357,10 @@ mod tests {
             timer.update();
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
-        assert_eq!(counter.load(Ordering::SeqCst), 1, "should fire once after activity stops");
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            1,
+            "should fire once after activity stops"
+        );
     }
 }

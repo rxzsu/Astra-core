@@ -1,6 +1,5 @@
 /// No-op header for TCP connections. Passes data through unchanged.
 /// Go equivalent: `transport/internet/headers/noop.NoOpConnectionHeader`
-
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

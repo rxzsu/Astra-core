@@ -21,23 +21,29 @@ enum DomainPattern {
 
 impl DomainMatcher {
     pub fn new(domains: &[String]) -> Self {
-        let patterns = domains.iter().map(|d| {
-            if let Some(keyword) = d.strip_prefix("keyword:") {
-                DomainPattern::Keyword(keyword.to_lowercase())
-            } else if let Some(re_str) = d.strip_prefix("regexp:") {
-                DomainPattern::Regex(regex::Regex::new(re_str).unwrap_or_else(|_| regex::Regex::new("").unwrap()))
-            } else if let Some(plain) = d.strip_prefix("domain:") {
-                if plain.starts_with('.') {
-                    DomainPattern::Subdomain(plain.to_lowercase())
+        let patterns = domains
+            .iter()
+            .map(|d| {
+                if let Some(keyword) = d.strip_prefix("keyword:") {
+                    DomainPattern::Keyword(keyword.to_lowercase())
+                } else if let Some(re_str) = d.strip_prefix("regexp:") {
+                    DomainPattern::Regex(
+                        regex::Regex::new(re_str)
+                            .unwrap_or_else(|_| regex::Regex::new("").unwrap()),
+                    )
+                } else if let Some(plain) = d.strip_prefix("domain:") {
+                    if plain.starts_with('.') {
+                        DomainPattern::Subdomain(plain.to_lowercase())
+                    } else {
+                        DomainPattern::Exact(plain.to_lowercase())
+                    }
+                } else if d.starts_with('.') {
+                    DomainPattern::Subdomain(d.to_lowercase())
                 } else {
-                    DomainPattern::Exact(plain.to_lowercase())
+                    DomainPattern::Exact(d.to_lowercase())
                 }
-            } else if d.starts_with('.') {
-                DomainPattern::Subdomain(d.to_lowercase())
-            } else {
-                DomainPattern::Exact(d.to_lowercase())
-            }
-        }).collect();
+            })
+            .collect();
         DomainMatcher { patterns }
     }
 }
@@ -53,7 +59,10 @@ impl Matcher for DomainMatcher {
         for p in &self.patterns {
             match p {
                 DomainPattern::Exact(d) => {
-                    if &domain == d || format!("{}.", domain) == *d || domain == d.trim_end_matches('.') {
+                    if &domain == d
+                        || format!("{}.", domain) == *d
+                        || domain == d.trim_end_matches('.')
+                    {
                         return true;
                     }
                 }
@@ -85,10 +94,12 @@ pub struct IpMatcher {
 
 impl IpMatcher {
     pub fn new(ips: &[String]) -> Result<Self, String> {
-        let networks: Vec<IpNetwork> = ips.iter()
+        let networks: Vec<IpNetwork> = ips
+            .iter()
             .map(|s| {
                 if s.contains('/') {
-                    s.parse::<IpNetwork>().map_err(|e| format!("invalid CIDR {}: {}", s, e))
+                    s.parse::<IpNetwork>()
+                        .map_err(|e| format!("invalid CIDR {}: {}", s, e))
                 } else {
                     let ip: IpAddr = s.parse().map_err(|e| format!("invalid IP {}: {}", s, e))?;
                     Ok(IpNetwork::from(ip))
@@ -115,13 +126,17 @@ pub struct PortMatcher {
 
 impl PortMatcher {
     pub fn new(ranges: &[(u16, u16)]) -> Self {
-        PortMatcher { ports: ranges.to_vec() }
+        PortMatcher {
+            ports: ranges.to_vec(),
+        }
     }
 }
 
 impl Matcher for PortMatcher {
     fn matches(&self, ctx: &RoutingContext) -> bool {
-        self.ports.iter().any(|(from, to)| ctx.target_port >= *from && ctx.target_port <= *to)
+        self.ports
+            .iter()
+            .any(|(from, to)| ctx.target_port >= *from && ctx.target_port <= *to)
     }
 }
 
@@ -131,7 +146,9 @@ pub struct NetworkMatcher {
 
 impl NetworkMatcher {
     pub fn new(networks: &[String]) -> Self {
-        NetworkMatcher { networks: networks.to_vec() }
+        NetworkMatcher {
+            networks: networks.to_vec(),
+        }
     }
 }
 
@@ -147,7 +164,9 @@ pub struct InboundTagMatcher {
 
 impl InboundTagMatcher {
     pub fn new(tags: &[String]) -> Self {
-        InboundTagMatcher { tags: tags.to_vec() }
+        InboundTagMatcher {
+            tags: tags.to_vec(),
+        }
     }
 }
 
@@ -163,14 +182,19 @@ pub struct ProtocolMatcher {
 
 impl ProtocolMatcher {
     pub fn new(protocols: &[String]) -> Self {
-        ProtocolMatcher { protocols: protocols.to_vec() }
+        ProtocolMatcher {
+            protocols: protocols.to_vec(),
+        }
     }
 }
 
 impl Matcher for ProtocolMatcher {
     fn matches(&self, ctx: &RoutingContext) -> bool {
         match &ctx.protocol {
-            Some(p) => self.protocols.iter().any(|proto| p.contains(proto.as_str())),
+            Some(p) => self
+                .protocols
+                .iter()
+                .any(|proto| p.contains(proto.as_str())),
             None => false,
         }
     }
@@ -182,10 +206,12 @@ pub struct SourceIpMatcher {
 
 impl SourceIpMatcher {
     pub fn new(ips: &[String]) -> Result<Self, String> {
-        let networks: Vec<IpNetwork> = ips.iter()
+        let networks: Vec<IpNetwork> = ips
+            .iter()
             .map(|s| {
                 if s.contains('/') {
-                    s.parse::<IpNetwork>().map_err(|e| format!("invalid CIDR {}: {}", s, e))
+                    s.parse::<IpNetwork>()
+                        .map_err(|e| format!("invalid CIDR {}: {}", s, e))
                 } else {
                     let ip: IpAddr = s.parse().map_err(|e| format!("invalid IP {}: {}", s, e))?;
                     Ok(IpNetwork::from(ip))
@@ -212,13 +238,17 @@ pub struct SourcePortMatcher {
 
 impl SourcePortMatcher {
     pub fn new(ranges: &[(u16, u16)]) -> Self {
-        SourcePortMatcher { ports: ranges.to_vec() }
+        SourcePortMatcher {
+            ports: ranges.to_vec(),
+        }
     }
 }
 
 impl Matcher for SourcePortMatcher {
     fn matches(&self, ctx: &RoutingContext) -> bool {
-        self.ports.iter().any(|(from, to)| ctx.source_port >= *from && ctx.source_port <= *to)
+        self.ports
+            .iter()
+            .any(|(from, to)| ctx.source_port >= *from && ctx.source_port <= *to)
     }
 }
 
@@ -228,7 +258,9 @@ pub struct UserMatcher {
 
 impl UserMatcher {
     pub fn new(emails: &[String]) -> Self {
-        UserMatcher { emails: emails.to_vec() }
+        UserMatcher {
+            emails: emails.to_vec(),
+        }
     }
 }
 
@@ -272,7 +304,12 @@ impl ProcessNameMatcher {
             }
         }
 
-        ProcessNameMatcher { process_names, abs_paths, folders, match_self }
+        ProcessNameMatcher {
+            process_names,
+            abs_paths,
+            folders,
+            match_self,
+        }
     }
 }
 
@@ -312,9 +349,11 @@ pub struct AttributeMatcher {
 
 impl AttributeMatcher {
     pub fn new(attrs: &std::collections::HashMap<String, String>) -> Self {
-        let patterns = attrs.iter()
+        let patterns = attrs
+            .iter()
             .map(|(key, value)| {
-                let pattern = regex::Regex::new(value).unwrap_or_else(|_| regex::Regex::new("").unwrap());
+                let pattern =
+                    regex::Regex::new(value).unwrap_or_else(|_| regex::Regex::new("").unwrap());
                 (key.to_lowercase(), pattern)
             })
             .collect();

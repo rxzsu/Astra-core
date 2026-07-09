@@ -108,7 +108,7 @@ mod tests {
     use super::*;
     use astra_core_net::destination::TcpDestination;
     use astra_core_net::{Address, Port};
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn test_ws_minimal_connect() {
@@ -123,12 +123,9 @@ mod tests {
         sleep(Duration::from_millis(50)).await;
 
         let dest = TcpDestination(Address::Ipv4([127, 0, 0, 1]), Port(addr.port()));
-        let _conn = crate::dialer::dial_ws(
-            &dest,
-            &crate::dialer::WsDialerConfig::default(),
-        )
-        .await
-        .unwrap();
+        let _conn = crate::dialer::dial_ws(&dest, &crate::dialer::WsDialerConfig::default())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -146,11 +143,7 @@ mod tests {
         sleep(Duration::from_millis(100)).await;
 
         let dest = TcpDestination(Address::Ipv4([127, 0, 0, 1]), Port(addr.port()));
-        let r = crate::dialer::dial_ws(
-            &dest,
-            &crate::dialer::WsDialerConfig::default(),
-        )
-        .await;
+        let r = crate::dialer::dial_ws(&dest, &crate::dialer::WsDialerConfig::default()).await;
         if let Err(ref e) = r {
             panic!("dial_ws failed: {}", e);
         }

@@ -1,5 +1,5 @@
 use astra_core_net::Destination;
-use astra_core_proxy::{async_trait, Dialer, OutboundHandler, ProxyResult, UdpLink};
+use astra_core_proxy::{Dialer, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
 
@@ -19,7 +19,12 @@ impl Handler {
         cipher: CipherType,
         key: Vec<u8>,
     ) -> Self {
-        Handler { server_address, server_port, cipher, key }
+        Handler {
+            server_address,
+            server_port,
+            cipher,
+            key,
+        }
     }
 }
 
@@ -47,7 +52,9 @@ impl OutboundHandler for Handler {
                 match link.reader.read(&mut buf).await {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        if rw.write_all(&buf[..n]).await.is_err() { break; }
+                        if rw.write_all(&buf[..n]).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }
@@ -60,7 +67,9 @@ impl OutboundHandler for Handler {
                 match rr.read(&mut buf).await {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        if link.writer.write_all(&buf[..n]).await.is_err() { break; }
+                        if link.writer.write_all(&buf[..n]).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }

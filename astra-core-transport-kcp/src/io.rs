@@ -1,4 +1,4 @@
-use crate::segment::{read_segment, Segment};
+use crate::segment::{Segment, read_segment};
 
 pub struct KcpPacketReader;
 

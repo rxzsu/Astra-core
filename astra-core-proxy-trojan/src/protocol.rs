@@ -68,8 +68,8 @@ pub fn read_address(data: &[u8]) -> Result<(Address, usize), String> {
             if data.len() < offset + dlen {
                 return Err("short domain data".into());
             }
-            let domain = std::str::from_utf8(&data[offset..offset + dlen])
-                .map_err(|_| "invalid domain")?;
+            let domain =
+                std::str::from_utf8(&data[offset..offset + dlen]).map_err(|_| "invalid domain")?;
             offset += dlen;
             Address::Domain(domain.to_owned())
         }
@@ -136,24 +136,32 @@ pub fn read_header_from_slice(data: &[u8]) -> Result<(TrojanHeader, usize), Stri
 
     let address = match atype {
         0x01 => {
-            if data.len() < offset + 4 { return Err("short ipv4".into()); }
+            if data.len() < offset + 4 {
+                return Err("short ipv4".into());
+            }
             let mut octets = [0u8; 4];
             octets.copy_from_slice(&data[offset..offset + 4]);
             offset += 4;
             Address::Ipv4(octets)
         }
         0x04 => {
-            if data.len() < offset + 16 { return Err("short ipv6".into()); }
+            if data.len() < offset + 16 {
+                return Err("short ipv6".into());
+            }
             let mut octets = [0u8; 16];
             octets.copy_from_slice(&data[offset..offset + 16]);
             offset += 16;
             Address::Ipv6(octets)
         }
         0x03 => {
-            if data.len() < offset + 1 { return Err("short domain len".into()); }
+            if data.len() < offset + 1 {
+                return Err("short domain len".into());
+            }
             let dlen = data[offset] as usize;
             offset += 1;
-            if data.len() < offset + dlen { return Err("short domain".into()); }
+            if data.len() < offset + dlen {
+                return Err("short domain".into());
+            }
             let domain = std::str::from_utf8(&data[offset..offset + dlen])
                 .map_err(|_| "invalid domain utf8")?;
             offset += dlen;
@@ -162,7 +170,9 @@ pub fn read_header_from_slice(data: &[u8]) -> Result<(TrojanHeader, usize), Stri
         _ => return Err(format!("unknown address type: {}", atype)),
     };
 
-    if data.len() < offset + 2 { return Err("short port".into()); }
+    if data.len() < offset + 2 {
+        return Err("short port".into());
+    }
     let port = u16::from_be_bytes([data[offset], data[offset + 1]]);
     offset += 2;
 
@@ -177,16 +187,21 @@ pub fn read_header_from_slice(data: &[u8]) -> Result<(TrojanHeader, usize), Stri
         _ => return Err(format!("trojan: unknown command: {}", cmd)),
     };
 
-    Ok((TrojanHeader {
-        key,
-        command: cmd,
-        destination: Destination { address, port: Port(port), network },
-    }, offset))
+    Ok((
+        TrojanHeader {
+            key,
+            command: cmd,
+            destination: Destination {
+                address,
+                port: Port(port),
+                network,
+            },
+        },
+        offset,
+    ))
 }
 
-pub async fn read_header<R: AsyncReadExt + Unpin>(
-    reader: &mut R,
-) -> Result<TrojanHeader, String> {
+pub async fn read_header<R: AsyncReadExt + Unpin>(reader: &mut R) -> Result<TrojanHeader, String> {
     let mut key = [0u8; 56];
     reader
         .read_exact(&mut key)
