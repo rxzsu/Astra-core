@@ -1,5 +1,6 @@
 use std::io::{self, Read};
 
+use crate::buffer::{Buffer, SIZE};
 use crate::io::{read_one_buffer, Reader};
 use crate::multi_buffer::MultiBuffer;
 
@@ -22,6 +23,129 @@ impl Reader for SingleReader {
             Some(buf) => Ok(MultiBuffer::with_buffer(buf)),
         }
     }
+}
+
+// ─── ReadVReader (scatter/gather) ───────────────────────────────────────────
+
+/// Adaptive scatter/gather reader using platform vectors.
+/// Reads into up to 8 buffers in a single syscall.
+/// Go equivalent: `buf.ReadVReader`
+pub struct ReadVReader {
+    inner: Box<dyn Read>,
+    alloc_level: u32, // 1..8
+}
+
+impl ReadVReader {
+    pub fn new(r: impl Read + 'static) -> Self {
+        ReadVReader { inner: Box::new(r), alloc_level: 1 }
+    }
+
+    fn adjust(&mut self, n_bufs: u32) {
+        if n_bufs >= self.alloc_level {
+            self.alloc_level = (self.alloc_level * 2).min(8);
+        } else {
+            self.alloc_level = n_bufs.max(1);
+        }
+    }
+
+    fn read_multi_native(&mut self, bufs: &mut [Buffer]) -> io::Result<usize> {
+        // On first call with level == 1, try a single read
+        if self.alloc_level == 1 {
+            match read_one_buffer(&mut *self.inner)? {
+                Some(buf) => {
+                    bufs[0] = buf;
+                    let n = bufs[0].len();
+                    if n >= SIZE {
+                        self.adjust(1);
+                    }
+                    return Ok(n);
+                }
+                None => return Ok(0),
+            }
+        }
+
+        // Multi-buffer read using platform iovec
+        let n = platform_readv(&mut *self.inner, bufs)?;
+        if n > 0 {
+            let consumed = {
+                let mut remaining = n;
+                let mut count = 0;
+                for b in bufs.iter_mut() {
+                    if remaining == 0 {
+                        b.set_end(0);
+                    } else {
+                        let chunk = remaining.min(SIZE);
+                        b.set_end(chunk);
+                        remaining -= chunk;
+                        count += 1;
+                    }
+                }
+                count as u32
+            };
+            self.adjust(consumed);
+        }
+        Ok(n)
+    }
+}
+
+impl Reader for ReadVReader {
+    fn read_multi_buffer(&mut self) -> io::Result<MultiBuffer> {
+        let mut bufs: Vec<Buffer> = (0..self.alloc_level).map(|_| Buffer::new()).collect();
+        let n = self.read_multi_native(&mut bufs)?;
+        if n == 0 {
+            return Ok(MultiBuffer::new());
+        }
+        let mut mb = MultiBuffer::new();
+        for b in bufs.into_iter() {
+            if b.is_empty() {
+                break;
+            }
+            mb.push_back(b);
+        }
+        Ok(mb)
+    }
+}
+
+#[cfg(any(unix, windows))]
+fn platform_readv(reader: &mut dyn Read, bufs: &mut [Buffer]) -> io::Result<usize> {
+    let mut total = 0;
+    for i in 0..bufs.len() {
+        let len = {
+            let slice = bufs[i].writable_mut();
+            match reader.read(slice) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            }
+        };
+        bufs[i].set_end(len);
+        total += len;
+        if len < bufs[i].writable_mut().len() {
+            break;
+        }
+    }
+    Ok(total)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn platform_readv(reader: &mut dyn Read, bufs: &mut [Buffer]) -> io::Result<usize> {
+    let mut total = 0;
+    for i in 0..bufs.len() {
+        let len = {
+            let slice = bufs[i].writable_mut();
+            match reader.read(slice) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            }
+        };
+        bufs[i].set_end(len);
+        total += len;
+        if len < bufs[i].writable_mut().len() { break; }
+    }
+    Ok(total)
 }
 
 pub struct PacketReader {

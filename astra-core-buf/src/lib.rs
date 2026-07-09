@@ -9,5 +9,5 @@ pub mod writer;
 pub use self::buffer::{Buffer, SIZE};
 pub use self::io::{new_reader, new_writer, write_all_bytes, Reader, Writer};
 pub use self::multi_buffer::MultiBuffer;
-pub use self::reader::{BufferedReader, PacketReader, SingleReader};
+pub use self::reader::{BufferedReader, PacketReader, ReadVReader, SingleReader};
 pub use self::writer::{BufferedWriter, SequentialWriter};

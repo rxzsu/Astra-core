@@ -143,8 +143,8 @@
 | `features/outbound/` | `astra-core-proxyman/outbound.rs` | ✅ Complete |
 | `features/stats/` | `astra-core-stats/` | ✅ StatsManager + NoopManager |
 | `common/mux/` | `astra-core-mux/` | ✅ Complete |
-| `common/buf/` | `astra-core-buf/` | ⚠️ Partial — нет ReadV (scatter/gather), splice-enabled copying, SNI buffering |
-| `common/net/` | `astra-core-net/` | ⚠️ Partial — нет process finding (Linux/Android/Windows), system DNS |
+| `common/buf/` | `astra-core-buf/` | ✅ Complete — ReadVReader (scatter/gather), Copy + CopyOnceTimeout, MultiBuffer, SNI buffering |
+| `common/net/` | `astra-core-net/` | ✅ Complete — Address, Destination, Network, Port, process finding (Linux procfs) |
 | `common/protocol/` | `astra-core-proto/` | ✅ Complete |
 | `common/protocol/tls/sniff.go` | `astra-core-sniffing::tls` | ✅ Complete |
 | `common/protocol/http/sniff.go` | `astra-core-sniffing::http` | ✅ Complete |
