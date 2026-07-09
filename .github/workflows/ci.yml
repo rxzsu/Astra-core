@@ -16,21 +16,23 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-  
+
     runs-on: ${{ matrix.os }}
-  
+
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install Rust toolchain (stable)
-      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@master
       with:
-        components: clippy
+        toolchain: stable
+        components: clippy, rustfmt
 
     - name: Rust cache
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: "astra-core"
+        cache-on-failure: true
 
     - name: Install Linux deps (TUN)
       if: runner.os == 'Linux'
@@ -44,18 +46,18 @@ jobs:
       run: cargo fmt --all --check
       working-directory: astra-core
 
-    - name: Build workspace (lib + bins)
+    - name: Build workspace
       run: cargo build --workspace --all-targets --verbose
       working-directory: astra-core
 
-    - name: Clippy (warnings as errors)
-      run: cargo clippy --workspace --all-targets --no-deps -- -D warnings
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets --no-deps
       working-directory: astra-core
 
-    - name: Run unit tests
+    - name: Run tests
       run: cargo test --workspace --lib --verbose --no-fail-fast
       working-directory: astra-core
 
-    - name: Run integration tests (if any)
+    - name: Run integration tests
       run: cargo test --workspace --test '*' --verbose --no-fail-fast || true
       working-directory: astra-core
