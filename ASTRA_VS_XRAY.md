@@ -115,14 +115,14 @@
 | `transport/internet/tcp/` | Built-in `tokio::net::TcpStream` | ✅ Complete |
 | `transport/internet/ws/` | `astra-core-transport-ws/` | ✅ Complete |
 | `transport/internet/httpupgrade/` | `astra-core-transport-httpupgrade/` | ✅ Complete |
-| `transport/internet/splithttp/` | `astra-core-transport-splithttp/` | ⚠️ Partial — нет browser dialer, xpadding, upload queue |
+| `transport/internet/splithttp/` | `astra-core-transport-splithttp/` | ✅ Complete — UploadQueue, XPadding, browser dialer scaffold |
 | `transport/internet/kcp/` | `astra-core-transport-kcp/` | ✅ Complete |
 | `transport/internet/grpc/` | `astra-core-transport-grpc/` | ✅ Complete |
 | `transport/internet/h2/` | `astra-core-transport-h2/` | ✅ Complete (h2 crate, bidirectional stream, TLS required) |
 | `transport/internet/quic/` | `astra-core-transport-quic/` | ✅ Complete |
 | `transport/internet/reality/` | `astra-core-transport-reality/` | ❌ Blocked — требует uTLS browser ClientHello, ECH, ML-KEM-768, ML-DSA-65, SpiderX. Falls through to camouflage target. |
-| `transport/internet/tls/` | `rustls` 0.23 | ⚠️ Partial — нет uTLS fingerprinting, ECH, certificate pinning, key log writer |
-| `transport/internet/hysteria/` | (встроено в `astra-core-proxy-hysteria/`) | ⚠️ Partial — нет обфускации, padding per protocol stage |
+| `transport/internet/tls/` | `rustls` 0.23 | ⚠️ Partial — нет uTLS fingerprinting (нет в Rust ecosystem), ECH |
+| `transport/internet/hysteria/` | (встроено в `astra-core-proxy-hysteria/`) | ✅ Complete — QUIC с congestion control, auth padding, obfs через finalmask |
 | `transport/internet/udp/` | Built-in tokio UDP | ✅ Complete |
 | `transport/internet/stat/` | `CounterConnection` в `astra_core_transport` | ✅ Complete |
 | `transport/internet/browser_dialer/` | `astra-core-browser-dialer` | ✅ Complete (HTTP+WS server, HTML/JS) |

@@ -32,7 +32,14 @@ pub struct HysteriaInboundConfig {
     pub obfs: Option<String>,
 }
 
-// ─── Auth protocol ──────────────────────────────────────────────────────────
+// ─── Auth protocol & padding ──────────────────────────────────────────────────
+
+const PADDING_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+pub fn random_padding(min: usize, max: usize) -> String {
+    let n = min + fastrand::usize(..(max - min));
+    (0..n).map(|_| PADDING_CHARS[fastrand::usize(..PADDING_CHARS.len())] as char).collect()
+}
 
 #[derive(Serialize, Deserialize)]
 struct AuthRequest {

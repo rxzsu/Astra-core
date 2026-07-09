@@ -20,3 +20,4 @@ astra-core-proxy = { path = "../astra-core-proxy" }
 astra-core-session = { path = "../astra-core-session" }
 astra-core-config = { path = "../astra-core-config" }
 astra-core-transport = { path = "../astra-core-transport" }
+fastrand = "2"
