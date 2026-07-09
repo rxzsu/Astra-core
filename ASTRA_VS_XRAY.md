@@ -8,7 +8,6 @@
 | `proxy/dns/` | `astra-core-proxy-dns/` | ✅ Complete |
 | `proxy/dokodemo/` | `astra-core-proxy-dokodemo/` | ✅ Complete (FollowRedirect, PortMap, TPROXY/FakeUDP на Linux) |
 | `proxy/freedom/` | `astra-core-proxy-freedom/` | ✅ Fragment, FinalRule, Noise, DomainStrategy, ProxyProtocol scaffold |
-
 | `proxy/http/` | `astra-core-proxy-http/` | ✅ Complete |
 | `proxy/loopback/` | `astra-core-proxy-loopback/` | ✅ Complete |
 | `proxy/shadowsocks/` | `astra-core-proxy-shadowsocks/` | ✅ Complete |
