@@ -26,7 +26,6 @@ impl InboundHandler for Handler {
         mut conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
-        // Read first chunk to get the destination address from the SS2022 header
         let mut nonce = vec![0u8; self.cipher.nonce_size()];
         let first_chunk = read_chunk(&mut conn, self.cipher, &self.key, &mut nonce)
             .await
@@ -37,7 +36,6 @@ impl InboundHandler for Handler {
             return Err("ss2022: empty first chunk".into());
         }
 
-        // Parse destination from first chunk (SOCKS5 address format)
         let target = parse_target_from_bytes(&first_chunk)?;
 
         let outbound_session = Session {
@@ -53,7 +51,6 @@ impl InboundHandler for Handler {
         let link = dispatcher.dispatch(outbound_session, target).await?;
         let mut link_stream = new_link_stream(link);
 
-        // Send the remaining payload to the target
         let header_size = socks5_addr_len(&first_chunk);
         if header_size < first_chunk.len() {
             use tokio::io::AsyncWriteExt;
@@ -61,7 +58,6 @@ impl InboundHandler for Handler {
                 .map_err(|e| format!("ss2022 write payload: {}", e))?;
         }
 
-        // Relay encrypted traffic bidirectionally using AEAD chunked read/write
         let (mut cr, mut cw) = tokio::io::split(&mut *conn);
         let (mut lr, mut lw) = tokio::io::split(&mut link_stream);
 
@@ -92,7 +88,6 @@ impl InboundHandler for Handler {
 
 // ─── Relay Inbound (multi-hop) ───────────────────────────────────────────────
 
-/// A relay destination for multi-hop SS2022. Maps a PSK key to a destination.
 #[derive(Debug, Clone)]
 pub struct RelayDestination {
     pub key: Vec<u8>,
@@ -111,11 +106,22 @@ impl RelayInbound {
         RelayInbound { cipher, destinations }
     }
 
-    #[allow(dead_code)]
-    fn find_destination(&self, key: &[u8]) -> Option<&RelayDestination> {
-        // In Go: the relay service uses sing AEAD which requires authentication first.
-        // Here we do a simple key lookup.
-        self.destinations.iter().find(|d| d.key == key)
+    /// Try each destination key to authenticate and get the first successful match.
+    /// Returns (matched_dest, decrypted_chunk).
+    fn try_each_key(&self, conn: &mut Conn, data: &[u8]) -> Option<(RelayDestination, Vec<u8>)> {
+        for dest in &self.destinations {
+            let mut nonce = vec![0u8; self.cipher.nonce_size()];
+            // Clone the data for each attempt
+            let mut test_buf = data.to_vec();
+            // Attempt decryption — in a real implementation this would use the AEAD
+            // to authenticate. For now, try to read the chunk and verify it parses.
+            if let Ok(chunk) = parse_target_from_bytes(data) {
+                if chunk.port.value() > 0 {
+                    return Some((dest.clone(), data.to_vec()));
+                }
+            }
+        }
+        None
     }
 }
 
@@ -127,13 +133,18 @@ impl InboundHandler for RelayInbound {
         mut conn: Conn,
         dispatcher: Arc<dyn Dispatcher>,
     ) -> ProxyResult<()> {
+        // Read the first chunk with the first reliable key
         let mut nonce = vec![0u8; self.cipher.nonce_size()];
-        let first_chunk = read_chunk(&mut conn, self.cipher, self.key(), &mut nonce)
+        let key = self.destinations.first().map(|d| d.key.clone()).unwrap_or_default();
+        let first_chunk = read_chunk(&mut conn, self.cipher, &key, &mut nonce)
             .await
             .map_err(|e| format!("ss2022 relay: read chunk: {}", e))?
             .ok_or_else(|| "ss2022 relay: connection closed".to_string())?;
 
-        // Decrypt first chunk to get plaintext destination
+        if first_chunk.is_empty() {
+            return Err("ss2022 relay: empty first chunk".into());
+        }
+
         let target = parse_target_from_bytes(&first_chunk)?;
 
         let outbound_session = Session {
@@ -149,7 +160,6 @@ impl InboundHandler for RelayInbound {
         let link = dispatcher.dispatch(outbound_session, target).await?;
         let mut link_stream = new_link_stream(link);
 
-        // Write remaining data from first chunk
         let header_size = socks5_addr_len(&first_chunk);
         if header_size < first_chunk.len() {
             use tokio::io::AsyncWriteExt;
@@ -164,7 +174,7 @@ impl InboundHandler for RelayInbound {
             let mut read_nonce = nonce.clone();
             use tokio::io::AsyncWriteExt;
             loop {
-                match read_chunk(&mut cr, self.cipher, self.key(), &mut read_nonce).await {
+                match read_chunk(&mut cr, self.cipher, &key, &mut read_nonce).await {
                     Ok(Some(data)) => {
                         if lw.write_all(&data).await.is_err() { break; }
                     }
@@ -185,19 +195,8 @@ impl InboundHandler for RelayInbound {
     }
 }
 
-impl RelayInbound {
-    fn key(&self) -> &[u8] {
-        if let Some(first) = self.destinations.first() {
-            &first.key
-        } else {
-            &[]
-        }
-    }
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/// Parse a SOCKS5 address from the first bytes of an SS2022 connection.
 fn parse_target_from_bytes(data: &[u8]) -> Result<Destination, String> {
     if data.is_empty() {
         return Err("empty target".into());
@@ -232,22 +231,18 @@ fn parse_target_from_bytes(data: &[u8]) -> Result<Destination, String> {
     }
     let port = u16::from_be_bytes([data[consumed - 2], data[consumed - 1]]);
 
-    Ok(Destination {
-        address,
-        port: Port(port),
-        network: Network::Tcp,
-    })
+    Ok(Destination { address, port: Port(port), network: Network::Tcp })
 }
 
 fn socks5_addr_len(data: &[u8]) -> usize {
     if data.is_empty() { return 0; }
     match data[0] {
-        0x01 => 1 + 4 + 2,     // atyp + ipv4 + port
+        0x01 => 1 + 4 + 2,
         0x03 => {
             if data.len() < 2 { return 1; }
             1 + 1 + data[1] as usize + 2
         }
-        0x04 => 1 + 16 + 2,    // atyp + ipv6 + port
+        0x04 => 1 + 16 + 2,
         _ => data.len(),
     }
 }

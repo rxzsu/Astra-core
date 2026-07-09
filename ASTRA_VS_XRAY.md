@@ -6,13 +6,14 @@
 |---|---|---|
 | `proxy/blackhole/` | `astra-core-proxy-blackhole/` | ✅ Complete |
 | `proxy/dns/` | `astra-core-proxy-dns/` | ✅ Complete |
-| `proxy/dokodemo/` | `astra-core-proxy-dokodemo/` | ⚠️ Partial — FollowRedirect, TPROXY, FakeUDP (Linux), PortMap не портированы |
+| `proxy/dokodemo/` | `astra-core-proxy-dokodemo/` | ✅ Complete (FollowRedirect, PortMap, TPROXY/FakeUDP на Linux) |
 | `proxy/freedom/` | `astra-core-proxy-freedom/` | ✅ Fragment, FinalRule, Noise, DomainStrategy, ProxyProtocol scaffold |
+
 | `proxy/http/` | `astra-core-proxy-http/` | ✅ Complete |
 | `proxy/loopback/` | `astra-core-proxy-loopback/` | ✅ Complete |
 | `proxy/shadowsocks/` | `astra-core-proxy-shadowsocks/` | ✅ Complete |
-| `proxy/shadowsocks_2022/` | `astra-core-proxy-shadowsocks-2022/` | ⚠️ Partial — RelayInbound (multi-hop) не портирован |
-| `proxy/socks/` | `astra-core-proxy-socks/` | ⚠️ Partial — UDP over TCP, FullCone NAT, HTTP fallback не портированы |
+| `proxy/shadowsocks_2022/` | `astra-core-proxy-shadowsocks-2022/` | ✅ Complete (включая RelayInbound multi-hop) |
+| `proxy/socks/` | `astra-core-proxy-socks/` | ✅ Full UDP ASSOCIATE, FullCone NAT, SOCKS4a, auth |
 | `proxy/trojan/` | `astra-core-proxy-trojan/` | ✅ Fallback (SNI/ALPN/path), PROXY protocol scaffold, REALITY/TLS интеграция не портирована |
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |

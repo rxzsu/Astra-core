@@ -519,6 +519,7 @@ pub fn build_inbound_handler(
                     port: cfg.port,
                     follow_redirect: cfg.follow_redirect,
                     user_level: cfg.user_level,
+                    port_map: std::collections::HashMap::new(),
                 },
             ))
         }

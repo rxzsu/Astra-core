@@ -28,6 +28,8 @@ pub struct SocksConfig {
     pub udp_enabled: bool,
     pub address: Option<Address>,
     pub user_level: u32,
+    /// FullCone NAT: all UDP packets in a session go to the first destination
+    pub cone: bool,
 }
 
 impl Default for SocksConfig {
@@ -38,6 +40,7 @@ impl Default for SocksConfig {
             udp_enabled: false,
             address: None,
             user_level: 0,
+            cone: false,
         }
     }
 }
