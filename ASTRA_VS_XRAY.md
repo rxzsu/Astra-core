@@ -129,10 +129,7 @@
 | `transport/internet/tagged/` | `astra-core-transport::tagged` | ✅ Complete |
 | `transport/internet/finalmask/` | `astra-core-finalmask` | ✅ Core: Tcpmask/Udpmask traits, managers, Salamander XOR mask |
 | `transport/internet/headers/http/` | `astra-core-transport::headers::http` | ✅ Complete (HeaderReader, HeaderWriter, HttpConn, Authenticator) |
-| `transport/internet/headers/noop/` | — | ❌ Not ported (тривиально — NoOpReader/NoOpWriter) |
-| `transport/internet/domain/` | — | ❌ Not ported |
-| `transport/internet/domain/` | — | ❌ Not ported |
-| `transport/internet/pipe/` | (built-in tokio pipe) | ✅ Через tokio::io::duplex |
+| `transport/internet/headers/noop/` | `astra-core-transport::headers::noop` | ✅ Complete (NoOpConn, NoOpHeader) |
 
 ## Features (`common/`, `features/`)
 
