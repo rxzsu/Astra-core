@@ -719,6 +719,7 @@ dependencies = [
  "astra-core-transport-quic",
  "astra-core-transport-reality",
  "astra-core-transport-splithttp",
+ "astra-core-transport-tls",
  "astra-core-transport-ws",
  "libc",
  "quinn",

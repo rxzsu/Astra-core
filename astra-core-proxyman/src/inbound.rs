@@ -97,25 +97,16 @@ impl AlwaysOnInboundHandler {
         self
     }
 
-    /// Static TLS wrapping for a Conn.
+    /// Static TLS wrapping for a Conn (using BoringSSL).
     async fn tls_wrap(conn: Conn, tls_cfg: &TlsConfig) -> ProxyResult<Conn> {
         if tls_cfg.cert_data.is_empty() || tls_cfg.key_data.is_empty() {
             return Ok(conn);
         }
-        let cert = rustls::pki_types::CertificateDer::from(tls_cfg.cert_data.clone());
-        let key = rustls::pki_types::PrivateKeyDer::try_from(tls_cfg.key_data.clone())
-            .map_err(|e| format!("invalid tls key: {:?}", e))?;
-
-        let tls_config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(vec![cert], key)
-            .map_err(|e| format!("tls config: {}", e))?;
-
-        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls_config));
-        let tls_stream = acceptor
-            .accept(conn)
-            .await
-            .map_err(|e| format!("tls accept: {}", e))?;
+        let acceptor = astra_core_transport_tls::build_server_config(
+            &tls_cfg.cert_data,
+            &tls_cfg.key_data,
+        )?;
+        let tls_stream = astra_core_transport_tls::tls_accept(conn, acceptor).await?;
         Ok(Box::new(tls_stream))
     }
 

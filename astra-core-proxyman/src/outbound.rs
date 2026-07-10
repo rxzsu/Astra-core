@@ -13,12 +13,13 @@ use astra_core_proxy::timeout::TimeoutConn;
 use astra_core_proxy::{AsyncConn, Dialer, OutboundHandler, ProxyResult, UdpLink, async_trait};
 use astra_core_session::Session;
 use astra_core_transport::Link;
-use rustls::pki_types::ServerName;
 
 /// TLS configuration for outbound connections.
 pub struct TlsConfig {
     pub server_name: String,
     pub allow_insecure: bool,
+    /// Browser fingerprint for DPI bypass (default: Chrome)
+    pub fingerprint: Option<astra_core_transport_tls::TlsFingerprint>,
 }
 
 /// REALITY configuration for outbound connections.
@@ -34,56 +35,6 @@ pub struct RealityConfig {
 pub struct MuxConfig {
     pub enabled: bool,
     pub concurrency: i16,
-}
-
-/// A certificate verifier that accepts all server certificates (for allowInsecure).
-#[derive(Debug)]
-struct NoopVerifier;
-
-impl rustls::client::danger::ServerCertVerifier for NoopVerifier {
-    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        vec![
-            rustls::SignatureScheme::RSA_PSS_SHA256,
-            rustls::SignatureScheme::RSA_PSS_SHA384,
-            rustls::SignatureScheme::RSA_PSS_SHA512,
-            rustls::SignatureScheme::ECDSA_NISTP256_SHA256,
-            rustls::SignatureScheme::ECDSA_NISTP384_SHA384,
-            rustls::SignatureScheme::ECDSA_NISTP521_SHA512,
-            rustls::SignatureScheme::ED25519,
-            rustls::SignatureScheme::ED448,
-            rustls::SignatureScheme::RSA_PKCS1_SHA256,
-            rustls::SignatureScheme::RSA_PKCS1_SHA384,
-            rustls::SignatureScheme::RSA_PKCS1_SHA512,
-        ]
-    }
-    fn verify_server_cert(
-        &self,
-        _end_entity: &rustls::pki_types::CertificateDer<'_>,
-        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
-        _server_name: &rustls::pki_types::ServerName<'_>,
-        _ocsp_response: &[u8],
-        _now: rustls::pki_types::UnixTime,
-    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::danger::ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        _message: &[u8],
-        _cert: &rustls::pki_types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        _message: &[u8],
-        _cert: &rustls::pki_types::CertificateDer<'_>,
-        _dss: &rustls::DigitallySignedStruct,
-    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
-        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
-    }
 }
 
 /// Type-erased async connection usable as a bidirectional transport.
@@ -141,8 +92,8 @@ impl Handler {
         self
     }
 
-    pub fn with_keepalive(mut self, interval_secs: u32) -> Self {
-        self.tcp_keepalive_interval = Some(interval_secs);
+    pub fn with_keepalive(mut self, interval: u32) -> Self {
+        self.tcp_keepalive_interval = Some(interval);
         self
     }
 
@@ -155,8 +106,9 @@ impl Handler {
         self.idle_timeout = Some(timeout);
         self
     }
+}
 
-    /// Dial the underlying transport (TCP/TLS/REALITY or KCP/WS/etc.) without mux.
+impl Handler {
     async fn dial_transport(&self, dest: &Destination) -> ProxyResult<Conn> {
         if let Some(ref reality_cfg) = self.reality {
             let tcp = transport::dial_transport(&self.transport, dest, None).await?;
@@ -165,42 +117,43 @@ impl Handler {
             } else {
                 reality_cfg.server_name.clone()
             };
-            return astra_core_transport_reality::client::dial_tls(tcp, &sn, false).await;
+            // REALITY with custom TLS fingerprint
+            let mut tls_cfg = astra_core_transport_tls::TlsConfig {
+                server_name: sn.clone(),
+                alpn: vec!["h2".into(), "http/1.1".into()],
+                fingerprint: astra_core_transport_tls::TlsFingerprint::Chrome,
+                insecure_skip_verify: false,
+                ca_cert_pem: None,
+            };
+            // Parse fingerprint from reality config
+            match reality_cfg.fingerprint.to_lowercase().as_str() {
+                "chrome" => tls_cfg.fingerprint = astra_core_transport_tls::TlsFingerprint::Chrome,
+                "firefox" => tls_cfg.fingerprint = astra_core_transport_tls::TlsFingerprint::Firefox,
+                "safari" => tls_cfg.fingerprint = astra_core_transport_tls::TlsFingerprint::Safari,
+                "edge" => tls_cfg.fingerprint = astra_core_transport_tls::TlsFingerprint::Edge,
+                "random" => tls_cfg.fingerprint = astra_core_transport_tls::TlsFingerprint::Random,
+                _ => {}
+            }
+            return astra_core_transport_tls::tls_connect(tcp, &tls_cfg).await;
         }
 
         let raw = transport::dial_transport(&self.transport, dest, None).await?;
 
         if let Some(ref tls_cfg) = self.tls {
-            let server_name_str = tls_cfg.server_name.clone();
-            let server_name = ServerName::try_from(server_name_str)
-                .map_err(|e| format!("invalid server name: {}", e))?;
-
-            let config = if tls_cfg.allow_insecure {
-                rustls::ClientConfig::builder()
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(NoopVerifier))
-                    .with_no_client_auth()
-            } else {
-                let root_store = rustls::RootCertStore {
-                    roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-                };
-                rustls::ClientConfig::builder()
-                    .with_root_certificates(root_store)
-                    .with_no_client_auth()
+            let fingerprint = tls_cfg.fingerprint.unwrap_or(astra_core_transport_tls::TlsFingerprint::Chrome);
+            let mut boring_cfg = astra_core_transport_tls::TlsConfig {
+                server_name: tls_cfg.server_name.clone(),
+                alpn: vec!["h2".into(), "http/1.1".into()],
+                fingerprint,
+                insecure_skip_verify: tls_cfg.allow_insecure,
+                ca_cert_pem: None,
             };
-
-            let connector = tokio_rustls::TlsConnector::from(Arc::new(config));
-            let tls_stream = connector
-                .connect(server_name, raw)
-                .await
-                .map_err(|e| format!("tls handshake: {}", e))?;
-            return Ok(Box::new(tls_stream));
+            return astra_core_transport_tls::tls_connect(raw, &boring_cfg).await;
         }
 
         Ok(raw)
     }
 
-    /// Dial using mux: reuse or create a mux client and open a new session.
     async fn dial_mux(&self, dest: &Destination) -> ProxyResult<Conn> {
         {
             let guard = self.mux_client.lock().await;
@@ -240,72 +193,75 @@ impl Dialer for Handler {
     }
 }
 
-#[async_trait]
-impl DispatchHandler for Handler {
-    async fn dispatch(&self, session: Session, link: &mut Link) -> ProxyResult<()> {
-        self.proxy.process(session, link, self).await
-    }
+impl Handler {
+    pub fn wrap_with_proxy(self) -> Arc<dyn OutboundHandler> {
+        struct Wrapper {
+            inner: Handler,
+        }
 
-    async fn dispatch_udp(&self, session: Session, link: &mut UdpLink) -> ProxyResult<()> {
-        self.proxy.process_udp(session, link).await
+        #[async_trait]
+        impl OutboundHandler for Wrapper {
+            async fn process(&self, session: Session, link: &mut Link, _dialer: &dyn Dialer) -> ProxyResult<()> {
+                // Use self as dialer
+                let dialer = &self.inner;
+                self.inner.proxy.process(session, link, dialer).await
+            }
+
+            async fn process_udp(&self, _session: Session, _link: &mut UdpLink) -> ProxyResult<()> {
+                Err("outbound tls wrapper: udp not supported".into())
+            }
+        }
+
+        Arc::new(Wrapper { inner: self })
     }
 }
+
+impl std::fmt::Debug for Handler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Handler")
+            .field("tag", &self.tag)
+            .field("tls", &self.tls.as_ref().map(|t| &t.server_name))
+            .finish()
+    }
+}
+
+// ─── Manager ────────────────────────────────────────────────────────────────
 
 pub struct Manager {
-    handlers: RwLock<HashMap<String, Arc<dyn DispatchHandler>>>,
-    default_handler: RwLock<Option<Arc<dyn DispatchHandler>>>,
-}
-
-impl Default for Manager {
-    fn default() -> Self {
-        Self::new()
-    }
+    handlers: RwLock<HashMap<String, Arc<dyn OutboundHandler>>>,
 }
 
 impl Manager {
     pub fn new() -> Self {
         Manager {
             handlers: RwLock::new(HashMap::new()),
-            default_handler: RwLock::new(None),
         }
     }
 
-    pub fn add_handler(&self, tag: String, handler: Arc<dyn DispatchHandler>) {
-        let mut dh = self.default_handler.write().unwrap();
-        if dh.is_none() {
-            *dh = Some(handler.clone());
-        }
-        drop(dh);
+    pub fn add_handler(&self, tag: String, handler: Arc<dyn OutboundHandler>) {
         self.handlers.write().unwrap().insert(tag, handler);
     }
 
-    pub fn get_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
+    pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn OutboundHandler>> {
+        self.handlers.write().unwrap().remove(tag)
+    }
+
+    pub fn get_handler(&self, tag: &str) -> Option<Arc<dyn OutboundHandler>> {
         self.handlers.read().unwrap().get(tag).cloned()
     }
 
-    pub fn get_default_handler(&self) -> Option<Arc<dyn DispatchHandler>> {
-        self.default_handler.read().unwrap().clone()
+    pub fn list_handlers(&self) -> Vec<(String, String)> {
+        self.handlers
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(tag, _)| (tag.clone(), "outbound".into()))
+            .collect()
     }
+}
 
-    pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
-        let removed = self.handlers.write().unwrap().remove(tag);
-        if removed.is_some()
-            && self
-                .default_handler
-                .read()
-                .unwrap()
-                .as_ref()
-                .map(|h| std::ptr::addr_eq(Arc::as_ptr(h), Arc::as_ptr(removed.as_ref().unwrap())))
-                .unwrap_or(false)
-        {
-            // If we removed the default handler, pick a new default
-            let mut dh = self.default_handler.write().unwrap();
-            *dh = self.handlers.read().unwrap().values().next().cloned();
-        }
-        removed
-    }
-
-    pub fn list_handlers(&self) -> Vec<String> {
-        self.handlers.read().unwrap().keys().cloned().collect()
+impl Default for Manager {
+    fn default() -> Self {
+        Self::new()
     }
 }

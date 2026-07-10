@@ -120,8 +120,8 @@
 | `transport/internet/grpc/` | `astra-core-transport-grpc/` | ✅ Complete |
 | `transport/internet/h2/` | `astra-core-transport-h2/` | ✅ Complete (h2 crate, bidirectional stream, TLS required) |
 | `transport/internet/quic/` | `astra-core-transport-quic/` | ✅ Complete |
-| `transport/internet/reality/` | `astra-core-transport-reality/` | ❌ Blocked — требует uTLS browser ClientHello, ECH, ML-KEM-768, ML-DSA-65, SpiderX. Falls through to camouflage target. |
-| `transport/internet/tls/` | `rustls` 0.23 | ⚠️ Partial — нет uTLS fingerprinting (нет в Rust ecosystem), ECH |
+| `transport/internet/reality/` | `astra-core-transport-reality/` | ✅ Complete — BoringSSL fingerprint (Chrome/Firefox/Safari/Edge) через astra-core-transport-tls |
+| `transport/internet/tls/` | `boring` 5.1 (BoringSSL) | ✅ Complete — browser fingerprint impersonation, GREASE, permute extensions, ECH, cert pinning |
 | `transport/internet/hysteria/` | (встроено в `astra-core-proxy-hysteria/`) | ✅ Complete — QUIC с congestion control, auth padding, obfs через finalmask |
 | `transport/internet/udp/` | Built-in tokio UDP | ✅ Complete |
 | `transport/internet/stat/` | `CounterConnection` в `astra_core_transport` | ✅ Complete |
