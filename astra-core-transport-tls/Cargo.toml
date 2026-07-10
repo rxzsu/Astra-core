@@ -1,0 +1,12 @@
+[package]
+name = "astra-core-transport-tls"
+version = "0.1.0"
+edition = "2024"
+description = "TLS transport with browser fingerprint impersonation (BoringSSL)"
+
+[dependencies]
+tokio = { workspace = true }
+boring = "5.1"
+tokio-boring = "5.0"
+tracing = { workspace = true }
+serde = { workspace = true, features = ["derive"] }

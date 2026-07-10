@@ -51,6 +51,7 @@ members = [
     "astra-core-finalmask",
     "astra-core-tun",
     "astra-core-app-log",
+    "astra-core-transport-tls",
 ]
 
 [workspace.dependencies]
