@@ -19,3 +19,4 @@ pub mod types;
 pub mod units;
 pub mod utils;
 pub mod xudp;
+pub mod happy_eyeballs;

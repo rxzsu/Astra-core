@@ -161,6 +161,7 @@ impl UdpLink {
 
 pub mod headers;
 pub mod tagged;
+pub mod udp;
 pub mod vstream;
 
 pub fn new_udp_link_pair() -> (UdpLink, UdpLink) {
