@@ -24,7 +24,7 @@ pub async fn create_tun(config: &Config) -> Result<Box<dyn TunDevice>, String> {
     }
     #[cfg(target_os = "macos")]
     {
-        return create_macos_tun(config).await;
+        return Err("macOS TUN not yet implemented".into());
     }
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
@@ -121,14 +121,75 @@ fn bring_up(ifname: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ─── Platform stubs ────────────────────────────────────────────────────────
+// ─── Windows TUN (via wintun crate) ────────────────────────────────────────
 
 #[cfg(target_os = "windows")]
-async fn create_windows_tun(_config: &Config) -> Result<Box<dyn TunDevice>, String> {
-    Err("Windows TUN not yet implemented".into())
+mod windows {
+    use std::sync::Arc;
+    use super::*;
+
+    pub struct WindowsTun {
+        session: Arc<wintun::Session>,
+        name: String,
+    }
+
+    pub async fn create_windows_tun(config: &Config) -> Result<Box<dyn TunDevice>, String> {
+        let name = if config.name.is_empty() { "AstraTun".into() } else { config.name.clone() };
+        let tun_type = "Astra-TUN";
+
+        let wintun = unsafe { wintun::load() }.map_err(|e| format!("wintun load: {}", e))?;
+        let adapter = wintun::Adapter::create(&wintun, &name, tun_type, None)
+            .or_else(|_| wintun::Adapter::open(&wintun, &name))
+            .map_err(|e| format!("wintun adapter: {}", e))?;
+
+        // Set address from config (first address only)
+        if let Some(addr_str) = config.addresses.first() {
+            if let Ok(ip) = addr_str.split('/').next().unwrap_or(addr_str).parse::<std::net::Ipv4Addr>() {
+                let _ = adapter.set_address(ip);
+                let _ = adapter.set_netmask(std::net::Ipv4Addr::new(255, 255, 255, 0));
+            }
+        }
+
+        let session = adapter.start_session(wintun::MAX_RING_CAPACITY)
+            .map_err(|e| format!("wintun session: {}", e))?;
+        let session = Arc::new(session);
+
+        Ok(Box::new(WindowsTun { session, name }))
+    }
+
+    #[async_trait::async_trait]
+    impl TunDevice for WindowsTun {
+        async fn start(&self) -> Result<(), String> { Ok(()) }
+
+        fn name(&self) -> Result<String, String> { Ok(self.name.clone()) }
+
+        fn index(&self) -> Result<i32, String> { Ok(0) }
+
+        async fn recv(&self, buf: &mut [u8]) -> Result<usize, String> {
+            let pkt = wintun::Session::receive_blocking(&self.session)
+                .map_err(|e| format!("wintun recv: {}", e))?;
+            let data = pkt.bytes();
+            let n = data.len().min(buf.len());
+            buf[..n].copy_from_slice(&data[..n]);
+            Ok(n)
+        }
+
+        async fn send(&self, buf: &[u8]) -> Result<(), String> {
+            let mut pkt = self.session.allocate_send_packet(buf.len() as u16)
+                .map_err(|e| format!("wintun alloc: {}", e))?;
+            pkt.bytes_mut().copy_from_slice(buf);
+            self.session.send_packet(pkt);
+            Ok(())
+        }
+    }
 }
 
-#[cfg(target_os = "macos")]
-async fn create_macos_tun(_config: &Config) -> Result<Box<dyn TunDevice>, String> {
-    Err("macOS TUN not yet implemented".into())
+#[cfg(target_os = "windows")]
+use windows::{create_windows_tun, WindowsTun};
+
+// ─── Platform stubs ────────────────────────────────────────────────────────
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+async fn create_tun_fallback(_config: &Config) -> Result<Box<dyn TunDevice>, String> {
+    Err("TUN not supported on this platform".into())
 }

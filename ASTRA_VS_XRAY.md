@@ -17,7 +17,7 @@
 | `proxy/vless/` | `astra-core-proxy-vless/` | ✅ Complete |
 | `proxy/vmess/` | `astra-core-proxy-vmess/` | ✅ Complete |
 | `proxy/wireguard/` | `astra-core-proxy-wireguard/` | ✅ Complete — boringtun noise, multi-peer config, domain endpoint resolution, UDP tunnel |
-| `proxy/tun/` | `astra-core-tun` | ✅ Complete — Linux TUN, smoltcp stack, FullCone NAT, ICMP echo. Windows/macOS: ❌ (нет wintun/utun драйвера) |
+| `proxy/tun/` | `astra-core-tun` | ✅ Complete — Linux TUN, Windows WinTUN, macOS stub |
 | `proxy/hysteria/` | `astra-core-proxy-hysteria/` | ✅ Complete — QUIC (quinn) с Brutal CC, auth padding. Obfuscation: использует finalmask как и Go |
 
 ### Freedom sub-features (`proxy/freedom/`)

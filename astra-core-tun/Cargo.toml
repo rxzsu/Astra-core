@@ -18,3 +18,6 @@ rand = { workspace = true }
 getrandom = "0.4"
 tun = "0.8"
 async-trait = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+wintun = "0.5"
