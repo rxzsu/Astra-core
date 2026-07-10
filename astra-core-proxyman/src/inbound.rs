@@ -106,7 +106,7 @@ impl AlwaysOnInboundHandler {
             &tls_cfg.cert_data,
             &tls_cfg.key_data,
         )?;
-        let tls_stream = astra_core_transport_tls::tls_accept(conn, acceptor).await?;
+        let tls_stream = astra_core_transport_tls::tls_accept(conn, &acceptor).await?;
         Ok(Box::new(tls_stream))
     }
 

@@ -4,7 +4,6 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 use crate::transport;
-use astra_core_dispatcher::DispatchHandler;
 use astra_core_mux::client::MuxClient;
 use astra_core_mux::io as mux_io;
 use astra_core_mux::session::MuxClientStrategy;

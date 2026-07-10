@@ -1,5 +1,6 @@
 use boring::ssl::{SslConnector, SslMethod, SslAcceptor};
 use boring::x509::X509;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 /// Browser TLS fingerprint presets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -79,10 +80,13 @@ pub fn build_client_config(config: &TlsConfig) -> Result<SslConnector, String> {
 }
 
 /// Async TLS connect.
-pub async fn tls_connect(
-    tcp: tokio::net::TcpStream,
+pub async fn tls_connect<S>(
+    tcp: S,
     config: &TlsConfig,
-) -> Result<tokio_boring::SslStream<tokio::net::TcpStream>, String> {
+) -> Result<tokio_boring::SslStream<S>, String>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let connector = build_client_config(config)?;
     let domain = config.server_name.clone();
     let connect_cfg = connector.configure()
@@ -117,11 +121,14 @@ pub fn build_server_config(
 }
 
 /// Async TLS accept.
-pub async fn tls_accept(
-    tcp: tokio::net::TcpStream,
-    acceptor: SslAcceptor,
-) -> Result<tokio_boring::SslStream<tokio::net::TcpStream>, String> {
-    tokio_boring::accept(&acceptor, tcp)
+pub async fn tls_accept<S>(
+    tcp: S,
+    acceptor: &SslAcceptor,
+) -> Result<tokio_boring::SslStream<S>, String>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    tokio_boring::accept(acceptor, tcp)
         .await
         .map_err(|e| format!("tls accept: {}", e))
 }
