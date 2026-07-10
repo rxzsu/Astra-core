@@ -30,6 +30,7 @@ pub fn EncodeRequestHeader(request: &RequestHeader, addons: &Addons) -> Vec<u8> 
 
     // Addons
     let addons_data = addons.encode();
+    buf.push(addons_data.len() as u8); // addons_len
     buf.extend_from_slice(&addons_data);
 
     // Command
@@ -95,7 +96,7 @@ pub fn DecodeRequestHeader(
         if data.len() < offset + addons_len {
             return Err("truncated addons".to_string());
         }
-        let decoded = Addons::decode(&data[offset - 1..offset + addons_len])?;
+        let decoded = Addons::decode(&data[offset..offset + addons_len])?;
         offset += addons_len;
         decoded
     } else {

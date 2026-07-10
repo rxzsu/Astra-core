@@ -16,3 +16,5 @@ astra-core-session = { path = "../astra-core-session" }
 astra-core-transport = { path = "../astra-core-transport" }
 rand = { workspace = true }
 tokio = { workspace = true }
+md-5 = { workspace = true }
+digest = "0.11"

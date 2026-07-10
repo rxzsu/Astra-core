@@ -678,6 +678,8 @@ dependencies = [
  "astra-core-routing",
  "astra-core-session",
  "astra-core-transport",
+ "digest 0.11.3",
+ "md-5",
  "rand 0.10.2",
  "tokio",
 ]

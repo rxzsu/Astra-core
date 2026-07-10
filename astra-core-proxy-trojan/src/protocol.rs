@@ -111,6 +111,66 @@ pub fn write_udp_packet(addr: &Address, port: u16, payload: &[u8]) -> Vec<u8> {
     buf
 }
 
+/// Parse a Trojan UDP packet from raw bytes.
+/// Returns (Address, Port, Payload).
+pub fn read_udp_packet(data: &[u8]) -> Result<(Address, u16, &[u8]), String> {
+    if data.is_empty() {
+        return Err("empty trojan udp packet".into());
+    }
+    let atype = data[0];
+    let mut offset = 1;
+    let address = match atype {
+        0x01 => {
+            if data.len() < offset + 4 {
+                return Err("short ipv4".into());
+            }
+            let mut octets = [0u8; 4];
+            octets.copy_from_slice(&data[offset..offset + 4]);
+            offset += 4;
+            Address::Ipv4(octets)
+        }
+        0x04 => {
+            if data.len() < offset + 16 {
+                return Err("short ipv6".into());
+            }
+            let mut octets = [0u8; 16];
+            octets.copy_from_slice(&data[offset..offset + 16]);
+            offset += 16;
+            Address::Ipv6(octets)
+        }
+        0x03 => {
+            if data.len() < offset + 1 {
+                return Err("short domain len".into());
+            }
+            let dlen = data[offset] as usize;
+            offset += 1;
+            if data.len() < offset + dlen {
+                return Err("short domain".into());
+            }
+            let domain = std::str::from_utf8(&data[offset..offset + dlen])
+                .map_err(|_| "invalid domain utf8")?;
+            offset += dlen;
+            Address::Domain(domain.to_owned())
+        }
+        _ => return Err(format!("unknown address type: {}", atype)),
+    };
+    if data.len() < offset + 2 {
+        return Err("short port".into());
+    }
+    let port = u16::from_be_bytes([data[offset], data[offset + 1]]);
+    offset += 2;
+    if data.len() < offset + 2 {
+        return Err("short length".into());
+    }
+    let _length = u16::from_be_bytes([data[offset], data[offset + 1]]);
+    offset += 2;
+    if data.len() < offset + 2 || data[offset] != b'\r' || data[offset + 1] != b'\n' {
+        return Err("trojan udp: expected crlf after length".into());
+    }
+    offset += 2;
+    Ok((address, port, &data[offset..]))
+}
+
 pub struct TrojanHeader {
     pub key: [u8; 56],
     pub command: u8,

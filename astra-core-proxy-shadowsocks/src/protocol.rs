@@ -534,6 +534,79 @@ impl<R: AsyncRead + Unpin + Send> AsyncRead for DecryptingReader<R> {
     }
 }
 
+// ─── UDP packet encoding/decoding (SOCKS5 address format + encrypted payload) ─
+
+/// Encode a Shadowsocks UDP packet.
+/// Format: [addr_type(1)][addr][port(2)][encrypted_payload]
+pub fn encode_udp_packet(addr: &Address, port: u16, payload: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::new();
+    match addr {
+        Address::Ipv4(ip) => {
+            buf.push(0x01);
+            buf.extend_from_slice(ip);
+        }
+        Address::Ipv6(ip) => {
+            buf.push(0x04);
+            buf.extend_from_slice(ip);
+        }
+        Address::Domain(d) => {
+            buf.push(0x03);
+            buf.push(d.len() as u8);
+            buf.extend_from_slice(d.as_bytes());
+        }
+    }
+    buf.extend_from_slice(&port.to_be_bytes());
+    buf.extend_from_slice(payload);
+    buf
+}
+
+/// Decode a Shadowsocks UDP packet.
+/// Returns (addr, port, payload).
+pub fn decode_udp_packet(data: &[u8]) -> Result<(Address, u16, &[u8]), String> {
+    if data.is_empty() {
+        return Err("empty udp packet".into());
+    }
+    let atyp = data[0];
+    let mut offset = 1;
+    let addr = match atyp {
+        0x01 => {
+            if data.len() < offset + 4 + 2 {
+                return Err("short ipv4 udp packet".into());
+            }
+            let mut ip = [0u8; 4];
+            ip.copy_from_slice(&data[offset..offset + 4]);
+            offset += 4;
+            Address::Ipv4(ip)
+        }
+        0x03 => {
+            if data.len() < offset + 1 {
+                return Err("short domain udp packet".into());
+            }
+            let dlen = data[offset] as usize;
+            offset += 1;
+            if data.len() < offset + dlen + 2 {
+                return Err("short domain udp packet".into());
+            }
+            let domain = String::from_utf8_lossy(&data[offset..offset + dlen]).to_string();
+            offset += dlen;
+            Address::Domain(domain)
+        }
+        0x04 => {
+            if data.len() < offset + 16 + 2 {
+                return Err("short ipv6 udp packet".into());
+            }
+            let mut ip = [0u8; 16];
+            ip.copy_from_slice(&data[offset..offset + 16]);
+            offset += 16;
+            Address::Ipv6(ip)
+        }
+        _ => return Err(format!("unknown address type: {}", atyp)),
+    };
+    let port = u16::from_be_bytes([data[offset], data[offset + 1]]);
+    offset += 2;
+    Ok((addr, port, &data[offset..]))
+}
+
 pub async fn read_tcp_session<R: AsyncRead + Unpin + Send + 'static>(
     reader: R,
     cipher_type: CipherType,
