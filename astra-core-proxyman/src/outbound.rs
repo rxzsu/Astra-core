@@ -227,7 +227,15 @@ impl std::fmt::Debug for Handler {
     }
 }
 
-impl DispatchHandler for Handler {}
+impl DispatchHandler for Handler {
+    async fn dispatch(&self, session: Session, link: &mut Link) -> ProxyResult<()> {
+        self.proxy.process(session, link, self).await
+    }
+
+    async fn dispatch_udp(&self, session: Session, link: &mut UdpLink) -> ProxyResult<()> {
+        self.proxy.process_udp(session, link).await
+    }
+}
 
 // ─── Manager ────────────────────────────────────────────────────────────────
 
