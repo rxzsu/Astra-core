@@ -4,6 +4,7 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 use crate::transport;
+use astra_core_dispatcher::DispatchHandler;
 use astra_core_mux::client::MuxClient;
 use astra_core_mux::io as mux_io;
 use astra_core_mux::session::MuxClientStrategy;
@@ -141,7 +142,7 @@ impl Handler {
 
         if let Some(ref tls_cfg) = self.tls {
             let fingerprint = tls_cfg.fingerprint.unwrap_or(astra_core_transport_tls::TlsFingerprint::Chrome);
-            let mut boring_cfg = astra_core_transport_tls::TlsConfig {
+            let boring_cfg = astra_core_transport_tls::TlsConfig {
                 server_name: tls_cfg.server_name.clone(),
                 alpn: vec!["h2".into(), "http/1.1".into()],
                 fingerprint,
@@ -226,6 +227,8 @@ impl std::fmt::Debug for Handler {
     }
 }
 
+impl DispatchHandler for Handler {}
+
 // ─── Manager ────────────────────────────────────────────────────────────────
 
 pub struct Manager {
@@ -258,6 +261,10 @@ impl Manager {
             .iter()
             .map(|(tag, _)| (tag.clone(), "outbound".into()))
             .collect()
+    }
+
+    pub fn get_default_handler(&self) -> Option<Arc<dyn OutboundHandler>> {
+        self.handlers.read().unwrap().values().next().cloned()
     }
 }
 

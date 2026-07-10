@@ -557,6 +557,7 @@ pub fn build_outbound_handler(
                 ob_handler = ob_handler.with_tls(TlsConfig {
                     server_name,
                     allow_insecure: tls_cfg.allow_insecure,
+                    fingerprint: None,
                 });
             }
         } else if stream.security == "reality"
