@@ -241,7 +241,7 @@ impl DispatchHandler for Handler {
 // ─── Manager ────────────────────────────────────────────────────────────────
 
 pub struct Manager {
-    handlers: RwLock<HashMap<String, Arc<dyn OutboundHandler>>>,
+    handlers: RwLock<HashMap<String, Arc<dyn DispatchHandler>>>,
 }
 
 impl Manager {
@@ -251,15 +251,15 @@ impl Manager {
         }
     }
 
-    pub fn add_handler(&self, tag: String, handler: Arc<dyn OutboundHandler>) {
+    pub fn add_handler(&self, tag: String, handler: Arc<dyn DispatchHandler>) {
         self.handlers.write().unwrap().insert(tag, handler);
     }
 
-    pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn OutboundHandler>> {
+    pub fn remove_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
         self.handlers.write().unwrap().remove(tag)
     }
 
-    pub fn get_handler(&self, tag: &str) -> Option<Arc<dyn OutboundHandler>> {
+    pub fn get_handler(&self, tag: &str) -> Option<Arc<dyn DispatchHandler>> {
         self.handlers.read().unwrap().get(tag).cloned()
     }
 
@@ -272,7 +272,7 @@ impl Manager {
             .collect()
     }
 
-    pub fn get_default_handler(&self) -> Option<Arc<dyn OutboundHandler>> {
+    pub fn get_default_handler(&self) -> Option<Arc<dyn DispatchHandler>> {
         self.handlers.read().unwrap().values().next().cloned()
     }
 }

@@ -186,7 +186,8 @@ impl HandlerService for HandlerSvc {
         &self,
         _req: Request<GetOutboundsRequest>,
     ) -> Result<Response<GetOutboundsResponse>, Status> {
-        let tags = self.outbound_manager.list_handlers();
+        let tags: Vec<String> = self.outbound_manager.list_handlers()
+            .into_iter().map(|(tag, _)| tag).collect();
         Ok(Response::new(GetOutboundsResponse { tags }))
     }
 

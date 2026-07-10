@@ -894,10 +894,14 @@ name = "astra-core-transport-tls"
 version = "0.1.0"
 dependencies = [
  "boring",
+ "rustls",
  "serde",
+ "serde_json",
  "tokio",
  "tokio-boring",
+ "tokio-rustls",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

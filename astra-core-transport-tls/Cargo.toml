@@ -2,11 +2,22 @@
 name = "astra-core-transport-tls"
 version = "0.1.0"
 edition = "2024"
-description = "TLS transport with browser fingerprint impersonation (BoringSSL)"
+description = "TLS transport with optional browser fingerprint impersonation"
+
+[features]
+default = ["rustls"]
+boring = ["dep:boring", "dep:tokio-boring"]
+rustls = ["dep:tokio-rustls", "dep:rustls", "dep:webpki-roots"]
 
 [dependencies]
 tokio = { workspace = true }
-boring = "5.1"
-tokio-boring = "5.0"
 tracing = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+tokio-rustls = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+webpki-roots = { workspace = true, optional = true }
+boring = { version = "5.1", optional = true }
+tokio-boring = { version = "5.0", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
