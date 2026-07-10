@@ -227,6 +227,7 @@ impl std::fmt::Debug for Handler {
     }
 }
 
+#[async_trait]
 impl DispatchHandler for Handler {
     async fn dispatch(&self, session: Session, link: &mut Link) -> ProxyResult<()> {
         self.proxy.process(session, link, self).await
