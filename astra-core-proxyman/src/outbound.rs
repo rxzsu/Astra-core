@@ -133,7 +133,8 @@ impl Handler {
                 "random" => tls_cfg.fingerprint = astra_core_transport_tls::TlsFingerprint::Random,
                 _ => {}
             }
-            return astra_core_transport_tls::tls_connect(tcp, &tls_cfg).await;
+            return astra_core_transport_tls::tls_connect(tcp, &tls_cfg).await
+                .map(|s| Box::new(s) as Conn);
         }
 
         let raw = transport::dial_transport(&self.transport, dest, None).await?;
@@ -147,7 +148,8 @@ impl Handler {
                 insecure_skip_verify: tls_cfg.allow_insecure,
                 ca_cert_pem: None,
             };
-            return astra_core_transport_tls::tls_connect(raw, &boring_cfg).await;
+            return astra_core_transport_tls::tls_connect(raw, &boring_cfg).await
+                .map(|s| Box::new(s) as Conn);
         }
 
         Ok(raw)
