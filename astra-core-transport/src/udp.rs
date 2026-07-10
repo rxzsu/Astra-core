@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
@@ -22,6 +21,7 @@ pub struct UdpPacket {
 pub struct UdpHub {
     socket: Arc<tokio::net::UdpSocket>,
     rx: mpsc::UnboundedReceiver<UdpPacket>,
+    #[allow(dead_code)]
     recv_orig_dest: bool,
 }
 
@@ -105,6 +105,7 @@ impl UdpDispatcher {
 /// A UDP connection wrapper that implements AsyncRead + AsyncWrite.
 pub struct UdpConn {
     socket: Arc<tokio::net::UdpSocket>,
+    #[allow(dead_code)]
     remote: SocketAddr,
     recv_buf: Vec<u8>,
     recv_pos: usize,
@@ -137,7 +138,7 @@ impl AsyncRead for UdpConn {
         let socket = self.socket.clone();
         tokio::spawn(async move {
             match socket.recv_from(&mut tmp).await {
-                Ok((n, _)) => {
+                Ok((_n, _)) => {
                     waker.wake();
                 }
                 Err(_) => {}

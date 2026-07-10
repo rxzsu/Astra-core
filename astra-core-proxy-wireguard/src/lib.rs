@@ -29,7 +29,7 @@ pub struct DeviceConfig {
 
 impl DeviceConfig {
     fn resolve_endpoint(endpoint: &str) -> Result<String, String> {
-        if let Some((host, port)) = endpoint.rsplit_once(':') {
+        if let Some((host, _port)) = endpoint.rsplit_once(':') {
             if host.parse::<IpAddr>().is_ok() {
                 Ok(endpoint.to_string())
             } else {

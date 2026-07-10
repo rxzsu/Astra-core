@@ -185,7 +185,7 @@ mod windows {
 }
 
 #[cfg(target_os = "windows")]
-use windows::{create_windows_tun, WindowsTun};
+use windows::create_windows_tun;
 
 // ─── Platform stubs ────────────────────────────────────────────────────────
 

@@ -1,7 +1,3 @@
-/// VMess command marshaling/unmarshaling.
-/// Go equivalent: `proxy/vmess/encoding/commands.go`
-
-use std::any::Any;
 
 pub const COMMAND_AUTH_LEN: usize = 4;
 

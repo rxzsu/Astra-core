@@ -176,6 +176,7 @@ pub struct Bridge {
 }
 
 struct BridgeWorkerState {
+    #[allow(dead_code)]
     worker: Arc<BridgeWorker>,
     connections: Arc<AtomicU32>,
     closed: Arc<AtomicBool>,
@@ -200,7 +201,7 @@ impl Bridge {
         let tag = self.tag.clone();
         let running = self.running.clone();
         let workers = self.workers.clone();
-        let monitor_task = self.monitor_task.clone();
+        let _monitor_task = self.monitor_task.clone();
 
         // Start monitor for auto-scaling
         let mworkers = workers.clone();
@@ -269,6 +270,7 @@ pub struct PortalWorker {
     pub client: Arc<MuxClient<tokio::io::DuplexStream, tokio::io::DuplexStream>>,
     draining: bool,
     heartbeat_task: Option<tokio::task::JoinHandle<()>>,
+    #[allow(dead_code)]
     activity: Arc<ActivityTimer>,
 }
 

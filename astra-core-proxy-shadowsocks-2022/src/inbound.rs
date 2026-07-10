@@ -115,11 +115,12 @@ impl RelayInbound {
 
     /// Try each destination key to authenticate and get the first successful match.
     /// Returns (matched_dest, decrypted_chunk).
-    fn try_each_key(&self, conn: &mut Conn, data: &[u8]) -> Option<(RelayDestination, Vec<u8>)> {
+    #[allow(dead_code)]
+    fn try_each_key(&self, _conn: &mut Conn, data: &[u8]) -> Option<(RelayDestination, Vec<u8>)> {
         for dest in &self.destinations {
-            let mut nonce = vec![0u8; self.cipher.nonce_size()];
+            let _nonce = vec![0u8; self.cipher.nonce_size()];
             // Clone the data for each attempt
-            let mut test_buf = data.to_vec();
+            let _test_buf = data.to_vec();
             // Attempt decryption — in a real implementation this would use the AEAD
             // to authenticate. For now, try to read the chunk and verify it parses.
             if let Ok(chunk) = parse_target_from_bytes(data) {

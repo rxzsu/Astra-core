@@ -149,7 +149,7 @@ fn ip_to_le_u32(ip: std::net::IpAddr) -> u32 {
 
 #[cfg(target_os = "windows")]
 fn find_process_windows(
-    network: &str,
+    _network: &str,
     _src_ip: &str,
     _src_port: u16,
 ) -> Result<ProcessInfo, String> {

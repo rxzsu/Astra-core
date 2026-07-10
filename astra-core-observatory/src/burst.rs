@@ -175,6 +175,7 @@ impl HealthPingRTTS {
 
 struct PingClient {
     dispatcher_config: ProbeMethod,
+    #[allow(dead_code)]
     tag: String,
     connect_timeout: Duration,
 }

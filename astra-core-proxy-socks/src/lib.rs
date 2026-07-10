@@ -171,7 +171,7 @@ async fn read_socks5_addr_port(conn: &mut Conn) -> Result<(Address, Port), Strin
 }
 
 async fn tcp_connect(
-    config: &SocksConfig,
+    _config: &SocksConfig,
     conn: &mut Conn,
     session: &Session,
     dispatcher: Arc<dyn Dispatcher>,
@@ -216,7 +216,7 @@ async fn udp_associate(
         return Err("UDP not enabled".into());
     }
 
-    let udp_enabled = config.udp_enabled;
+    let _udp_enabled = config.udp_enabled;
     let cone = config.cone;
 
     let outbound_session = {
